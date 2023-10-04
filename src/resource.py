@@ -1,7 +1,7 @@
 """
-json packet contains an identity including all of the permissions of the identity as well as a request
-    for some action or access
-if the json packet says that the person has permission to do that action, do the action and respond
-    along the TCP socket with another json packet containing the response
+json packet contains an identity from the authentication server which has been proved
+the identity has to be looked up in a table of permissions
+if the person can perform the request they are making according to the table, respond with the
+    answer to the request, otherwise respond with an access denied packet.
 """
 
