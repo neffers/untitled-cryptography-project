@@ -31,8 +31,8 @@ if __name__ == "__main__":
     res_ip = "127.0.0.1"
     #res_port = raw_input("Enter resource server port: ")
     res_port = "80086"
-    #request = raw_input("What is your request? (show leaderboard): ")
-    request = "show leaderboard"
+    #request_type = raw_input("What is your request type? (show leaderboard): ")
+    request_type = "show leaderboard"
 
     # AF_INET type connections use a tuple of (IP, port)
     auth = socket.socket()
@@ -40,7 +40,7 @@ if __name__ == "__main__":
     request = request_token(identity)
     auth.send(json.dumps(request))
     buffer = bytearray()
-    response_bytes = auth.recv_into(buffer)
+    auth.recv_into(buffer)
     response = json.loads(buffer)
     # here is where we should check for errors
     token = response["token"]
@@ -49,7 +49,7 @@ if __name__ == "__main__":
     request = request_show_leaderboards(identity, token)
     res.send(json.dumps(request))
     buffer = bytearray()
-    response_bytes = res.recv_into(buffer)
+    res.recv_into(buffer)
     response = json.loads(buffer)
     # here is where we should check for errors
     print(response["string"])
