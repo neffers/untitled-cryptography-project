@@ -21,12 +21,18 @@ def request_show_leaderboards(identity, token):
 
 if __name__ == "__main__":
     print("Welcome to the leaderboard client application")
-    identity = raw_input("Enter identity: ")
-    auth_ip = raw_input("Enter authentication server IP: ")
-    auth_port = raw_input("Enter authentication server port: ")
-    res_ip = raw_input("Enter resource server IP: ")
-    res_port = raw_input("Enter resource server port: ")
-    request = raw_input("What is your request? (show leaderboard): ")
+    #identity = raw_input("Enter identity: ")
+    identity = "Crop Topographer"
+    #auth_ip = raw_input("Enter authentication server IP: ")
+    auth_ip = "127.0.0.1"
+    #auth_port = raw_input("Enter authentication server port: ")
+    auth_port = "80085"
+    #res_ip = raw_input("Enter resource server IP: ")
+    res_ip = "127.0.0.1"
+    #res_port = raw_input("Enter resource server port: ")
+    res_port = "80086"
+    #request = raw_input("What is your request? (show leaderboard): ")
+    request = "show leaderboard"
 
     # AF_INET type connections use a tuple of (IP, port)
     auth = socket.socket()
