@@ -12,31 +12,41 @@ or you can quit the client application
 
 import socket
 import json
+import time
+
 
 def request_token(identity):
     return {"type": "token", "identity": identity}
 
+
 def request_show_leaderboards(identity, token):
     return {"type": "show_leaderboards", "identity": identity, "token": token}
 
+
 if __name__ == "__main__":
     print("Welcome to the leaderboard client application")
-    #identity = input("Enter identity: ")
+    # identity = input("Enter identity: ")
     identity = "Crop Topographer"
-    #auth_ip = input("Enter authentication server IP: ")
-    auth_ip = "127.0.0.1"
-    #auth_port = input("Enter authentication server port: ")
+    # auth_ip = input("Enter authentication server IP: ")
+    auth_ip = socket.gethostbyname(socket.gethostname())
+    # auth_port = input("Enter authentication server port: ")
     auth_port = "8085"
-    #res_ip = input("Enter resource server IP: ")
-    res_ip = "127.0.0.1"
-    #res_port = input("Enter resource server port: ")
+    # res_ip = input("Enter resource server IP: ")
+    res_ip = socket.gethostbyname(socket.gethostname())
+    # res_port = input("Enter resource server port: ")
     res_port = "8086"
-    #request_type = input("What is your request type? (show leaderboard): ")
+    # request_type = input("What is your request type? (show leaderboard): ")
     request_type = "show leaderboard"
 
     # AF_INET type connections use a tuple of (IP, port)
     auth = socket.socket()
-    auth.connect((auth_ip, int(auth_port)))
+    while True:
+        try:
+            auth.connect((auth_ip, int(auth_port)))
+            break
+        except (ConnectionRefusedError, OSError):
+            print("Connection to Authentication server failed, trying again in 5 seconds...")
+            time.sleep(5)
     request = request_token(identity)
     auth.send(json.dumps(request))
     buffer = bytearray()
@@ -45,7 +55,13 @@ if __name__ == "__main__":
     # here is where we should check for errors
     token = response["token"]
     res = socket.socket()
-    res.connect((res_ip, res_port))
+    while True:
+        try:
+            res.connect((res_ip, int(res_port)))
+            break
+        except (ConnectionRefusedError, OSError):
+            print("Connection to Resource server failed, trying again in 5 seconds...")
+            time.sleep(5)
     request = request_show_leaderboards(identity, token)
     res.send(json.dumps(request))
     buffer = bytearray()
