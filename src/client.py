@@ -10,9 +10,9 @@ you can then make another request using that same AS response (which violates co
 or you can quit the client application
 """
 
-import socket
+import asyncio
 import json
-import time
+# import time  # was used for sleeping before retrying connection
 
 
 def request_token(identity):
@@ -23,61 +23,49 @@ def request_show_leaderboards(identity, token):
     return {"type": "show_leaderboards", "identity": identity, "token": token}
 
 
-def main():
+async def main():
     print("Welcome to the leaderboard client application")
     # identity = input("Enter identity: ")
     identity = "Crop Topographer"
     # auth_ip = input("Enter authentication server IP: ")
-    auth_ip = socket.gethostbyname(socket.gethostname())
+    auth_ip = "127.0.0.1"
     # auth_port = input("Enter authentication server port: ")
     auth_port = "8085"
     # res_ip = input("Enter resource server IP: ")
-    res_ip = socket.gethostbyname(socket.gethostname())
+    res_ip = "127.0.0.1"
     # res_port = input("Enter resource server port: ")
     res_port = "8086"
     # request_type = input("What is your request type? (show leaderboard): ")
     request_type = "show leaderboard"
 
-    # AF_INET type connections use a tuple of (IP, port)
-    auth = socket.socket()
-    while True:
-        try:
-            # TODO I don't think this actually works
-            auth.connect((auth_ip, int(auth_port)))
-            break
-        except (ConnectionRefusedError, OSError):
-            print("Connection to Authentication server failed, trying again in 5 seconds...")
-            time.sleep(5)
+    print("trying to connect to {}:{}".format(auth_ip, auth_port))
+    reader, writer = await asyncio.open_connection(auth_ip, int(auth_port))
+    print("connection successful")
+    # TODO what happens if auth server not connecting?
     request = request_token(identity)
-    print("sending "+json.dumps(request))
-    auth.send(str.encode(json.dumps(request)))
-    buffer = bytearray()
-    while True:
-        try:
-            auth.recv_into(buffer)
-            print("received " + str(buffer))
-            response = json.loads(buffer)
-            break
-        except json.decoder.JSONDecodeError:
-            print("malformed packet received")
-    # here is where we should check for errors
+    print("writing "+json.dumps(request))
+    writer.write(bytes(json.dumps(request) + "\n", "utf-8"))
+    await writer.drain()
+    print("write successful, reading...")
+    response_data = await reader.read()
+    response = json.loads(response_data.decode())
+    # TODO here is where we should check for errors
     token = response["token"]
-    res = socket.socket()
-    while True:
-        try:
-            res.connect((res_ip, int(res_port)))
-            break
-        except (ConnectionRefusedError, OSError):
-            print("Connection to Resource server failed, trying again in 5 seconds...")
-            time.sleep(5)
+
+    reader, writer = await asyncio.open_connection(res_ip, int(res_port))
+    # TODO what happens if res server not connecting?
     request = request_show_leaderboards(identity, token)
-    res.send(json.dumps(request))
-    buffer = bytearray()
-    res.recv_into(buffer)
-    response = json.loads(buffer)
-    # here is where we should check for errors
-    print(response["string"])
+    writer.write(bytes(json.dumps(request) + "\n", "utf-8"))
+    await writer.drain()
+    response_data = await reader.readline()
+    response = json.loads(response_data.decode())
+    # TODO here is where we should check for errors
+    string = response["string"]
+    print(string)
+
+    writer.close()
+    await writer.wait_closed()
 
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())
