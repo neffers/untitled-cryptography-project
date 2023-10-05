@@ -23,7 +23,7 @@ def request_show_leaderboards(identity, token):
     return {"type": "show_leaderboards", "identity": identity, "token": token}
 
 
-if __name__ == "__main__":
+def main():
     print("Welcome to the leaderboard client application")
     # identity = input("Enter identity: ")
     identity = "Crop Topographer"
@@ -42,16 +42,24 @@ if __name__ == "__main__":
     auth = socket.socket()
     while True:
         try:
+            # TODO I don't think this actually works
             auth.connect((auth_ip, int(auth_port)))
             break
         except (ConnectionRefusedError, OSError):
             print("Connection to Authentication server failed, trying again in 5 seconds...")
             time.sleep(5)
     request = request_token(identity)
-    auth.send(json.dumps(request))
+    print("sending "+json.dumps(request))
+    auth.send(str.encode(json.dumps(request)))
     buffer = bytearray()
-    auth.recv_into(buffer)
-    response = json.loads(buffer)
+    while True:
+        try:
+            auth.recv_into(buffer)
+            print("received " + str(buffer))
+            response = json.loads(buffer)
+            break
+        except json.decoder.JSONDecodeError:
+            print("malformed packet received")
     # here is where we should check for errors
     token = response["token"]
     res = socket.socket()
@@ -69,3 +77,7 @@ if __name__ == "__main__":
     response = json.loads(buffer)
     # here is where we should check for errors
     print(response["string"])
+
+
+if __name__ == "__main__":
+    main()
