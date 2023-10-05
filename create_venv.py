@@ -8,8 +8,8 @@ from pathlib import Path
 
 ver = sys.version_info
 
-if not (ver.major >= 3 and ver.minor >= 11):
-    print("Need at least version 3.11")
+if not (ver.major >= 3 and ver.minor >= 8):
+    print("Need at least version 3.8")
     print(f"Your current python version is {sys.version}")
     exit()
 
