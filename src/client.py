@@ -20,7 +20,7 @@ def request_token(identity):
 
 
 def request_show_leaderboards(identity, token):
-    return {"type": "show_leaderboards", "identity": identity, "token": token}
+    return {"type": "show leaderboards", "identity": identity, "token": token}
 
 
 async def main():
@@ -35,8 +35,8 @@ async def main():
     res_ip = "127.0.0.1"
     # res_port = input("Enter resource server port: ")
     res_port = "8086"
-    # request_type = input("What is your request type? (show leaderboard): ")
-    request_type = "show leaderboard"
+    # request_type = input("What is your request type? (show leaderboards): ")
+    request_type = "show leaderboards"
 
     print("trying to connect to {}:{}".format(auth_ip, auth_port))
     reader, writer = await asyncio.open_connection(auth_ip, int(auth_port))
