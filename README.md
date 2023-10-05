@@ -25,6 +25,4 @@ you can then make another request using that same AS response (which violates co
 or you can quit the client application  
 
 types of requests and what data they act on:  
-//TODO  
-permissions:  
-//TODO  
+//TODO
