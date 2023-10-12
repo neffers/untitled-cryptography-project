@@ -1,0 +1,28 @@
+{
+    "servers": [
+        {
+            "name": "auth3",
+            "address": "www.pitt3.edu"
+        },
+        {
+            "name": "auth",
+            "address": "www.pitt.edu"
+        },
+        {
+            "name": "auth2",
+            "address": "www.pitt2.edu"
+        },
+        {
+            "name": "gooby wooby",
+            "address": "www.bing.com"
+        },
+        {
+            "name": "errmmm",
+            "address": "4.com"
+        },
+        {
+            "name": "yahoo",
+            "address": "yahoo.com"
+        }
+    ]
+}
