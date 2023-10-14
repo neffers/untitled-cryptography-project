@@ -25,7 +25,7 @@ def initialize_database() -> dict:
     # Initialize DB either from file or with defaults
     with open(db_filename, "r") as db_file:
         try:
-            db = json.load(db_file)
+            db_to_return = json.load(db_file)
             print("Successfully loaded database from file.")
         except json.decoder.JSONDecodeError:
             print("No database found! Initializing new database. First user to connect will be granted admin.")
@@ -40,13 +40,13 @@ def initialize_database() -> dict:
                         "date" referring to submission time.
             As functionality is needed, the database can be added to from here.
             '''
-            db = {
+            db_to_return = {
                 "users": [],
                 "databases": [],
             }
             # Don't bother writing to file yet, wait for someone to connect
             # json.dump(db, db_file)
-    return db
+    return db_to_return
 
 
 def response_show_leaderboards(string):
