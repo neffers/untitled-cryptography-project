@@ -6,11 +6,11 @@ if the person can perform the request they are making according to the table, re
 """
 import socketserver
 import json
-from enum import Enum, auto
+from enum import IntEnum, auto
 from enums import ResourceRequestType
 
 
-class UserClass(Enum):
+class UserClass(IntEnum):
     User = auto()
     Moderator = auto()
     Administrator = auto()
