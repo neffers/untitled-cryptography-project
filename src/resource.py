@@ -6,6 +6,7 @@ if the person can perform the request they are making according to the table, re
 """
 import socketserver
 import json
+from datetime import datetime
 from enum import IntEnum, auto
 from enums import ResourceRequestType
 
@@ -53,40 +54,73 @@ def initialize_database() -> dict:
     return db_to_return
 
 
-def response_show_leaderboards():
-    # TODO trim response based on what you should be able to see
+def return_bad_request(further_info=""):
     return {
-        "type": ResourceRequestType.ShowLeaderboards,
-        "success": True,
-        "data": db["databases"]
+        "success": False,
+        "data": "Malformed request. "+further_info,
     }
 
 
-def response_show_one_leaderboard(leaderboard_id):
-    leaderboard_to_return = None
-    for leaderboard in db["databases"]:
-        if leaderboard["id"] == leaderboard_id:
-            leaderboard_to_return = leaderboard
-    # TODO account for leaderboard visibility according to user group
-    return {
-        "type": ResourceRequestType.ShowOneLeaderboard,
-        "success": True,
-        "data": leaderboard_to_return
-    }
+def handle_request(request):
+    # Every request needs to have these
+    try:
+        type = request["type"]
+        identity = request["identity"]
+        token = request["token"]
+    except KeyError:
+        return return_bad_request("Didn't include request type, identity, or token")
 
+    if type is ResourceRequestType.ShowLeaderboards:
+        # TODO trim response based on what you should be able to see
+        return {
+            "success": True,
+            "data": db["databases"]
+        }
 
-def response_create_leaderboard(leaderboard_name):
-    new_leaderboard = {
-        "id": len(db["databases"]),
-        "name": leaderboard_name,
-        "entries": []
-    }
-    db["databases"].append(new_leaderboard)
-    return {
-        "type": ResourceRequestType.CreateLeaderboard,
-        "success": True,
-        "data": new_leaderboard
-    }
+    if type is ResourceRequestType.ShowOneLeaderboard:
+        # TODO account for leaderboard visibility according to user group
+        try:
+            leaderboard_id = request["leaderboard_id"]
+            return {
+                "success": True,
+                "data": db["databases"][leaderboard_id]
+            }
+        except KeyError:
+            return return_bad_request("Didn't include leaderboard id, or requested invalid leaderboard")
+
+    if type is ResourceRequestType.CreateLeaderboard:
+        # TODO account for user roles, check for duplicate names?
+        try:
+            new_leaderboard = {
+                "id": len(db["databases"]),
+                "name": request["leaderboard_name"],
+                "entries": []
+            }
+            db["databases"].append(new_leaderboard)
+            write_database_to_file()
+            return {
+                "success": True,
+                "data": new_leaderboard
+            }
+        except KeyError:
+            return return_bad_request("Didn't include new leaderboard name")
+
+    if type is ResourceRequestType.AddEntry:
+        # TODO check user privileges
+        try:
+            leaderboard_id = request["leaderboard_id"]
+            new_entry = {
+                "name": identity,
+                "score": request["score"],
+                "date": datetime.utcnow(),
+            }
+            db["databases"][leaderboard_id].append(new_entry)
+            return {
+                "success": True,
+                "data": db["databases"][leaderboard_id],
+            }
+        except KeyError:
+            return return_bad_request("Bad leaderboard ID, or didn't include score.")
 
 
 class Handler(socketserver.StreamRequestHandler):
@@ -112,15 +146,8 @@ class Handler(socketserver.StreamRequestHandler):
             # Save changes immediately
             write_database_to_file()
 
-        if request["type"] == ResourceRequestType.ShowLeaderboards:
-            response = response_show_leaderboards("this is the leaderboard!!!")
-            self.wfile.write(json.dumps(response).encode() + b"\n")
-        elif request["type"] == ResourceRequestType.ShowOneLeaderboard:
-            response = response_show_one_leaderboard(request["leaderboard_id"])
-            self.wfile.write(json.dumps(response).encode() + b"\n")
-        elif request["type"] == ResourceRequestType.CreateLeaderboard:
-            response = response_create_leaderboard(request["requested_name"])
-            self.wfile.write(json.dumps(response).encode() + b"\n")
+        response = handle_request(request)
+        self.wfile.write(json.dumps(response).encode() + b"\n")
 
 
 if __name__ == "__main__":
