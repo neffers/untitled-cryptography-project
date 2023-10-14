@@ -23,29 +23,33 @@ def write_database_to_file():
 
 def initialize_database() -> dict:
     # Initialize DB either from file or with defaults
-    with open(db_filename, "r") as db_file:
-        try:
+    try:
+        with open(db_filename, "r") as db_file:
             db_to_return = json.load(db_file)
             print("Successfully loaded database from file.")
-        except json.decoder.JSONDecodeError:
-            print("No database found! Initializing new database. First user to connect will be granted admin.")
-            '''
-            This is effectively the "standard database schema".
-            At the top level, the resource server knows about "users" and "databases"
-            Each of those is a list with entries.
-                Each user should be a dict with "identity", "token", and "class" (admin, mod, normal) in that order.
-                Each database should have a numerical identifier ("id"), a "name", and a list [] of "entries".
-                # TODO dbs should have privacy associated with them
-                    Entries should have a "name" (typically associated with a submitting user), "score", a number, and
-                        "date" referring to submission time.
-            As functionality is needed, the database can be added to from here.
-            '''
-            db_to_return = {
-                "users": [],
-                "databases": [],
-            }
-            # Don't bother writing to file yet, wait for someone to connect
-            # json.dump(db, db_file)
+    except json.decoder.JSONDecodeError:
+        print("Could not read db from file. Exiting to avoid corrupting!")
+    except FileNotFoundError:
+        print("No database found! Initializing new database. First user to connect will be granted admin.")
+        # probably not necessary. database will be written to when data is added.
+        #db_file = open(db_filename, "x")
+        '''
+        This is effectively the "standard database schema".
+        At the top level, the resource server knows about "users" and "databases"
+        Each of those is a list with entries.
+            Each user should be a dict with "identity", "token", and "class" (admin, mod, normal) in that order.
+            Each database should have a numerical identifier ("id"), a "name", and a list [] of "entries".
+            # TODO dbs should have privacy associated with them
+                Entries should have a "name" (typically associated with a submitting user), "score", a number, and
+                    "date" referring to submission time.
+        As functionality is needed, the database can be added to from here.
+        '''
+        db_to_return = {
+            "users": [],
+            "databases": [],
+        }
+        # Don't bother writing to file yet, wait for someone to connect
+        # json.dump(db, db_file)
     return db_to_return
 
 
