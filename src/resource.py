@@ -13,7 +13,6 @@ from enums import ResourceRequestType
 
 class UserClass(IntEnum):
     User = auto()
-    Moderator = auto()
     Administrator = auto()
 
 
