@@ -2,7 +2,7 @@
 json packet contains an identity from the authentication server which has been proved
 the identity has to be looked up in a table of permissions
 if the person can perform the request they are making according to the table, respond with the
-    answer to the request, otherwise respond with an access denied packet.
+    answer to the request, otherwise respond with an 'access denied' packet.
 """
 import socketserver
 import json
@@ -39,13 +39,14 @@ class Handler(socketserver.StreamRequestHandler):
         request = json.loads(self.data)
         print("received {} from {}".format(self.data, self.client_address[0]))
         # If the database is currently empty (with no registered users) then the first user to connect becomes the admin
-        if db["users"] is None:
-            admin = (
-                request["identity"],
-                request["token"],
-                UserClass.Administrator
-            )
+        if len(db["users"]) is 0:
+            admin = {
+                "identity": request["identity"],
+                "token": request["token"],
+                "class": UserClass.Administrator
+            }
             db["users"] = [admin]
+            # Save changes immediately
             json.dump(db, db_file)
         if request["type"] == ResourceRequestType.ShowLeaderboards:
             response = response_show_leaderboards("this is the leaderboard!!!")
@@ -62,7 +63,21 @@ if __name__ == "__main__":
     try:
         db = json.load(db_file)
     except json.decoder.JSONDecodeError:
-        db = dict()
+        '''
+        This is effectively the "standard database schema".
+        At the top level, the resource server knows about "users" and "databases"
+        Each of those is a list with entries.
+            Each user should be a dict with "identity", "token", and "class" (admin, mod, normal) in that order.
+            Each database should have a numerical identifier ("id"), a "name", and a list [] of "entries".
+            # TODO dbs should have privacy associated with them
+                Entries should have a "name" (typically associated with a submitting user), "score", a number, and
+                    "date" referring to submission time.
+        As functionality is needed, the database can be added to from here.
+        '''
+        db = {
+            "users": [],
+            "databases": [],
+        }
 
     HOST, PORT = "localhost", 8086
     with socketserver.TCPServer((HOST, PORT), Handler) as server:
