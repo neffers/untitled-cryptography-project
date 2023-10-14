@@ -53,18 +53,25 @@ def initialize_database() -> dict:
     return db_to_return
 
 
-def response_show_leaderboards(string):
+def response_show_leaderboards():
+    # TODO trim response based on what you should be able to see
     return {
         "type": ResourceRequestType.ShowLeaderboards,
-        "string": string
+        "success": True,
+        "data": db["databases"]
     }
 
 
 def response_show_one_leaderboard(leaderboard_id):
-    # TODO account for leaderboard visibility according to user group?
+    leaderboard_to_return = None
+    for leaderboard in db["databases"]:
+        if leaderboard["id"] == leaderboard_id:
+            leaderboard_to_return = leaderboard
+    # TODO account for leaderboard visibility according to user group
     return {
         "type": ResourceRequestType.ShowOneLeaderboard,
-        "data": db["leaderboards"][leaderboard_id]
+        "success": True,
+        "data": leaderboard_to_return
     }
 
 
