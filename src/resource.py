@@ -36,7 +36,7 @@ def initialize_database() -> dict:
         #db_file = open(db_filename, "x")
         '''
         This is effectively the "standard database schema".
-        At the top level, the resource server knows about "users" and "databases"
+        At the top level, the resource server knows about "users" and "leaderboards"
         Each of those is a list with entries.
             Each user should be a dict with "identity", "token", and "class" (admin, mod, normal) in that order.
             Each database should have a numerical identifier ("id"), a "name", and a list [] of "entries".
@@ -47,7 +47,7 @@ def initialize_database() -> dict:
         '''
         db_to_return = {
             "users": [],
-            "databases": [],
+            "leaderboards": [],
         }
         # Don't bother writing to file yet, wait for someone to connect
         # json.dump(db, db_file)
@@ -74,7 +74,7 @@ def handle_request(request):
         # TODO trim response based on what you should be able to see
         return {
             "success": True,
-            "data": db["databases"]
+            "data": db["leaderboards"]
         }
 
     if request_type == ResourceRequestType.ShowOneLeaderboard:
@@ -83,7 +83,7 @@ def handle_request(request):
             leaderboard_id = request["leaderboard_id"]
             return {
                 "success": True,
-                "data": db["databases"][leaderboard_id]
+                "data": db["leaderboards"][leaderboard_id]
             }
         except KeyError:
             return return_bad_request("Didn't include leaderboard id, or requested invalid leaderboard")
@@ -92,11 +92,11 @@ def handle_request(request):
         # TODO account for user roles, check for duplicate names?
         try:
             new_leaderboard = {
-                "id": len(db["databases"]),
+                "id": len(db["leaderboards"]),
                 "name": request["leaderboard_name"],
                 "entries": []
             }
-            db["databases"].append(new_leaderboard)
+            db["leaderboards"].append(new_leaderboard)
             write_database_to_file()
             return {
                 "success": True,
@@ -114,11 +114,11 @@ def handle_request(request):
                 "score": request["score"],
                 "date": datetime.utcnow(),
             }
-            db["databases"][leaderboard_id].append(new_entry)
+            db["leaderboards"][leaderboard_id].append(new_entry)
             write_database_to_file()
             return {
                 "success": True,
-                "data": db["databases"][leaderboard_id],
+                "data": db["leaderboards"][leaderboard_id],
             }
         except KeyError:
             return return_bad_request("Bad leaderboard ID, or didn't include score.")
