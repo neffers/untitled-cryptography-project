@@ -73,8 +73,13 @@ class Handler(socketserver.StreamRequestHandler):
         print("handling packet")
         self.data = self.rfile.readline().strip()
         print("data received")
-        request = json.loads(self.data)
         print("received {} from {}".format(self.data, self.client_address[0]))
+        try:
+            request = json.loads(self.data)
+        except json.decoder.JSONDecodeError:
+            print("Could not interpret packet!")
+            return
+
         # If the database is currently empty (with no registered users) then the first user to connect becomes the admin
         if len(db["users"]) == 0:
             admin = {
