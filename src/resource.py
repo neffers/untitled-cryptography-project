@@ -16,6 +16,39 @@ class UserClass(Enum):
     Administrator = auto()
 
 
+def write_database_to_file():
+    with open(db_filename, "w") as db_file:
+        json.dump(db, db_file)
+
+
+def initialize_database() -> dict:
+    # Initialize DB either from file or with defaults
+    with open(db_filename, "r") as db_file:
+        try:
+            db = json.load(db_file)
+            print("Successfully loaded database from file.")
+        except json.decoder.JSONDecodeError:
+            print("No database found! Initializing new database. First user to connect will be granted admin.")
+            '''
+            This is effectively the "standard database schema".
+            At the top level, the resource server knows about "users" and "databases"
+            Each of those is a list with entries.
+                Each user should be a dict with "identity", "token", and "class" (admin, mod, normal) in that order.
+                Each database should have a numerical identifier ("id"), a "name", and a list [] of "entries".
+                # TODO dbs should have privacy associated with them
+                    Entries should have a "name" (typically associated with a submitting user), "score", a number, and
+                        "date" referring to submission time.
+            As functionality is needed, the database can be added to from here.
+            '''
+            db = {
+                "users": [],
+                "databases": [],
+            }
+            # Don't bother writing to file yet, wait for someone to connect
+            # json.dump(db, db_file)
+    return db
+
+
 def response_show_leaderboards(string):
     return {
         "type": ResourceRequestType.ShowLeaderboards,
@@ -39,15 +72,16 @@ class Handler(socketserver.StreamRequestHandler):
         request = json.loads(self.data)
         print("received {} from {}".format(self.data, self.client_address[0]))
         # If the database is currently empty (with no registered users) then the first user to connect becomes the admin
-        if len(db["users"]) is 0:
+        if len(db["users"]) == 0:
             admin = {
                 "identity": request["identity"],
                 "token": request["token"],
                 "class": UserClass.Administrator
             }
-            db["users"] = [admin]
+            db["users"].append(admin)
             # Save changes immediately
-            json.dump(db, db_file)
+            write_database_to_file()
+
         if request["type"] == ResourceRequestType.ShowLeaderboards:
             response = response_show_leaderboards("this is the leaderboard!!!")
             self.wfile.write(json.dumps(response).encode() + b"\n")
@@ -59,25 +93,8 @@ class Handler(socketserver.StreamRequestHandler):
 if __name__ == "__main__":
     # TODO get this from command line or config file?
     db_filename = "res_db"
-    db_file = open(db_filename, "w")
-    try:
-        db = json.load(db_file)
-    except json.decoder.JSONDecodeError:
-        '''
-        This is effectively the "standard database schema".
-        At the top level, the resource server knows about "users" and "databases"
-        Each of those is a list with entries.
-            Each user should be a dict with "identity", "token", and "class" (admin, mod, normal) in that order.
-            Each database should have a numerical identifier ("id"), a "name", and a list [] of "entries".
-            # TODO dbs should have privacy associated with them
-                Entries should have a "name" (typically associated with a submitting user), "score", a number, and
-                    "date" referring to submission time.
-        As functionality is needed, the database can be added to from here.
-        '''
-        db = {
-            "users": [],
-            "databases": [],
-        }
+
+    db = initialize_database()
 
     HOST, PORT = "localhost", 8086
     with socketserver.TCPServer((HOST, PORT), Handler) as server:
