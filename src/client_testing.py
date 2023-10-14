@@ -27,12 +27,6 @@ class Server:
         with open(filename, 'w') as f:
             json.dump(sdata, f, indent = 4)
 
-# BASIC TESTING DONE FOR SAVE FEATURE
-# serv1 = Server("auth", "www.pitt.edu")
-# serv1.ssave("client_testing.json")
-# serv2 = Server("auth2", "www.pitt2.edu")
-# serv2.ssave("client_testing.json")
-
 # CHECK IF JSON FILE OF SERVERS EXISTS
 path = './client_testing.json'
 fcheck = os.path.exists(path)
@@ -43,10 +37,6 @@ if fcheck == False:
         server_dict = {}
         server_dict["servers"] = []
         json.dump(server_dict, f, indent = 4)
-
-# BASIC TESTING DONE FOR SAVE FEATURE (AGAIN)
-# serv1 = Server("auth", "www.pitt.edu")
-# serv1.ssave("client_testing.json")
 
 # GLOBAL SERVER COUNT
 servercount = 0
@@ -124,6 +114,10 @@ def mainoptions():
             newport = input("Give the port to the server.\n")
             newserver = Server(newname, newip, newport)
             newserver.ssave("client_testing.json")
+
+        # EDIT
+
+        # REMOVE
 
         # QUIT
         if key == "Q" or key == 'q':
