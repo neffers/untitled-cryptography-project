@@ -4,21 +4,25 @@ import os.path
 
 # SERVER CLASS FOR STORING
 class Server:
-    def __init__(self, name, address):
+    def __init__(self, name, ip, port):
         self.name = name
-        self.address = address
+        self.ip = ip
+        self.port = port
 
     def rename(self, newname):
         self.name = newname
 
-    def readdress(self, newaddress):
-        self.address = newaddress
+    def readdress(self, newip):
+        self.ip = newip
+
+    def readdress(self, newport):
+        self.port = newport
 
     def ssave(self, filename):
         with open(filename) as f:
             sdata = json.load(f)
             parse = sdata["servers"]
-            newentry = {'name': self.name, 'address': self.address}
+            newentry = {'name': self.name, 'ip': self.ip, 'port': self.port}
             parse.append(newentry)
         with open(filename, 'w') as f:
             json.dump(sdata, f, indent = 4)
@@ -44,13 +48,19 @@ if fcheck == False:
 # serv1 = Server("auth", "www.pitt.edu")
 # serv1.ssave("client_testing.json")
 
+# GLOBAL SERVER COUNT
+servercount = 0
+
 # MAIN FUNCTION
 def maindisplay():
     # CLEAR SCREEN TO BEGIN
     os.system('cls')
 
+    # KEEP TRACK OF SERVER COUNT
+    global servercount
+
     # SET HEADER FOR LIST
-    print("Server List:\n[#]   Name   Address")
+    print("Server List:\n[#]   Name:                   IP:                Port:")
 
     # DISPLAY SERVER LIST
     with open("client_testing.json", "r") as f:
@@ -58,32 +68,75 @@ def maindisplay():
         parse = sdata["servers"]
         count = 1
         for i in parse:
-            print("["+str(count)+"]"+"   "+parse[count-1]['name']+"   "+parse[count-1]['address'])
+            namedisplay = parse[count-1]['name']+"                        "
+            ipdisplay = parse[count-1]['ip']+"                 "
+            namedisplay = namedisplay[:24]
+            ipdisplay = ipdisplay[:19]
+
+
+            print("["+str(count)+"]"+"   "+namedisplay+ipdisplay+parse[count-1]['port'])
             count = count + 1
+            servercount = servercount + 1
 
-# MAIN FUNCTION
+# SWITCH FOR MENU AND SERVER
+connect = False
+
+# MENU INTERFACE
 def mainoptions():
-    # DISPLAY OPTIONS
-    print("\nOptions: \n[C] connect to server \n[A] add server listing \n[E] edit server listing \n[R] remove server listing \n[Q] quit application")
+    global connect
+    while connect == False:
 
-    # TAKE INPUT
-    key = input("\nPlease choose the corresponding key.\n")
+        # DISPLAY MAIN STUFF
+        maindisplay()
 
-    # CONNECT
-    if key == 'C' or key == 'c':
-        print("conntect")
+        # IF NO AUTH SERVER, ADD IMMEDIATELY
+        if servercount == 0:
+            print("\nYou do not yet have an auth server. Please add one now.")
+            newname = input("Give a name for the server. Please use only 20 characters or less\n")
+            if len(newname) > 20:
+                newname = newname[:20]
+            newip = input("Give the ip to the server.\n")
+            newport = input("Give the port to the server.\n")
+            newserver = Server(newname, newip, newport)
+            newserver.ssave("client_testing.json")
 
-    # ADD
-    if key == 'A' or key == 'a':
-        newname = input("Give a name for the server.\n")
-        newaddress = input("Give the address to the server.\n")
-        newserver = Server(newname, newaddress)
-        newserver.ssave("client_testing.json")
+            maindisplay()
 
-    # QUIT
-    if key == "Q" or key == 'q':
-        quit()
+        # DISPLAY OPTIONS
+        print("\nOptions: \n[C] connect to server \n[A] add server listing \n[E] edit server listing \n[R] remove server listing \n[Q] quit application")
 
+        # TAKE INPUT
+        key = input("\nPlease choose the corresponding key.\n")
+
+        # CONNECT
+        if key == 'C' or key == 'c':
+            print("connect")
+
+            # SWITCH BOOLEAN FOR SERVER INTERFACE
+            connect = True
+
+        # ADD
+        if key == 'A' or key == 'a':
+            newname = input("Give a name for the server. Please use only 20 characters or less\n")
+            if len(newname) > 20:
+                newname = newname[:20]
+            newip = input("Give the ip to the server.\n")
+            newport = input("Give the port to the server.\n")
+            newserver = Server(newname, newip, newport)
+            newserver.ssave("client_testing.json")
+
+        # QUIT
+        if key == "Q" or key == 'q':
+            quit()
+
+# SERVER INTERFACE - ADD IN 'client.py' ACCORDINGLY
+def mainserver():
+    
+    # END BY SWITCHING CONNECT BOOLEAN OFF, STARTING MENU INTERFACE
+    connect = False
+
+# MAIN MAIN
+# SWITCHES BETWEEN INTERFACES VIA BOOLEAN 'connect' 
 while 1 == 1:
-    maindisplay()
     mainoptions()
+    mainserver()
