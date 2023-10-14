@@ -1,3 +1,4 @@
 .idea
 venv
 res_db
+/src/__pycache__
