@@ -115,6 +115,7 @@ def handle_request(request):
                 "date": datetime.utcnow(),
             }
             db["databases"][leaderboard_id].append(new_entry)
+            write_database_to_file()
             return {
                 "success": True,
                 "data": db["databases"][leaderboard_id],
