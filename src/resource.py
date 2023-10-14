@@ -16,6 +16,14 @@ class UserClass(IntEnum):
     Administrator = auto()
 
 
+class Permissions(IntEnum):
+    # we want these to have a specific hierarchy
+    NoAccess = 0
+    Read = 1
+    Write = 2
+    Moderate = 3
+
+
 def write_database_to_file():
     with open(db_filename, "w") as db_file:
         json.dump(db, db_file)
@@ -32,16 +40,22 @@ def initialize_database() -> dict:
     except FileNotFoundError:
         print("No database found! Initializing new database. First user to connect will be granted admin.")
         # probably not necessary. database will be written to when data is added.
-        #db_file = open(db_filename, "x")
+        # db_file = open(db_filename, "x")
         '''
         This is effectively the "standard database schema".
-        At the top level, the resource server knows about "users" and "leaderboards"
-        Each of those is a list with entries.
-            Each user should be a dict with "identity", "token", and "class" (admin, mod, normal) in that order.
-            Each database should have a numerical identifier ("id"), a "name", and a list [] of "entries".
-            # TODO dbs should have privacy associated with them
-                Entries should have a "name" (typically associated with a submitting user), "score", a number, and
-                    "date" referring to submission time.
+        At the top level, the resource server knows about "users", "groups" and "leaderboards", each a list.
+            Each user should be a dict with:
+                "identity",
+                "token",
+                "class" (admin, mod, normal),
+                and "permissions", a list [] of dicts containing:
+                    "id", the associated leaderboard,
+                    "permissions": a Permission enum
+            Each leaderboard should have:
+                "id", a numerical identifier corresponding to position in list,
+                "name",
+                "visible", a default visibility,
+                "entries", a list [] of entries,
         As functionality is needed, the database can be added to from here.
         '''
         db_to_return = {
@@ -56,7 +70,7 @@ def initialize_database() -> dict:
 def return_bad_request(further_info=""):
     return {
         "success": False,
-        "data": "Malformed request. "+further_info,
+        "data": "Malformed request. " + further_info,
     }
 
 
@@ -93,7 +107,8 @@ def handle_request(request):
             new_leaderboard = {
                 "id": len(db["leaderboards"]),
                 "name": request["leaderboard_name"],
-                "entries": []
+                "entries": [],
+                "visible": request["leaderboard_visibility"]
             }
             db["leaderboards"].append(new_leaderboard)
             write_database_to_file()
@@ -102,7 +117,7 @@ def handle_request(request):
                 "data": new_leaderboard
             }
         except KeyError:
-            return return_bad_request("Didn't include new leaderboard name")
+            return return_bad_request("Didn't include new leaderboard name, or leaderboard visibility")
 
     if request_type == ResourceRequestType.AddEntry:
         # TODO check user privileges
@@ -133,6 +148,7 @@ class Handler(socketserver.StreamRequestHandler):
             request = json.loads(self.data)
         except json.decoder.JSONDecodeError:
             print("Could not interpret packet!")
+            # TODO probably needs to send a packet indicating failure
             return
 
         # If the database is currently empty (with no registered users) then the first user to connect becomes the admin
@@ -140,7 +156,8 @@ class Handler(socketserver.StreamRequestHandler):
             admin = {
                 "identity": request["identity"],
                 "token": request["token"],
-                "class": UserClass.Administrator
+                "class": UserClass.Administrator,
+                "permissions": [],  # Shouldn't matter since admin class should overrule all permissions
             }
             db["users"].append(admin)
             # Save changes immediately
