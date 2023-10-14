@@ -71,6 +71,7 @@ async def main():
     reader, writer = await asyncio.open_connection(res_ip, int(res_port))
     # TODO what happens if res server not connecting?
     request = request_show_leaderboards(identity, token)
+    print("writing "+json.dumps(request))
     writer.write(bytes(json.dumps(request) + "\n", "utf-8"))
     await writer.drain()
     response_data = await reader.readline()
