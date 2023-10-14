@@ -83,6 +83,11 @@ def handle_request(request):
     except KeyError:
         return return_bad_request("Didn't include request type, identity, or token")
 
+    try:
+        user = [user for user in db["users"] if user["identity"] == identity][0]
+    except KeyError:
+        user = None  # User is unregistered, a 'guest'
+
     if request_type == ResourceRequestType.ShowLeaderboards:
         # TODO trim response based on what you should be able to see
         return {
