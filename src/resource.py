@@ -64,20 +64,20 @@ def return_bad_request(further_info=""):
 def handle_request(request):
     # Every request needs to have these
     try:
-        type = request["type"]
+        request_type = request["type"]
         identity = request["identity"]
         token = request["token"]
     except KeyError:
         return return_bad_request("Didn't include request type, identity, or token")
 
-    if type is ResourceRequestType.ShowLeaderboards:
+    if request_type == ResourceRequestType.ShowLeaderboards:
         # TODO trim response based on what you should be able to see
         return {
             "success": True,
             "data": db["databases"]
         }
 
-    if type is ResourceRequestType.ShowOneLeaderboard:
+    if request_type == ResourceRequestType.ShowOneLeaderboard:
         # TODO account for leaderboard visibility according to user group
         try:
             leaderboard_id = request["leaderboard_id"]
@@ -88,7 +88,7 @@ def handle_request(request):
         except KeyError:
             return return_bad_request("Didn't include leaderboard id, or requested invalid leaderboard")
 
-    if type is ResourceRequestType.CreateLeaderboard:
+    if request_type == ResourceRequestType.CreateLeaderboard:
         # TODO account for user roles, check for duplicate names?
         try:
             new_leaderboard = {
@@ -105,7 +105,7 @@ def handle_request(request):
         except KeyError:
             return return_bad_request("Didn't include new leaderboard name")
 
-    if type is ResourceRequestType.AddEntry:
+    if request_type == ResourceRequestType.AddEntry:
         # TODO check user privileges
         try:
             leaderboard_id = request["leaderboard_id"]
@@ -147,6 +147,7 @@ class Handler(socketserver.StreamRequestHandler):
             write_database_to_file()
 
         response = handle_request(request)
+        print("sending {}".format(response))
         self.wfile.write(json.dumps(response).encode() + b"\n")
 
 
