@@ -12,16 +12,32 @@ or you can quit the client application
 
 import asyncio
 import json
+from enums import ResourceRequestType
 # import time  # was used for sleeping before retrying connection
 
 
 def request_token(identity):
-    return {"type": "token", "identity": identity}
+    return {
+        "type": "token",
+        "identity": identity
+    }
 
 
 def request_show_leaderboards(identity, token):
-    return {"type": "show leaderboards", "identity": identity, "token": token}
+    return {
+        "type": ResourceRequestType.ShowLeaderboards,
+        "identity": identity,
+        "token": token
+    }
 
+
+def request_one_leaderboard(identity, token, leaderboard_id):
+    return {
+        "type": ResourceRequestType.ShowOneLeaderboard,
+        "leaderboard_id": leaderboard_id,
+        "identity": identity,
+        "token": token
+    }
 
 async def main():
     print("Welcome to the leaderboard client application")
