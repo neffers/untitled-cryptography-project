@@ -7,3 +7,4 @@ from enum import auto
 class ResourceRequestType(IntEnum):
     ShowLeaderboards = auto()
     ShowOneLeaderboard = auto()
+    CreateLeaderboard = auto()

@@ -68,6 +68,20 @@ def response_show_one_leaderboard(leaderboard_id):
     }
 
 
+def response_create_leaderboard(leaderboard_name):
+    new_leaderboard = {
+        "id": len(db["databases"]),
+        "name": leaderboard_name,
+        "entries": []
+    }
+    db["databases"].append(new_leaderboard)
+    return {
+        "type": ResourceRequestType.CreateLeaderboard,
+        "success": True,
+        "data": new_leaderboard
+    }
+
+
 class Handler(socketserver.StreamRequestHandler):
     def handle(self):
         print("handling packet")
@@ -96,6 +110,9 @@ class Handler(socketserver.StreamRequestHandler):
             self.wfile.write(json.dumps(response).encode() + b"\n")
         elif request["type"] == ResourceRequestType.ShowOneLeaderboard:
             response = response_show_one_leaderboard(request["leaderboard_id"])
+            self.wfile.write(json.dumps(response).encode() + b"\n")
+        elif request["type"] == ResourceRequestType.CreateLeaderboard:
+            response = response_create_leaderboard(request["requested_name"])
             self.wfile.write(json.dumps(response).encode() + b"\n")
 
 
