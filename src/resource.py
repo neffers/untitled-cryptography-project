@@ -137,6 +137,7 @@ def handle_request(request):
         create_admin_command = "INSERT INTO users(identity, token, class) VALUES(?, ?, ?)"
         admin_params = (identity, token, UserClass.Administrator)
         sql_cur.execute(create_admin_command, admin_params)
+        db.commit()
 
     get_user_command = "SELECT * FROM users WHERE identity = ?"
     user = sql_cur.execute(get_user_command, (identity,)).fetchone()
@@ -151,20 +152,18 @@ def handle_request(request):
         insert_user_params = (identity, token, UserClass.User, int(time.time()))
         sql_cur.execute(insert_user_command, insert_user_params)
         user = sql_cur.execute(get_user_command, (identity,)).fetchone()
+    userid = user[0]
 
     if request_type == ResourceRequestType.ShowLeaderboards:
-        leaderboards_to_return = []
-        for leaderboard in db["leaderboards"]:
-            do_append = False
-            if user.get("class") == UserClass.Administrator or leaderboard["visible"]:
-                do_append = True
-            else:
-                permission = get_leaderboard_permission(identity, leaderboard["id"])
-                if permission >= Permissions.Read:
-                    do_append = True
-            if do_append:
-                leaderboards_to_return.append(
-                    {k: leaderboard[k] for k in leaderboard if k not in ("entries", "visible")})
+        get_leaderboards_command = """
+            select l.id, l.name, max(l.default_permission, coalesce(p.permission, 0)) as perm
+            from leaderboards l
+                left join (select * from permissions where user = ?) p on l.id = p.leaderboard
+            where perm >= ?
+        """
+        get_leaderboards_params = (userid, Permissions.Read)
+        sql_cur.execute(get_leaderboards_command, get_leaderboards_params)
+        leaderboards_to_return = sql_cur.fetchall()
         return {
             "success": True,
             "data": leaderboards_to_return
