@@ -2,7 +2,6 @@ import json
 import os
 import os.path
 import asyncio
-from os import system, name
 
 # SERVER CLASS FOR STORING
 class Server:
@@ -45,10 +44,10 @@ servercount = 0
 
 # CLEAR SCREEN TO KEEP CLEAN
 def clear_screen():
-    if name == 'nt':
-        system('cls')
+    if os.name == 'nt':
+        os.system('cls')
     else:
-        system('clear')
+        os.system('clear')
 
 # MAIN FUNCTION
 def maindisplay():
