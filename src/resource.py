@@ -50,7 +50,7 @@ def initialize_database() -> dict:
                 "class" (admin, mod, normal),
                 and "permissions", a list [] of dicts containing:
                     "id", the associated leaderboard,
-                    "permissions": a Permission enum
+                    "level": a Permission enum
             Each leaderboard should have:
                 "id", a numerical identifier corresponding to position in list,
                 "name",
