@@ -67,6 +67,18 @@ def initialize_database() -> dict:
     return db_to_return
 
 
+# Returns Permissions.NoAccess if no permission is found (including if user is a guest)
+def get_leaderboard_permission(identity, leaderboard_id):
+    try:
+        user = [user for user in db["users"] if user["identity"] == identity][0]
+    except KeyError:
+        user = {}  # User is not registered
+    try:
+        return [perm["level"] for perm in user["permissions"] if perm["id"] == leaderboard_id][0]
+    except KeyError:
+        return Permissions.NoAccess
+
+
 def return_bad_request(further_info=""):
     return {
         "success": False,
