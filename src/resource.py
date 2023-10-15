@@ -107,10 +107,7 @@ def handle_request(request):
             if user.get("class") == UserClass.Administrator or leaderboard["visible"]:
                 append = True
             else:
-                try:
-                    permission = [perm["level"] for perm in user["permission"] if perm["id"] == leaderboard["id"]][0]
-                except KeyError:
-                    permission = Permissions.NoAccess
+                permission = get_leaderboard_permission(identity, leaderboard["id"])
                 if permission >= Permissions.Read:
                     append = True
             if append:
@@ -122,15 +119,21 @@ def handle_request(request):
         }
 
     if request_type == ResourceRequestType.ShowOneLeaderboard:
-        # TODO account for leaderboard visibility according to user group
+        # TODO: Trim unverified entries from leaderboard
         try:
             leaderboard_id = request["leaderboard_id"]
-            return {
-                "success": True,
-                "data": db["leaderboards"][leaderboard_id]
-            }
+            leaderboard = db["leaderboards"][leaderboard_id]
         except KeyError:
             return return_bad_request("Didn't include leaderboard id, or requested invalid leaderboard")
+        permission = get_leaderboard_permission(identity, leaderboard_id)
+        if leaderboard["visible"] or permission >= Permissions.Read:
+            return {
+                "success": True,
+                "data": leaderboard
+            }
+        else:
+            # I don't figure it is a problem to tell the user that the leaderboard exists.
+            return return_bad_request("You do not have permission to view that leaderboard.")
 
     if request_type == ResourceRequestType.CreateLeaderboard:
         # TODO account for user roles, check for duplicate names?
