@@ -104,7 +104,7 @@ def handle_request(request):
         leaderboards_to_return = []
         for leaderboard in db["leaderboards"]:
             append = False
-            if user["class"] == UserClass.Administrator or leaderboard["visible"]:
+            if user.get("class") == UserClass.Administrator or leaderboard["visible"]:
                 append = True
             else:
                 try:
