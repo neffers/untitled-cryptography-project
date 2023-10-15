@@ -146,7 +146,8 @@ def handle_request(request):
         insert_user_params = (identity, token, UserClass.User, int(time.time()))
         sql_cur.execute(insert_user_command, insert_user_params)
         user = sql_cur.execute(get_user_command, (identity,)).fetchone()
-    userid = user[0]
+    # Can be used throughout the request handling
+    (userid, identity, token, user_class, user_reg_date) = user
 
     if request_type == ResourceRequestType.ShowLeaderboards:
         # TODO can this be simplified?
@@ -209,23 +210,26 @@ def handle_request(request):
         }
 
     if request_type == ResourceRequestType.CreateLeaderboard:
-        if user["class"] != UserClass.Administrator:
+        if user_class != UserClass.Administrator:
             return return_bad_request("You do not have permission to do that.")
         try:
-            new_leaderboard = {
-                "id": len(db["leaderboards"]),
-                "name": request["leaderboard_name"],
-                "entries": [],
-                "visible": request["leaderboard_visibility"]
-            }
-            db["leaderboards"].append(new_leaderboard)
-            write_database_to_file()
-            return {
-                "success": True,
-                "data": new_leaderboard
-            }
+            new_lb_name = request["leaderboard_name"]
+            new_lb_perm = max(min(request["leaderboard_permission"], Permissions.Moderate), Permissions.NoAccess)
+            new_lb_asc = request["leaderboard_ascending"]
         except KeyError:
-            return return_bad_request("Didn't include new leaderboard name, or leaderboard visibility")
+            return return_bad_request("Didn't include new leaderboard name, default permission, or ascending bool")
+        new_lb_command = """
+            insert into leaderboards(name, creation_date, default_permission, ascending) values(?,?,?,?)
+        """
+        new_lb_params = (new_lb_name, int(time.time()), new_lb_perm, new_lb_asc)
+        sql_cur.execute(new_lb_command, new_lb_params)
+        db.commit()
+        sql_cur.execute("select * from leaderboards order by id desc")
+        new_lb = sql_cur.fetchone()
+        return {
+            "success": True,
+            "data": new_lb,
+        }
 
     if request_type == ResourceRequestType.AddEntry:
         try:
