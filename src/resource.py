@@ -166,7 +166,9 @@ class Handler(socketserver.StreamRequestHandler):
             request = json.loads(self.data)
         except json.decoder.JSONDecodeError:
             print("Could not interpret packet!")
-            # TODO probably needs to send a packet indicating failure
+            response = return_bad_request("Could not interpret packet.")
+            print("sending {}".format(response))
+            self.wfile.write(json.dumps(response).encode() + b"\n")
             return
 
         # If the database is currently empty (with no registered users) then the first user to connect becomes the admin
