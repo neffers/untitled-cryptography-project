@@ -112,14 +112,14 @@ def handle_request(request):
     if request_type == ResourceRequestType.ShowLeaderboards:
         leaderboards_to_return = []
         for leaderboard in db["leaderboards"]:
-            append = False
+            do_append = False
             if user.get("class") == UserClass.Administrator or leaderboard["visible"]:
-                append = True
+                do_append = True
             else:
                 permission = get_leaderboard_permission(identity, leaderboard["id"])
                 if permission >= Permissions.Read:
-                    append = True
-            if append:
+                    do_append = True
+            if do_append:
                 leaderboards_to_return.append(
                     {k: leaderboard[k] for k in leaderboard if k not in ("entries", "visible")})
         return {
