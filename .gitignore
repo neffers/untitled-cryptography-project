@@ -1,3 +1,5 @@
 .idea
 venv
 client_db.json
+res_db
+/src/__pycache__

@@ -2,6 +2,8 @@ import json
 import os
 import os.path
 import asyncio
+from enums import ResourceRequestType
+# import time  # was used for sleeping before retrying connection
 
 # SERVER CLASS FOR STORING
 class Server:
@@ -177,10 +179,25 @@ def mainoptions():
             quit()
 
 def request_token(identity):
-    return {"type": "token", "identity": identity}
+    return {
+        "type": "token",
+        "identity": identity
+    }
 
 def request_show_leaderboards(identity, token):
-    return {"type": "show leaderboards", "identity": identity, "token": token}
+    return {
+        "type": ResourceRequestType.ShowLeaderboards,
+        "identity": identity,
+        "token": token
+    }
+ 
+def request_one_leaderboard(identity, token, leaderboard_id):
+    return {
+        "type": ResourceRequestType.ShowOneLeaderboard,
+        "leaderboard_id": leaderboard_id,
+        "identity": identity,
+        "token": token
+    }
 
 # SERVER INTERFACE - ADD IN 'client.py' ACCORDINGLY
 async def mainserver(resip, resport):
@@ -193,6 +210,7 @@ async def mainserver(resip, resport):
         auth_port = parse[0]['port']
 
     print("Trying to connect to {}:{}".format(auth_ip, auth_port))
+
     reader, writer = await asyncio.open_connection(auth_ip, int(auth_port))
     print("Connection successful.")
 
