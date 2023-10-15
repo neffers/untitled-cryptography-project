@@ -1,7 +1,7 @@
 {
     "servers": [
         {
-            "name": "auth",
+            "name": "auth-server",
             "ip": "123.456.789.0",
             "port": "1234"
         }
