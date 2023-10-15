@@ -166,6 +166,8 @@ def handle_request(request):
     if request_type == ResourceRequestType.AddEntry:
         try:
             leaderboard_id = request["leaderboard_id"]
+            if get_leaderboard_permission(identity, leaderboard_id) <= Permissions.Write:
+                return return_bad_request("You do not have permission to do that.")
             new_entry = {
                 "name": identity,
                 "score": request["score"],
@@ -181,10 +183,10 @@ def handle_request(request):
             write_database_to_file()
             return {
                 "success": True,
-                "data": db["leaderboards"][leaderboard_id],
+                "data": new_entry,
             }
         except KeyError:
-            return return_bad_request("Bad leaderboard ID, or didn't include score.")
+            return return_bad_request("Bad leaderboard ID, or didn't include score. Must also provide a comment.")
 
 
 class Handler(socketserver.StreamRequestHandler):
