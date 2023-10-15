@@ -114,7 +114,8 @@ def handle_request(request):
                 if permission >= Permissions.Read:
                     append = True
             if append:
-                leaderboards_to_return.append({k: leaderboard[k] for k in leaderboard if k not in ("entries", "visible")})
+                leaderboards_to_return.append(
+                    {k: leaderboard[k] for k in leaderboard if k not in ("entries", "visible")})
         return {
             "success": True,
             "data": leaderboards_to_return
