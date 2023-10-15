@@ -1,13 +1,10 @@
 import socketserver
 import json
+import sqlite3
 import time
+from os import path
 from enum import IntEnum, auto
 from enums import ResourceRequestType
-
-
-class UserClass(IntEnum):
-    User = auto()
-    Administrator = auto()
 
 
 class Permissions(IntEnum):
@@ -18,68 +15,92 @@ class Permissions(IntEnum):
     Moderate = 3
 
 
-def write_database_to_file():
-    with open(db_filename, "w") as db_file:
-        json.dump(db, db_file)
+class UserClass(IntEnum):
+    User = Permissions.NoAccess
+    Administrator = Permissions.Moderate
 
 
-def initialize_database() -> dict:
+def initialize_database():
     # Initialize DB either from file or with defaults
-    try:
-        with open(db_filename, "r") as db_file:
-            db_to_return = json.load(db_file)
-            print("Successfully loaded database from file.")
-    except json.decoder.JSONDecodeError:
-        print("Could not read db from file. Exiting to avoid corrupting!")
-    except FileNotFoundError:
-        print("No database found! Initializing new database. First user to connect will be granted admin.")
-        # probably not necessary. database will be written to when data is added.
-        # db_file = open(db_filename, "x")
-        '''
-        This is effectively the "standard database schema".
-        At the top level, the resource server knows about "users", "groups" and "leaderboards", each a list.
-            Each user should be a dict with:
-                "identity",
-                "token",
-                "class" (admin, mod, normal),
-                and "permissions", a list [] of dicts containing:
-                    "id", the associated leaderboard,
-                    "level": a Permission enum
-            Each leaderboard should have:
-                "id", a numerical identifier corresponding to position in list,
-                "name",
-                "visible", a default visibility,
-                "entries", a list [] of entries, each of which should have:
-                    "name", the identity associated with it,
-                    "score", the score,
-                    "date", the time submitted,
-                    "verified", a boolean of whether or not it has been verified by a moderator,
-                    "comments", a list[] of communique regarding this entry each of which has:
-                        "author", the identity of the author,
-                        "date", the time submitted,
-                        "content", the content of the message
-                        
-        As functionality is needed, the database can be added to from here.
-        '''
-        db_to_return = {
-            "users": [],
-            "leaderboards": [],
-        }
-        # Don't bother writing to file yet, wait for someone to connect
-        # json.dump(db, db_file)
-    return db_to_return
+    if path.exists(db_filename):
+        print("Found existing database. Loading from there.")
+        return sqlite3.connect(db_filename)
+    else:
+        print("Did not find a database. Initializing new database from schema...")
+        sqldb = sqlite3.connect(db_filename)
+        dbcursor = sqldb.cursor()
+
+        enable_foreign_keys = "PRAGMA foreign_keys = ON;"
+        dbcursor.execute(enable_foreign_keys)
+
+        # The base database schema
+        database_initialization_command = """
+        CREATE TABLE users (
+            id INTEGER PRIMARY KEY,
+            identity TEXT UNIQUE,
+            token TEXT,
+            class INTEGER,
+            registration_date INTEGER
+        );
+        CREATE TABLE leaderboards (
+            id INTEGER PRIMARY KEY,
+            name TEXT,
+            creation_date INTEGER,
+            default_permission INTEGER,
+            ascending INTEGER
+        );
+        CREATE TABLE permissions (
+            user INTEGER REFERENCES users(id),
+            leaderboard INTEGER REFERENCES  leaderboards(id),
+            permission INTEGER,
+            change_date INTEGER
+        );
+        CREATE TABLE leaderboard_entries (
+            id INTEGER PRIMARY KEY,
+            user INTEGER REFERENCES users(id),
+            leaderboard INTEGER REFERENCES leaderboards(id),
+            score REAL,
+            submission_date INTEGER,
+            verified INTEGER,
+            verification_date INTEGER,
+            verifier INTEGER REFERENCES users(id)
+        );
+        CREATE TABLE entry_comments (
+            id INTEGER PRIMARY KEY,
+            user INTEGER REFERENCES users(id),
+            entry INTEGER REFERENCES leaderboard_entries(id),
+            date REAL,
+            content TEXT
+        );
+        CREATE TABLE files (
+            id INTEGER PRIMARY KEY,
+            entry INTEGER REFERENCES leaderboard_entries(id),
+            name TEXT,
+            submission_date INTEGER,
+            data BLOB
+        );
+        """
+        dbcursor.executescript(database_initialization_command)
+        dbcursor.close()
+        return sqldb
 
 
-# Returns Permissions.NoAccess if no permission is found (including if user is a guest)
-def get_leaderboard_permission(identity, leaderboard_id):
-    try:
-        user = [user for user in db["users"] if user["identity"] == identity][0]
-    except KeyError:
-        user = {}  # User is not registered
-    try:
-        return [perm["level"] for perm in user["permissions"] if perm["id"] == leaderboard_id][0]
-    except KeyError:
-        return Permissions.NoAccess
+# Generally used as (lb_id, lb_name, lb_perm, lb_asc) = get_leaderboard_info()
+def get_leaderboard_info(userid, leaderboard_id):
+    cur = db.cursor()
+    # TODO ugly, make it so we don't need to duplicate userid in params?
+    get_leaderboard_info_command = """
+        select l.id, l.name, max(l.default_permission, coalesce(p.permission, 0), class) as perm, l.ascending
+        from leaderboards l
+            left join (select * from permissions where user = ?) p on l.id = p.leaderboard
+            inner join (select class from users where id = ?)
+        where l.id = ?
+    """
+    get_leaderboard_info_params = (userid, userid, leaderboard_id)
+    cur.execute(get_leaderboard_info_command, get_leaderboard_info_params)
+    ret_tuple = cur.fetchone()
+    cur.close()
+    return ret_tuple
 
 
 def return_bad_request(further_info=""):
@@ -98,94 +119,157 @@ def handle_request(request):
     except KeyError:
         return return_bad_request("Didn't include request type, identity, or token")
 
-    try:
-        user = [user for user in db["users"] if user["identity"] == identity][0]
-    except KeyError:
-        user = {}  # User is unregistered, a 'guest'
+    sql_cur = db.cursor()
+
+    # Make sure we have any administrators, create user as admin if not
+    get_admins_command = "SELECT * FROM users WHERE class = ?"
+    sql_cur.execute(get_admins_command, (UserClass.Administrator,))
+    admins = sql_cur.fetchall()
+    if len(admins) == 0:
+        print("No admin found, adding newly connected user to admin list")
+        create_admin_command = "INSERT INTO users(identity, token, class) VALUES(?, ?, ?)"
+        admin_params = (identity, token, UserClass.Administrator)
+        sql_cur.execute(create_admin_command, admin_params)
+        db.commit()
+
+    get_user_command = "SELECT * FROM users WHERE identity = ?"
+    user = sql_cur.execute(get_user_command, (identity,)).fetchone()
+
+    if user is not None:
+        print("Found user:")
+        print(user)
+    else:
+        # Register user automatically
+        print("User not previously registered! Registering...")
+        insert_user_command = "INSERT INTO users(identity, token, class, registration_date) VALUES(?,?,?,?)"
+        insert_user_params = (identity, token, UserClass.User, int(time.time()))
+        sql_cur.execute(insert_user_command, insert_user_params)
+        user = sql_cur.execute(get_user_command, (identity,)).fetchone()
+    # Can be used throughout the request handling
+    (userid, identity, token, user_class, user_reg_date) = user
 
     if request_type == ResourceRequestType.ShowLeaderboards:
-        leaderboards_to_return = []
-        for leaderboard in db["leaderboards"]:
-            do_append = False
-            if user.get("class") == UserClass.Administrator or leaderboard["visible"]:
-                do_append = True
-            else:
-                permission = get_leaderboard_permission(identity, leaderboard["id"])
-                if permission >= Permissions.Read:
-                    do_append = True
-            if do_append:
-                leaderboards_to_return.append(
-                    {k: leaderboard[k] for k in leaderboard if k not in ("entries", "visible")})
+        # TODO can this be simplified?
+        get_leaderboards_command = """
+            select l.id, l.name, max(l.default_permission, coalesce(p.permission, 0), class) as perm
+            from leaderboards l
+                left join (select * from permissions where user = ?) p on l.id = p.leaderboard
+                inner join (select class from users where id = ?)
+            where perm >= ?
+        """
+        get_leaderboards_params = (userid, userid, Permissions.Read)
+        sql_cur.execute(get_leaderboards_command, get_leaderboards_params)
+        leaderboards_to_return = sql_cur.fetchall()
         return {
             "success": True,
             "data": leaderboards_to_return
         }
 
     if request_type == ResourceRequestType.ShowOneLeaderboard:
+        # Parse request
         try:
             leaderboard_id = request["leaderboard_id"]
-            leaderboard = db["leaderboards"][leaderboard_id]
         except KeyError:
             return return_bad_request("Didn't include leaderboard id, or requested invalid leaderboard")
+
+        # make sure leaderboard should be visible by user
+        (leaderboard_id, leaderboard_name, permission, ascending) = get_leaderboard_info(userid, leaderboard_id)
+        if permission < 1:
+            return return_bad_request("You don't have permission to view that.")
+
+        # TODO this doesn't list all entries for moderators
+        get_entries_command = """
+            select e.id, user, score, submission_date
+                from leaderboard_entries e
+                join main.leaderboards l on e.leaderboard = l.id
+            where (verified or user = ?) and l.id = ?
+            order by score desc
+        """
+        get_entries_params = (userid, leaderboard_id)
+        sql_cur.execute(get_entries_command, get_entries_params)
+        entries = sql_cur.fetchall()
+        if ascending:
+            entries.reverse()
         data_to_return = {
-            "id": leaderboard["id"],
-            "name": leaderboard["name"],
-            "entries": [entry for entry in leaderboard["entries"] if entry["verified"]]
+            "id": leaderboard_id,
+            "name": leaderboard_name,
+            "entries": entries
         }
-        permission = get_leaderboard_permission(identity, leaderboard_id)
-        if leaderboard["visible"] or permission >= Permissions.Read:
-            return {
-                "success": True,
-                "data": data_to_return,
-            }
-        else:
-            # I don't figure it is a problem to tell the user that the leaderboard exists.
-            return return_bad_request("You do not have permission to view that leaderboard.")
+        return {
+            "success": True,
+            "data": data_to_return,
+        }  
 
     if request_type == ResourceRequestType.CreateLeaderboard:
-        if user["class"] != UserClass.Administrator:
+        if user_class != UserClass.Administrator:
             return return_bad_request("You do not have permission to do that.")
         try:
-            new_leaderboard = {
-                "id": len(db["leaderboards"]),
-                "name": request["leaderboard_name"],
-                "entries": [],
-                "visible": request["leaderboard_visibility"]
-            }
-            db["leaderboards"].append(new_leaderboard)
-            write_database_to_file()
-            return {
-                "success": True,
-                "data": new_leaderboard
-            }
+            new_lb_name = request["leaderboard_name"]
+            new_lb_perm = max(min(request["leaderboard_permission"], Permissions.Moderate), Permissions.NoAccess)
+            new_lb_asc = request["leaderboard_ascending"]
         except KeyError:
-            return return_bad_request("Didn't include new leaderboard name, or leaderboard visibility")
+            return return_bad_request("Didn't include new leaderboard name, default permission, or ascending bool")
+        new_lb_command = """
+            insert into leaderboards(name, creation_date, default_permission, ascending) values(?,?,?,?)
+        """
+        new_lb_params = (new_lb_name, int(time.time()), new_lb_perm, new_lb_asc)
+        sql_cur.execute(new_lb_command, new_lb_params)
+        db.commit()
+        new_lb_id = sql_cur.lastrowid
+        sql_cur.execute("select * from leaderboards where id = ?", (new_lb_id,))
+        new_lb = sql_cur.fetchone()
+        return {
+            "success": True,
+            "data": new_lb,
+        }
 
     if request_type == ResourceRequestType.AddEntry:
         try:
             leaderboard_id = request["leaderboard_id"]
-            if get_leaderboard_permission(identity, leaderboard_id) <= Permissions.Write:
-                return return_bad_request("You do not have permission to do that.")
-            new_entry = {
-                "name": identity,
-                "score": request["score"],
-                "date": time.time(),
-                "verified": False,
-                "comments": [{
-                    "identity": identity,
-                    "date": time.time(),
-                    "content": request["comment"],
-                }],
-            }
-            db["leaderboards"][leaderboard_id].append(new_entry)
-            write_database_to_file()
-            return {
-                "success": True,
-                "data": new_entry,
-            }
+            entry_score = request["score"]
+            comment = request["comment"]
         except KeyError:
-            return return_bad_request("Bad leaderboard ID, or didn't include score. Must also provide a comment.")
+            return return_bad_request("request must include leaderboard id, score, and comment")
+        # error if leaderboard id doesn't exist
+        try:
+            (lb_id, lb_name, lb_perm, lb_asc) = get_leaderboard_info(userid, leaderboard_id)
+        except TypeError:
+            return return_bad_request("That leaderboard does not exist")
+        # error if you don't have permission to write to it
+        if lb_perm < Permissions.Write:
+            return return_bad_request("You do not have permission to do that")
+        create_entry_command = """
+            insert into leaderboard_entries(user, leaderboard, score, submission_date, verified)
+            values(?,?,?,?,?)
+        """
+        create_entry_params = (userid, leaderboard_id, entry_score, int(time.time()), 0)
+        sql_cur.execute(create_entry_command, create_entry_params)
+        entry_id = sql_cur.lastrowid
+        create_comment_command = """
+            insert into entry_comments(user, entry, date, content)
+            values(?,?,?,?)
+        """
+        create_comment_params = (userid, entry_id, int(time.time()), comment)
+        sql_cur.execute(create_comment_command, create_comment_params)
+        db.commit()
+        comment_id = sql_cur.lastrowid
+        # TODO What should this return?
+        return {
+            "success": True,
+            "data": [],
+        }
 
+    if request_type == ResourceRequestType.ListUsers:
+        get_users_command = """
+            select u.id, u.identity
+                from users u
+            order by id
+        """
+        sql_cur.execute(get_users_command)
+        return {
+            "success": True,
+            "data": sql_cur.fetchall(),
+        }
 
 class Handler(socketserver.StreamRequestHandler):
     def handle(self):
@@ -201,18 +285,6 @@ class Handler(socketserver.StreamRequestHandler):
             print("sending {}".format(response))
             self.wfile.write(json.dumps(response).encode() + b"\n")
             return
-
-        # If the database is currently empty (with no registered users) then the first user to connect becomes the admin
-        if len(db["users"]) == 0:
-            admin = {
-                "identity": request["identity"],
-                "token": request["token"],
-                "class": UserClass.Administrator,
-                "permissions": [],  # Shouldn't matter since admin class should overrule all permissions
-            }
-            db["users"].append(admin)
-            # Save changes immediately
-            write_database_to_file()
 
         response = handle_request(request)
         print("sending {}".format(response))

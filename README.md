@@ -57,15 +57,32 @@ Please see the [Phase 2 description](desc/phase_2.pdf) for details.
 - The first user to connect to a resource server is given admin permissions
 
 ### Clientside Commands
+- All client requests to the resource server should include the following fields:
+  - `identity` the identity used to log in to the auth server
+  - `token` the token received back from the auth server
+  - `type` the type of request. Should use a ResourceRequestType enum from `enums.py`
+  - additional fields as required by the request type
+- All Resource server responses will include the following fields
+  - `success` a boolean indicating if the requested operation was successful or not
+  - `data` a blob of data formatted depending on the request
+    - Upon failure, this will simply be a string indicating a reason for the failure.
 #### Basic Commands
 - READ: list leaderboards
   - shows all leaderboard names on this server
+  - Additional client request fields:
+    - None
+  - Resource server response:
+    - A `list` of leaderboards, each a tuple of `(id, name, permission)` indicating the requesting user's access level.
 - READ: open leaderboard [leaderboard name]
   - sets local state variable 'leaderboard' to the specified leaderboard name  
 - ADMIN: add leaderboard [leaderboard name]
   - adds a leaderboard with the specified name
 - READ: list users
   - outputs a list of all users with ID and identity
+  - Additional client request fields:
+    - None
+  - Resource server response:
+    - A `list` of users, each a tuple of `(id, identity)`
 - READ: open user [user ID]
   - sets local state variable 'user' to the specified ID
 - READ: open self
