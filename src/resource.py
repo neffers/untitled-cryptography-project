@@ -149,13 +149,15 @@ def handle_request(request):
     userid = user[0]
 
     if request_type == ResourceRequestType.ShowLeaderboards:
+        # TODO can this be simplified?
         get_leaderboards_command = """
-            select l.id, l.name, max(l.default_permission, coalesce(p.permission, 0)) as perm
+            select l.id, l.name, max(l.default_permission, coalesce(p.permission, 0), class) as perm
             from leaderboards l
                 left join (select * from permissions where user = ?) p on l.id = p.leaderboard
+                inner join (select class from users where id = ?)
             where perm >= ?
         """
-        get_leaderboards_params = (userid, Permissions.Read)
+        get_leaderboards_params = (userid, userid, Permissions.Read)
         sql_cur.execute(get_leaderboards_command, get_leaderboards_params)
         leaderboards_to_return = sql_cur.fetchall()
         return {
