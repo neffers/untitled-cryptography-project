@@ -79,6 +79,10 @@ Please see the [Phase 2 description](desc/phase_2.pdf) for details.
   - adds a leaderboard with the specified name
 - READ: list users
   - outputs a list of all users with ID and identity
+  - Additional client request fields:
+    - None
+  - Resource server response:
+    - A `list` of users, each a tuple of `(id, identity)`
 - READ: open user [user ID]
   - sets local state variable 'user' to the specified ID
 - READ: open self
