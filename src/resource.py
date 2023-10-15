@@ -89,21 +89,20 @@ def handle_request(request):
         user = None  # User is unregistered, a 'guest'
 
     if request_type == ResourceRequestType.ShowLeaderboards:
-        if user["class"] == UserClass.Administrator:
-            leaderboards_to_return = db["leaderboards"]
-        else:
-            leaderboards_to_return = []
-            for leaderboard in db["leaderboards"]:
-                if leaderboard["visible"]:
-                    leaderboards_to_return.append(leaderboard)
-                    continue
-                # Else if leaderboard not visible by default
+        leaderboards_to_return = []
+        for leaderboard in db["leaderboards"]:
+            append = False
+            if user["class"] == UserClass.Administrator or leaderboard["visible"]:
+                append = True
+            else:
                 try:
                     permission = [perm["level"] for perm in user["permission"] if perm["id"] == leaderboard["id"]][0]
                 except KeyError:
                     permission = Permissions.NoAccess
                 if permission >= Permissions.Read:
-                    leaderboards_to_return.append(leaderboard)
+                    append = True
+            if append:
+                leaderboards_to_return.append({k: leaderboard[k] for k in leaderboard if k not in ("entries", "visible")})
         return {
             "success": True,
             "data": leaderboards_to_return
