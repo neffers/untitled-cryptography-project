@@ -6,7 +6,9 @@ if the person can perform the request they are making according to the table, re
 """
 import socketserver
 import json
+import sqlite3
 import time
+from os import path
 from enum import IntEnum, auto
 from enums import ResourceRequestType
 
@@ -24,56 +26,67 @@ class Permissions(IntEnum):
     Moderate = 3
 
 
+# Deprecated
 def write_database_to_file():
     with open(db_filename, "w") as db_file:
         json.dump(db, db_file)
 
 
-def initialize_database() -> dict:
+def initialize_database():
     # Initialize DB either from file or with defaults
-    try:
-        with open(db_filename, "r") as db_file:
-            db_to_return = json.load(db_file)
-            print("Successfully loaded database from file.")
-    except json.decoder.JSONDecodeError:
-        print("Could not read db from file. Exiting to avoid corrupting!")
-    except FileNotFoundError:
-        print("No database found! Initializing new database. First user to connect will be granted admin.")
-        # probably not necessary. database will be written to when data is added.
-        # db_file = open(db_filename, "x")
-        '''
-        This is effectively the "standard database schema".
-        At the top level, the resource server knows about "users", "groups" and "leaderboards", each a list.
-            Each user should be a dict with:
-                "identity",
-                "token",
-                "class" (admin, mod, normal),
-                and "permissions", a list [] of dicts containing:
-                    "id", the associated leaderboard,
-                    "level": a Permission enum
-            Each leaderboard should have:
-                "id", a numerical identifier corresponding to position in list,
-                "name",
-                "visible", a default visibility,
-                "entries", a list [] of entries, each of which should have:
-                    "name", the identity associated with it,
-                    "score", the score,
-                    "date", the time submitted,
-                    "verified", a boolean of whether or not it has been verified by a moderator,
-                    "comments", a list[] of communique regarding this entry each of which has:
-                        "author", the identity of the author,
-                        "date", the time submitted,
-                        "content", the content of the message
-                        
-        As functionality is needed, the database can be added to from here.
-        '''
-        db_to_return = {
-            "users": [],
-            "leaderboards": [],
-        }
-        # Don't bother writing to file yet, wait for someone to connect
-        # json.dump(db, db_file)
-    return db_to_return
+    if path.exists(db_filename):
+        print("Found existing database. Loading from there.")
+        return sqlite3.connect(db_filename)
+    else:
+        print("Did not find a database. Initializing new database from schema...")
+        sqldb = sqlite3.connect(db_filename)
+        dbcursor = sqldb.cursor()
+
+        enable_foreign_keys = "PRAGMA foreign_keys = ON;"
+        dbcursor.execute(enable_foreign_keys)
+
+        # The base database schema
+        database_initialization_command = """
+        CREATE TABLE users (
+            id INTEGER PRIMARY KEY,
+            identity TEXT,
+            token TEXT,
+            class INTEGER
+        );
+        CREATE TABLE leaderboards (
+            id INTEGER PRIMARY KEY,
+            name TEXT,
+            creation_date REAL,
+            default_permission INTEGER
+        );
+        CREATE TABLE permissions (
+            user INTEGER REFERENCES users(id),
+            leaderboard INTEGER REFERENCES  leaderboards(id),
+            permission INTEGER
+        );
+        CREATE TABLE leaderboard_entries (
+            id INTEGER PRIMARY KEY,
+            user INTEGER REFERENCES users(id),
+            leaderboard INTEGER REFERENCES leaderboards(id),
+            date REAL,
+            verified INTEGER,
+            verifier INTEGER REFERENCES users(id)
+        );
+        CREATE TABLE entry_comments (
+            id INTEGER PRIMARY KEY,
+            user INTEGER REFERENCES users(id),
+            date REAL,
+            content TEXT
+        );
+        CREATE TABLE files (
+            id INTEGER PRIMARY KEY,
+            comment INTEGER REFERENCES entry_comments(id),
+            name TEXT,
+            data BLOB
+        );
+        """
+        dbcursor.execute(database_initialization_command)
+        return sqldb
 
 
 # Returns Permissions.NoAccess if no permission is found (including if user is a guest)

@@ -3,3 +3,4 @@ venv
 client_db.json
 res_db
 /src/__pycache__
+identifier.sqlite
