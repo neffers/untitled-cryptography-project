@@ -4,6 +4,7 @@ import asyncio
 from enums import ResourceRequestType
 # import time  # was used for sleeping before retrying connection
 
+
 def request_token(identity):
     return {
         "type": "token",
@@ -33,6 +34,7 @@ def clear_screen():
         os.system('cls')
     else:
         os.system('clear')
+
 
 def display():
     clear_screen()
@@ -178,6 +180,7 @@ async def server_loop(res_ip, res_port):
 
     writer.close()
     await writer.wait_closed()
+
 
 if __name__ == "__main__":
     db_filename = "client_db"
