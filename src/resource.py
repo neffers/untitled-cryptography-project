@@ -85,7 +85,7 @@ def initialize_database():
             data BLOB
         );
         """
-        dbcursor.execute(database_initialization_command)
+        dbcursor.executescript(database_initialization_command)
         return sqldb
 
 
