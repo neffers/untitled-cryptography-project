@@ -257,6 +257,7 @@ def handle_request(request):
         """
         create_comment_params = (userid, entry_id, int(time.time()), comment)
         sql_cur.execute(create_comment_command, create_comment_params)
+        db.commit()
         comment_id = sql_cur.lastrowid
         # TODO What should this return?
         return {
