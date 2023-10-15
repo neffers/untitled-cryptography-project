@@ -165,7 +165,6 @@ async def server_loop(res_ip, res_port):
 
         if choice == "list leaderboards":
             request = request_show_leaderboards(identity, token)
-            request = request_show_leaderboards(identity, token)
             writer.write(bytes(json.dumps(request) + "\n", "utf-8"))
             await writer.drain()
             response_data = await reader.readline()
