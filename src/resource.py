@@ -187,6 +187,7 @@ def handle_request(request):
         if permission < 1:
             return return_bad_request("You don't have permission to view that.")
 
+        # TODO this doesn't list all entries for moderators
         get_entries_command = """
             select e.id, user, score, submission_date
                 from leaderboard_entries e
