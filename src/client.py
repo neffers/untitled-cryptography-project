@@ -107,8 +107,8 @@ def main():
             write_database_to_file()
 
         elif choice == 'e':  # edit resource server
-            choice = int(input("Enter server number to edit (0 for auth. server): "))
-            if choice == 0:
+            choice = int(input("Enter server number to edit (0 for auth. server): ")) - 1
+            if choice == -1:
                 server = db["auth_server"]
             else:
                 try:
@@ -116,19 +116,19 @@ def main():
                 except KeyError:
                     print("Invalid server selection")
                     continue
-            name = input("Enter new name (empty to leave as \"{}\")".format(server["name"]))[:20]
+            name = input("Enter new name (empty to leave as \"{}\"): ".format(server["name"]))[:20]
             if name != "":
                 server["name"] = name
-            ip = input("Enter new ip (empty to leave as \"{}\")".format(server["ip"]))
+            ip = input("Enter new ip (empty to leave as \"{}\"): ".format(server["ip"]))
             if ip != "":
                 server["name"] = ip
-            port = input("Enter new port (empty to leave as \"{}\")".format(server["port"]))
+            port = input("Enter new port (empty to leave as \"{}\"): ".format(server["port"]))
             if port != "":
                 server["port"] = port
             write_database_to_file()
 
         elif choice == 'r':  # remove a resource server
-            choice = int(input("Enter server number to remove: "))
+            choice = int(input("Enter server number to remove: ")) - 1
             # this ensures there is a server there but there is likely a faster way
             try:
                 server = db["resource_servers"][choice]
