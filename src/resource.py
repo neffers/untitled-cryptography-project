@@ -207,7 +207,7 @@ def handle_request(request):
         return {
             "success": True,
             "data": data_to_return,
-        }
+        }  
 
     if request_type == ResourceRequestType.CreateLeaderboard:
         if user_class != UserClass.Administrator:
@@ -256,6 +256,21 @@ def handle_request(request):
         except KeyError:
             return return_bad_request("Bad leaderboard ID, or didn't include score. Must also provide a comment.")
 
+    if request_type == ResourceRequestType.ListUsers:
+        get_users_command = """
+            select u.id, u.identity
+                from users u
+            order by id
+        """
+        sql_cur.execute(get_users_command)
+        users = sql_cur.fetchall()
+        data_to_return = {
+            "users": users
+        }
+        return {
+            "success": True,
+            "data": data_to_return,
+        }
 
 class Handler(socketserver.StreamRequestHandler):
     def handle(self):

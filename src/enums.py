@@ -9,3 +9,4 @@ class ResourceRequestType(IntEnum):
     ShowOneLeaderboard = auto()
     CreateLeaderboard = auto()
     AddEntry = auto()
+    ListUsers = auto()
