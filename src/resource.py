@@ -148,7 +148,7 @@ def handle_request(request):
     # Can be used throughout the request handling
     (userid, identity, token, user_class, user_reg_date) = user
 
-    if request_type == ResourceRequestType.ShowLeaderboards:
+    if request_type == ResourceRequestType.ListLeaderboards:
         # TODO can this be simplified?
         get_leaderboards_command = """
             select l.id, l.name, max(l.default_permission, coalesce(p.permission, 0), class) as perm

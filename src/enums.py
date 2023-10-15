@@ -5,7 +5,7 @@ from enum import auto
 # An enum for Request types to the Resource Server
 # Should hopefully simplify adding request types as well as determining if all cases are handled
 class ResourceRequestType(IntEnum):
-    ShowLeaderboards = auto()
+    ListLeaderboards = auto()
     ShowOneLeaderboard = auto()
     CreateLeaderboard = auto()
     AddEntry = auto()

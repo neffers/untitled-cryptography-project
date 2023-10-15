@@ -14,7 +14,7 @@ def request_token(identity):
 
 def request_show_leaderboards(identity, token):
     return {
-        "type": ResourceRequestType.ShowLeaderboards,
+        "type": ResourceRequestType.ListLeaderboards,
         "identity": identity,
         "token": token
     }
