@@ -136,7 +136,8 @@ def handle_request(request):
             return return_bad_request("You do not have permission to view that leaderboard.")
 
     if request_type == ResourceRequestType.CreateLeaderboard:
-        # TODO account for user roles, check for duplicate names?
+        if user["class"] != UserClass.Administrator:
+            return return_bad_request("You do not have permission to do that.")
         try:
             new_leaderboard = {
                 "id": len(db["leaderboards"]),
