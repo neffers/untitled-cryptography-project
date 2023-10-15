@@ -49,7 +49,7 @@ def initialize_database():
         database_initialization_command = """
         CREATE TABLE users (
             id INTEGER PRIMARY KEY,
-            identity TEXT,
+            identity TEXT UNIQUE,
             token TEXT,
             class INTEGER,
             registration_date INTEGER
@@ -98,6 +98,7 @@ def initialize_database():
 
 
 # Returns Permissions.NoAccess if no permission is found (including if user is a guest)
+# Deprecated
 def get_leaderboard_permission(identity, leaderboard_id):
     try:
         user = [user for user in db["users"] if user["identity"] == identity][0]
@@ -125,10 +126,31 @@ def handle_request(request):
     except KeyError:
         return return_bad_request("Didn't include request type, identity, or token")
 
-    try:
-        user = [user for user in db["users"] if user["identity"] == identity][0]
-    except KeyError:
-        user = {}  # User is unregistered, a 'guest'
+    sql_cur = db.cursor()
+
+    # Make sure we have any administrators, create user as admin if not
+    get_admins_command = "SELECT * FROM users WHERE class = ?"
+    sql_cur.execute(get_admins_command, (UserClass.Administrator,))
+    admins = sql_cur.fetchall()
+    if len(admins) == 0:
+        print("No admin found, adding newly connected user to admin list")
+        create_admin_command = "INSERT INTO users(identity, token, class) VALUES(?, ?, ?)"
+        admin_params = (identity, token, UserClass.Administrator)
+        sql_cur.execute(create_admin_command, admin_params)
+
+    get_user_command = "SELECT * FROM users WHERE identity = ?"
+    user = sql_cur.execute(get_user_command, (identity,)).fetchone()
+
+    if user is not None:
+        print("Found user:")
+        print(user)
+    else:
+        # Register user automatically
+        print("User not previously registered! Registering...")
+        insert_user_command = "INSERT INTO users(identity, token, class, registration_date) VALUES(?,?,?,?)"
+        insert_user_params = (identity, token, UserClass.User, int(time.time()))
+        sql_cur.execute(insert_user_command, insert_user_params)
+        user = sql_cur.execute(get_user_command, (identity,)).fetchone()
 
     if request_type == ResourceRequestType.ShowLeaderboards:
         leaderboards_to_return = []
@@ -228,18 +250,6 @@ class Handler(socketserver.StreamRequestHandler):
             print("sending {}".format(response))
             self.wfile.write(json.dumps(response).encode() + b"\n")
             return
-
-        # If the database is currently empty (with no registered users) then the first user to connect becomes the admin
-        if len(db["users"]) == 0:
-            admin = {
-                "identity": request["identity"],
-                "token": request["token"],
-                "class": UserClass.Administrator,
-                "permissions": [],  # Shouldn't matter since admin class should overrule all permissions
-            }
-            db["users"].append(admin)
-            # Save changes immediately
-            write_database_to_file()
 
         response = handle_request(request)
         print("sending {}".format(response))
