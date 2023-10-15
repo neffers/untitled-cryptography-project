@@ -155,7 +155,6 @@ def handle_request(request):
             return return_bad_request("Didn't include new leaderboard name, or leaderboard visibility")
 
     if request_type == ResourceRequestType.AddEntry:
-        # TODO check user privileges
         try:
             leaderboard_id = request["leaderboard_id"]
             new_entry = {
