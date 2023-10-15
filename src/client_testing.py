@@ -1,6 +1,6 @@
 import json
 import os
-import os.path
+import os.path  
 
 # SERVER CLASS FOR STORING
 class Server:
@@ -12,10 +12,10 @@ class Server:
     def rename(self, newname):
         self.name = newname
 
-    def readdress(self, newip):
+    def reip(self, newip):
         self.ip = newip
 
-    def readdress(self, newport):
+    def report(self, newport):
         self.port = newport
 
     def ssave(self, filename):
@@ -66,7 +66,7 @@ def maindisplay():
 
             print("["+str(count)+"]"+"   "+namedisplay+ipdisplay+parse[count-1]['port'])
             count = count + 1
-            servercount = servercount + 1
+        servercount = len(parse)
 
 # SWITCH FOR MENU AND SERVER
 connect = False
@@ -82,7 +82,7 @@ def mainoptions():
         # IF NO AUTH SERVER, ADD IMMEDIATELY
         if servercount == 0:
             print("\nYou do not yet have an auth server. Please add one now.")
-            newname = input("Give a name for the server. Please use only 20 characters or less\n")
+            newname = input("Give a name for the server. Please use only 20 characters or less.\n")
             if len(newname) > 20:
                 newname = newname[:20]
             newip = input("Give the ip to the server.\n")
@@ -107,7 +107,7 @@ def mainoptions():
 
         # ADD
         if key == 'A' or key == 'a':
-            newname = input("Give a name for the server. Please use only 20 characters or less\n")
+            newname = input("Give a name for the server. Please use only 20 characters or less.\n")
             if len(newname) > 20:
                 newname = newname[:20]
             newip = input("Give the ip to the server.\n")
@@ -116,8 +116,52 @@ def mainoptions():
             newserver.ssave("client_testing.json")
 
         # EDIT
+        if key == 'E' or key == 'e':
+            ekey = input("Enter the # of the server that you would like to edit.\n")
+            ekey = int(ekey)
+            if ekey < 0 or ekey > servercount:
+                break
+            ekey2 = input("What would you like to edit? Enter 1 for name, 2 for IP, 3 for port.\n")
+            if ekey2 == '1':
+                newname = input("Give a new name for the server. Please use only 20 characters or less.\n")
+                if len(newname) > 20:
+                    newname = newname[:20]
+                with open("client_testing.json") as f:
+                    sdata = json.load(f)
+                    parse = sdata["servers"]
+                    parse[ekey-1] = {'name': newname, 'ip': parse[ekey-1]['ip'], 'port': parse[ekey-1]['port']}
+                with open("client_testing.json", 'w') as f:
+                    json.dump(sdata, f, indent = 4)
+            if ekey2 == '2':
+                newip = input("Give the new ip for the server.\n")
+                with open("client_testing.json") as f:
+                    sdata = json.load(f)
+                    parse = sdata["servers"]
+                    parse[ekey-1] = {'name': parse[ekey-1]['name'], 'ip': newip, 'port': parse[ekey-1]['port']}
+                with open("client_testing.json", 'w') as f:
+                    json.dump(sdata, f, indent = 4)
+            if ekey2 == '3':
+                newport = input("Give the new port for the server.\n")
+                with open("client_testing.json") as f:
+                    sdata = json.load(f)
+                    parse = sdata["servers"]
+                    parse[ekey-1] = {'name': parse[ekey-1]['name'], 'ip': parse[ekey-1]['ip'], 'port': newport}
+                with open("client_testing.json", 'w') as f:
+                    json.dump(sdata, f, indent = 4)
 
         # REMOVE
+        if key == 'R' or key == 'r':
+            rkey = input("Enter the # of the server that you would like to remove.\n")
+            rkey = int(rkey)
+            if rkey < 0 or rkey > servercount:
+                break
+            with open("client_testing.json") as f:
+                    sdata = json.load(f)
+                    parse = sdata["servers"]
+                    parse.remove({'name': parse[rkey-1]['name'], 'ip': parse[rkey-1]['ip'], 'port': parse[rkey-1]['port']})
+            with open("client_testing.json", 'w') as f:
+                json.dump(sdata, f, indent = 4)
+
 
         # QUIT
         if key == "Q" or key == 'q':
@@ -131,6 +175,6 @@ def mainserver():
 
 # MAIN MAIN
 # SWITCHES BETWEEN INTERFACES VIA BOOLEAN 'connect' 
-while 1 == 1:
+while True:
     mainoptions()
     mainserver()
