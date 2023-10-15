@@ -51,41 +51,49 @@ def initialize_database():
             id INTEGER PRIMARY KEY,
             identity TEXT,
             token TEXT,
-            class INTEGER
+            class INTEGER,
+            registration_date INTEGER
         );
         CREATE TABLE leaderboards (
             id INTEGER PRIMARY KEY,
             name TEXT,
-            creation_date REAL,
-            default_permission INTEGER
+            creation_date INTEGER,
+            default_permission INTEGER,
+            ascending INTEGER
         );
         CREATE TABLE permissions (
             user INTEGER REFERENCES users(id),
             leaderboard INTEGER REFERENCES  leaderboards(id),
-            permission INTEGER
+            permission INTEGER,
+            change_date INTEGER
         );
         CREATE TABLE leaderboard_entries (
             id INTEGER PRIMARY KEY,
             user INTEGER REFERENCES users(id),
             leaderboard INTEGER REFERENCES leaderboards(id),
-            date REAL,
+            score REAL,
+            submission_date INTEGER,
             verified INTEGER,
+            verification_date INTEGER,
             verifier INTEGER REFERENCES users(id)
         );
         CREATE TABLE entry_comments (
             id INTEGER PRIMARY KEY,
             user INTEGER REFERENCES users(id),
+            entry INTEGER REFERENCES leaderboard_entries(id),
             date REAL,
             content TEXT
         );
         CREATE TABLE files (
             id INTEGER PRIMARY KEY,
-            comment INTEGER REFERENCES entry_comments(id),
+            entry INTEGER REFERENCES leaderboard_entries(id),
             name TEXT,
+            submission_date INTEGER,
             data BLOB
         );
         """
         dbcursor.executescript(database_initialization_command)
+        dbcursor.close()
         return sqldb
 
 
