@@ -271,13 +271,9 @@ def handle_request(request):
             order by id
         """
         sql_cur.execute(get_users_command)
-        users = sql_cur.fetchall()
-        data_to_return = {
-            "users": users
-        }
         return {
             "success": True,
-            "data": data_to_return,
+            "data": sql_cur.fetchall(),
         }
 
 class Handler(socketserver.StreamRequestHandler):
