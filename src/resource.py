@@ -98,7 +98,7 @@ def handle_request(request):
     try:
         user = [user for user in db["users"] if user["identity"] == identity][0]
     except KeyError:
-        user = None  # User is unregistered, a 'guest'
+        user = {}  # User is unregistered, a 'guest'
 
     if request_type == ResourceRequestType.ShowLeaderboards:
         leaderboards_to_return = []
