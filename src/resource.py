@@ -166,25 +166,47 @@ def handle_request(request):
         }
 
     if request_type == ResourceRequestType.ShowOneLeaderboard:
+        # Parse request
         try:
             leaderboard_id = request["leaderboard_id"]
-            leaderboard = db["leaderboards"][leaderboard_id]
         except KeyError:
             return return_bad_request("Didn't include leaderboard id, or requested invalid leaderboard")
+
+        # make sure leaderboard should be visible by user
+        get_leaderboard_info_command = """
+            select l.id, l.name, max(l.default_permission, coalesce(p.permission, 0), class) as perm, l.ascending
+            from leaderboards l
+                left join (select * from permissions where user = ?) p on l.id = p.leaderboard
+                inner join (select class from users where id = ?)
+            where l.id = ?
+        """
+        get_leaderboard_info_params = (userid, userid, leaderboard_id)
+        sql_cur.execute(get_leaderboard_info_command, get_leaderboard_info_params)
+        (leaderboard_id, leaderboard_name, permission, ascending) = sql_cur.fetchone()
+        if permission < 1:
+            return return_bad_request("You don't have permission to view that.")
+
+        get_entries_command = """
+            select e.id, user, score, submission_date
+                from leaderboard_entries e
+                join main.leaderboards l on e.leaderboard = l.id
+            where (verified or user = ?) and l.id = ?
+            order by score desc
+        """
+        get_entries_params = (userid, leaderboard_id)
+        sql_cur.execute(get_entries_command, get_entries_params)
+        entries = sql_cur.fetchall()
+        if ascending:
+            entries.reverse()
         data_to_return = {
-            "id": leaderboard["id"],
-            "name": leaderboard["name"],
-            "entries": [entry for entry in leaderboard["entries"] if entry["verified"]]
+            "id": leaderboard_id,
+            "name": leaderboard_name,
+            "entries": entries
         }
-        permission = get_leaderboard_permission(identity, leaderboard_id)
-        if leaderboard["visible"] or permission >= Permissions.Read:
-            return {
-                "success": True,
-                "data": data_to_return,
-            }
-        else:
-            # I don't figure it is a problem to tell the user that the leaderboard exists.
-            return return_bad_request("You do not have permission to view that leaderboard.")
+        return {
+            "success": True,
+            "data": data_to_return,
+        }
 
     if request_type == ResourceRequestType.CreateLeaderboard:
         if user["class"] != UserClass.Administrator:
