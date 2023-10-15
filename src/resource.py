@@ -232,27 +232,37 @@ def handle_request(request):
     if request_type == ResourceRequestType.AddEntry:
         try:
             leaderboard_id = request["leaderboard_id"]
-            if get_leaderboard_permission(identity, leaderboard_id) <= Permissions.Write:
-                return return_bad_request("You do not have permission to do that.")
-            new_entry = {
-                "name": identity,
-                "score": request["score"],
-                "date": time.time(),
-                "verified": False,
-                "comments": [{
-                    "identity": identity,
-                    "date": time.time(),
-                    "content": request["comment"],
-                }],
-            }
-            db["leaderboards"][leaderboard_id].append(new_entry)
-            write_database_to_file()
-            return {
-                "success": True,
-                "data": new_entry,
-            }
+            entry_score = request["score"]
+            comment = request["comment"]
         except KeyError:
-            return return_bad_request("Bad leaderboard ID, or didn't include score. Must also provide a comment.")
+            return return_bad_request("request must include leaderboard id, score, and comment")
+        # error if leaderboard id doesn't exist
+        try:
+            (lb_id, lb_name, lb_perm, lb_asc) = get_leaderboard_info(userid, leaderboard_id)
+        except TypeError:
+            return return_bad_request("That leaderboard does not exist")
+        # error if you don't have permission to write to it
+        if lb_perm < Permissions.Write:
+            return return_bad_request("You do not have permission to do that")
+        create_entry_command = """
+            insert into leaderboard_entries(user, leaderboard, score, submission_date, verified)
+            values(?,?,?,?,?)
+        """
+        create_entry_params = (userid, leaderboard_id, entry_score, int(time.time()), 0)
+        sql_cur.execute(create_entry_command, create_entry_params)
+        entry_id = sql_cur.lastrowid
+        create_comment_command = """
+            insert into entry_comments(user, entry, date, content)
+            values(?,?,?,?)
+        """
+        create_comment_params = (userid, entry_id, int(time.time()), comment)
+        sql_cur.execute(create_comment_command, create_comment_params)
+        comment_id = sql_cur.lastrowid
+        # TODO What should this return?
+        return {
+            "success": True,
+            "data": [],
+        }
 
 
 class Handler(socketserver.StreamRequestHandler):
