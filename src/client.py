@@ -1,182 +1,9 @@
 import json
 import os
-import os.path
 import asyncio
 from enums import ResourceRequestType
 # import time  # was used for sleeping before retrying connection
 
-# SERVER CLASS FOR STORING
-class Server:
-    def __init__(self, name, ip, port):
-        self.name = name
-        self.ip = ip
-        self.port = port
-
-    def rename(self, newname):
-        self.name = newname
-
-    def reip(self, newip):
-        self.ip = newip
-
-    def report(self, newport):
-        self.port = newport
-
-    def ssave(self, filename):
-        with open(filename) as f:
-            sdata = json.load(f)
-            parse = sdata["servers"]
-            newentry = {'name': self.name, 'ip': self.ip, 'port': self.port}
-            parse.append(newentry)
-        with open(filename, 'w') as f:
-            json.dump(sdata, f, indent = 4)
-
-# CHECK IF JSON FILE OF SERVERS EXISTS
-path = './client_db.json'
-fcheck = os.path.exists(path)
-
-# IF FILE DOES NOT EXIST, INITIALIZE IT
-if fcheck == False:
-    with open("client_db.json", "w") as f:
-        server_dict = {}
-        server_dict["servers"] = []
-        json.dump(server_dict, f, indent = 4)
-
-# GLOBAL SERVER COUNT
-servercount = 0
-
-# CLEAR SCREEN TO KEEP CLEAN
-def clear_screen():
-    if os.name == 'nt':
-        os.system('cls')
-    else:
-        os.system('clear')
-
-# MAIN FUNCTION
-def maindisplay():
-    # CLEAR SCREEN TO BEGIN
-    clear_screen()
-
-    # KEEP TRACK OF SERVER COUNT
-    global servercount
-
-    # SET HEADER FOR LIST
-    print("Server List:\n[#]   Name:                   IP:                Port:")
-
-    # DISPLAY SERVER LIST
-    with open("client_db.json", "r") as f:
-        sdata = json.load(f)
-        parse = sdata["servers"]
-        count = 1
-        for i in parse:
-            namedisplay = parse[count-1]['name']+"                        "
-            ipdisplay = parse[count-1]['ip']+"                 "
-            namedisplay = namedisplay[:24]
-            ipdisplay = ipdisplay[:19]
-
-
-            print("["+str(count)+"]"+"   "+namedisplay+ipdisplay+parse[count-1]['port'])
-            count = count + 1
-        servercount = len(parse)
-
-# MENU INTERFACE
-def mainoptions():
-    while True:
-
-        # DISPLAY MAIN STUFF
-        maindisplay()
-
-        # IF NO AUTH SERVER, ADD IMMEDIATELY
-        if servercount == 0:
-            print("\nYou do not yet have an auth server. Please add one now.")
-            newname = input("Give a name for the server. Please use only 20 characters or less.\n")
-            if len(newname) > 20:
-                newname = newname[:20]
-            newip = input("Give the ip to the server.\n")
-            newport = input("Give the port to the server.\n")
-            newserver = Server(newname, newip, newport)
-            newserver.ssave("client_db.json")
-
-            maindisplay()
-
-        # DISPLAY OPTIONS
-        print("\nOptions: \n[C] connect to server \n[A] add server listing \n[E] edit server listing \n[R] remove server listing \n[Q] quit application")
-
-        # TAKE INPUT
-        key = input("\nPlease choose the corresponding key.\n")
-
-        # CONNECT
-        if key == 'C' or key == 'c':
-            ckey = input("Enter the # of the server that you would like to connect to.\n")
-            ckey = int(ckey)
-            if ckey < 1 or ckey > servercount:
-                break
-            with open("client_db.json", "r") as f:
-                sdata = json.load(f)
-                parse = sdata["servers"]
-                connip = parse[ckey-1]['ip']
-                connport = parse[ckey-1]['port']
-            asyncio.run(mainserver(connip, connport))
-
-        # ADD
-        if key == 'A' or key == 'a':
-            newname = input("Give a name for the server. Please use only 20 characters or less.\n")
-            if len(newname) > 20:
-                newname = newname[:20]
-            newip = input("Give the ip to the server.\n")
-            newport = input("Give the port to the server.\n")
-            newserver = Server(newname, newip, newport)
-            newserver.ssave("client_db.json")
-
-        # EDIT
-        if key == 'E' or key == 'e':
-            ekey = input("Enter the # of the server that you would like to edit.\n")
-            ekey = int(ekey)
-            if ekey < 0 or ekey > servercount:
-                break
-            ekey2 = input("What would you like to edit? Enter 1 for name, 2 for IP, 3 for port.\n")
-            if ekey2 == '1':
-                newname = input("Give a new name for the server. Please use only 20 characters or less.\n")
-                if len(newname) > 20:
-                    newname = newname[:20]
-                with open("client_db.json") as f:
-                    sdata = json.load(f)
-                    parse = sdata["servers"]
-                    parse[ekey-1] = {'name': newname, 'ip': parse[ekey-1]['ip'], 'port': parse[ekey-1]['port']}
-                with open("client_db.json", 'w') as f:
-                    json.dump(sdata, f, indent = 4)
-            if ekey2 == '2':
-                newip = input("Give the new ip for the server.\n")
-                with open("client_db.json") as f:
-                    sdata = json.load(f)
-                    parse = sdata["servers"]
-                    parse[ekey-1] = {'name': parse[ekey-1]['name'], 'ip': newip, 'port': parse[ekey-1]['port']}
-                with open("client_db.json", 'w') as f:
-                    json.dump(sdata, f, indent = 4)
-            if ekey2 == '3':
-                newport = input("Give the new port for the server.\n")
-                with open("client_db.json") as f:
-                    sdata = json.load(f)
-                    parse = sdata["servers"]
-                    parse[ekey-1] = {'name': parse[ekey-1]['name'], 'ip': parse[ekey-1]['ip'], 'port': newport}
-                with open("client_db.json", 'w') as f:
-                    json.dump(sdata, f, indent = 4)
-
-        # REMOVE
-        if key == 'R' or key == 'r':
-            rkey = input("Enter the # of the server that you would like to remove.\n")
-            rkey = int(rkey)
-            if rkey < 0 or rkey > servercount:
-                break
-            with open("client_db.json") as f:
-                    sdata = json.load(f)
-                    parse = sdata["servers"]
-                    parse.remove({'name': parse[rkey-1]['name'], 'ip': parse[rkey-1]['ip'], 'port': parse[rkey-1]['port']})
-            with open("client_db.json", 'w') as f:
-                json.dump(sdata, f, indent = 4)
-
-        # QUIT
-        if key == "Q" or key == 'q':
-            quit()
 
 def request_token(identity):
     return {
@@ -184,13 +11,15 @@ def request_token(identity):
         "identity": identity
     }
 
+
 def request_show_leaderboards(identity, token):
     return {
         "type": ResourceRequestType.ShowLeaderboards,
         "identity": identity,
         "token": token
     }
- 
+
+
 def request_one_leaderboard(identity, token, leaderboard_id):
     return {
         "type": ResourceRequestType.ShowOneLeaderboard,
@@ -199,54 +28,160 @@ def request_one_leaderboard(identity, token, leaderboard_id):
         "token": token
     }
 
-# SERVER INTERFACE - ADD IN 'client.py' ACCORDINGLY
-async def mainserver(resip, resport):
+
+def clear_screen():
+    if os.name == 'nt':
+        os.system('cls')
+    else:
+        os.system('clear')
+
+
+def display():
     clear_screen()
 
-    with open("client_db.json", "r") as f:
-        sdata = json.load(f)
-        parse = sdata["servers"]
-        auth_ip = parse[0]['ip']
-        auth_port = parse[0]['port']
+    print("Authentication Server")
+    print("{:<21}{:<12}{:<6}".format("Name:", "IP:", "Port:"))
+    auth_server = db["auth_server"]
+    print("{:<21}{:<12}{:<6}".format(auth_server["name"], auth_server["ip"], auth_server["port"]))
+    print("Resource Servers")
+    print("{:<4}{:<21}{:<12}{:<6}".format("#", "Name:", "IP:", "Port:"))
+    server_count = 1
+    for server in db["resource_servers"]:
+        print("{:<4}{:<21}{:<12}{:<6}".format(server_count, server["name"], server["ip"], server["port"]))
+        server_count += 1
 
-    print("Trying to connect to {}:{}".format(auth_ip, auth_port))
 
-    reader, writer = await asyncio.open_connection(auth_ip, int(auth_port))
-    print("Connection successful.")
+def write_database_to_file():
+    with open(db_filename, "w") as db_file:
+        json.dump(db, db_file)
 
-    identity = input("What is your username?")
-    # TODO what happens if auth server not connecting?
 
-    request = request_token(identity)
-    print("writing "+json.dumps(request))
-    writer.write(bytes(json.dumps(request) + "\n", "utf-8"))
-    await writer.drain()
-    print("write successful, reading...")
-    response_data = await reader.read()
-    response = json.loads(response_data.decode())
+def initialize_database() -> dict:
+    try:
+        with open(db_filename, "r") as db_file:
+            db_to_return = json.load(db_file)
+            print("Successfully loaded database from file.")
+    except json.decoder.JSONDecodeError:
+        print("Could not read db from file. Exiting to avoid corrupting!")
+    except FileNotFoundError:
+        print("No database found! Initializing new database.")
+        db_to_return = {
+            "resource_servers": [],
+        }
+    return db_to_return
 
-    # TODO here is where we should check for errors
 
-    token = response["token"]
-    reader, writer = await asyncio.open_connection(resip, int(resport))
+def main():
+    if "auth_server" not in db:
+        print("No authentication server found. Please add one now.")
+        name = input("Name the server: ")[:20]
+        ip = input("Enter the ip of the server: ")
+        port = input("Enter the port of the server: ")
+        db["auth_server"] = {"name": name, "ip": ip, "port": port}
+        write_database_to_file()
 
     while True:
-        request_type = input("What request would you like to make?")
-        
-        if request_type == "quit":
+        display()
+        print("\nChoices\n"
+              "[C] connect to server\n"
+              "[A] add server listing\n"
+              "[E] edit server listing\n"
+              "[R] remove server listing\n"
+              "[Q] quit application")
+        choice = input("Input letter of choice: ").lower()
+
+        if choice == 'c':  # connect to resource server
+            choice = int(input("Enter server number to connect to: ")) - 1
+            try:
+                server = db["resource_servers"][choice]
+            except KeyError:
+                print("Invalid server selection")
+                continue
+            asyncio.run(server_loop(server["ip"], server["port"]))
+
+        elif choice == 'a':  # add resource server to list
+            name = input("Name the server: ")[:20]
+            ip = input("Enter the ip of the server: ")
+            port = input("Enter the port of the server: ")
+            db["resource_servers"].append({"name": name, "ip": ip, "port": port})
+            write_database_to_file()
+
+        elif choice == 'e':  # edit resource server
+            choice = int(input("Enter server number to edit (0 for auth. server): ")) - 1
+            if choice == -1:
+                server = db["auth_server"]
+            else:
+                try:
+                    server = db["resource_servers"][choice]
+                except KeyError:
+                    print("Invalid server selection")
+                    continue
+            name = input("Enter new name (empty to leave as \"{}\"): ".format(server["name"]))[:20]
+            if name != "":
+                server["name"] = name
+            ip = input("Enter new ip (empty to leave as \"{}\"): ".format(server["ip"]))
+            if ip != "":
+                server["name"] = ip
+            port = input("Enter new port (empty to leave as \"{}\"): ".format(server["port"]))
+            if port != "":
+                server["port"] = port
+            write_database_to_file()
+
+        elif choice == 'r':  # remove a resource server
+            choice = int(input("Enter server number to remove: ")) - 1
+            # this ensures there is a server there but there is likely a faster way
+            try:
+                server = db["resource_servers"][choice]
+            except KeyError:
+                print("Invalid server selection")
+                continue
+            db["resource_servers"].pop(choice)
+
+        if choice == 'q':  # quit
             break
 
-        request = request_show_leaderboards(identity, token)
-        writer.write(bytes(json.dumps(request) + "\n", "utf-8"))
-        await writer.drain()
-        response_data = await reader.readline()
-        response = json.loads(response_data.decode())
-        # TODO here is where we should check for errors
-        string = response["string"]
-        print(string)
-    
+
+async def server_loop(res_ip, res_port):
+    clear_screen()
+
+    auth_server = db["auth_server"]
+    print("Trying to connect to {}:{}".format(auth_server["ip"], auth_server["port"]))
+    reader, writer = await asyncio.open_connection(auth_server["ip"], int(auth_server["port"]))
+    # TODO handle failed connection
+    print("Connection successful.")
+    identity = input("Enter identity: ")
+    request = request_token(identity)
+    writer.write(bytes(json.dumps(request) + "\n", "utf-8"))
+    await writer.drain()
+    response_data = await reader.read()
+    response = json.loads(response_data.decode())
+    # TODO handle bad packets or error packets
+    token = response["token"]
+
+    reader, writer = await asyncio.open_connection(res_ip, int(res_port))
+    # TODO handle failed connection
+    while True:
+        choice = input("Enter request (list leaderboards): ")
+
+        if choice == "list leaderboards":
+            request = request_show_leaderboards(identity, token)
+            writer.write(bytes(json.dumps(request) + "\n", "utf-8"))
+            await writer.drain()
+            response_data = await reader.readline()
+            response = json.loads(response_data.decode())
+            # TODO handle bad packets or error packets
+            # TODO this is actually not what you get back from the resource server anymore, crashes here
+            string = response["string"]  # CRASHES!
+            print(string)
+
+        elif choice == "quit":
+            break
+
     writer.close()
     await writer.wait_closed()
 
+
 if __name__ == "__main__":
-    mainoptions()
+    db_filename = "client_db"
+    db = initialize_database()
+    main()

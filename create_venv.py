@@ -13,10 +13,9 @@ if not (ver.major >= 3 and ver.minor >= 8):
     print(f"Your current python version is {sys.version}")
     exit()
 
-print(sys.version_info.major)
 print(f"Assuming cwd as {Path.cwd()}")
 try:
-    #remove previous venv
+    # remove previous venv
     shutil.rmtree("./venv/")
 except:
     pass
