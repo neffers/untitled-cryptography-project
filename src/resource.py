@@ -26,12 +26,6 @@ class Permissions(IntEnum):
     Moderate = 3
 
 
-# Deprecated
-def write_database_to_file():
-    with open(db_filename, "w") as db_file:
-        json.dump(db, db_file)
-
-
 def initialize_database():
     # Initialize DB either from file or with defaults
     if path.exists(db_filename):
