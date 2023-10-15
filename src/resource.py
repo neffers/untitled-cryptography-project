@@ -271,6 +271,36 @@ def handle_request(request):
             "data": sql_cur.fetchall(),
         }
 
+    if request_type == ResourceRequestType.ListUnverified:
+        try:
+            leaderboard_id = request["leaderboard_id"]
+        except KeyError:
+            return return_bad_request("Did not include a leaderboard id")
+
+        list_unverified_command = """
+            select e.id, user, score, submission_date
+            from leaderboard_entries e
+            left outer join leaderboards l on e.leaderboard = l.id
+            left outer join (select u.class
+                             from users u
+                             where u.id = ?)
+            left outer join (select p.permission, p.leaderboard
+                             from users u
+                             left join permissions p on p.user = u.id
+                             where u.id = ?) x
+                on e.leaderboard = x.leaderboard
+            where (user = ? or max(default_permission, class, coalesce(permission, 0)) >= 3) and not verified
+                and e.leaderboard = ?
+        """
+        list_unverified_params = (userid, userid, userid, leaderboard_id)
+        sql_cur.execute(list_unverified_command, list_unverified_params)
+
+        entries = sql_cur.fetchall()
+        return {
+            "success": True,
+            "data": entries,
+        }
+
 class Handler(socketserver.StreamRequestHandler):
     def handle(self):
         print("handling packet")

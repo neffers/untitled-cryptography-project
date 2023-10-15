@@ -10,3 +10,4 @@ class ResourceRequestType(IntEnum):
     CreateLeaderboard = auto()
     AddEntry = auto()
     ListUsers = auto()
+    ListUnverified = auto()
