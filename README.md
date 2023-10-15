@@ -5,6 +5,7 @@ Please see the [Phase 2 description](desc/phase_2.pdf) for details.
 #### General
 - Using Python 3.8 or later
 - Transferring data using JSON over TCP
+- Storing data serverside using SQLite
 - Server handles packets with a concurrent callback
 - Databases write to disk on every modification
 #### Resource Server
@@ -55,65 +56,71 @@ Please see the [Phase 2 description](desc/phase_2.pdf) for details.
   - Modify permissions for any user for any leaderboard
 - The first user to connect to a resource server is given admin permissions
 
-### Commands
+### Clientside Commands
 #### Basic Commands
-- list leaderboards
+- READ: list leaderboards
   - shows all leaderboard names on this server
-- open leaderboard [leaderboard name]
-  - sets local state variable 'leaderboard' to the specified leaderboard name
-- add leaderboard [leaderboard name]
+- READ: open leaderboard [leaderboard name]
+  - sets local state variable 'leaderboard' to the specified leaderboard name  
+- ADMIN: add leaderboard [leaderboard name]
   - adds a leaderboard with the specified name
-- list users
+- READ: list users
   - outputs a list of all users with ID and identity
-- open user [user ID]
+- READ: open user [user ID]
   - sets local state variable 'user' to the specified ID
-- open self
+- READ: open self
   - sets local state variable 'user' to the logged in user's ID
-#### Commands Using 'leaderboard' Variable
-- list entries
+#### Commands Associated With a Leaderboard
+- READ: list entries
   - shows all verified entries (ID, place, player name, score, date/time) on the leaderboard
-- list unverified
+- MOD: list unverified
   - shows all unverified entries (ID, place, player name, score, date/time) on the leaderboard
-- submit entry
+- WRITE: submit entry
   - then prompted to enter
     - score
     - description
-- open entry [entry ID]
+- READ: open entry [entry ID]
   - sets local state variable 'entry' to the specified entry ID
-- score order [ascending/descending]
+- ADMIN: score order [ascending/descending]
   - set the ordering of scores to be ascending or descending
-- remove leaderboard
+- ADMIN: remove leaderboard
   - deletes leaderboard from the database (after asking to confirm)
-#### Commands Using 'entry' Variable
-- view entry
+#### Commands Associated With an Entry
+- READ/MOD: view entry
+  - Access Denied if entry is unverified and user is not moderator
   - show the ID, place on the leaderboard, player name, score, date/time of submission, date/time of verification and who verified it (if none, declare it to be so), list of proof files, and number of comments for the current entry
-- add proof [filename]
+- WRITE: add proof [filename]
+  - must be original author of the submission
   - upload specified file as a proof file to this entry
-- download proof [filename] into [local filename]
+- READ/MOD: download proof [filename] into [local filename]
+  - Access Denied if entry is unverified and user is not moderator
   - download the proof file into the local filename specified
-- view comments
+- READ/MOD: view comments
+  - Access Denied if entry is unverified and user is not moderator
   - show all comments, printing poster's name, text content of the message, and a date/time. chronologically ordered.
-- post comment [message]
+- WRITE/MOD: post comment [message]
+  - Must be owner of submission or moderator
   - add a comment containing your message
-- verify entry
+- MOD: verify entry
   - mark the entry as verified
-- unverify entry
+- MOD: unverify entry
   - mark the entry as unverified
-- remove entry
+- WRITE/MOD: remove entry
+  - Must be owner of submission or moderator
   - take the entry out of the database
-#### Commands Using 'user' Variable
-- view user
+#### Commands Associated With a User
+- READ: view user
   - Show the name of the user, account creation date, number of entries
-- view permissions
-  - List all permissions given to this user, as leaderboard - access pairs
-- set permission for [leaderboard name] to [access level]
+- MOD: view permissions
+  - List all permissions given to this user, as leaderboard:access pairs
+- MOD: set permission for [leaderboard name] to [access level]
   - sets the user's access level for the given leaderboard
-- list submissions
+- READ: list submissions
   - lists all submissions (ID, leaderboard, score, date/time) made by this user
-- open submission [entry ID]
+- READ: open submission [entry ID]
   - sets local state variable 'entry' to the given ID
   - note: this replicates behavior for open entry, bad thing?
-- remove user
+- ADMIN: remove user
   - deletes user from database (with confirmation)
   - optionally deletes all content associated with that user
     - this sounds really hard :)
