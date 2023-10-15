@@ -6,7 +6,7 @@ if the person can perform the request they are making according to the table, re
 """
 import socketserver
 import json
-from datetime import datetime
+import time
 from enum import IntEnum, auto
 from enums import ResourceRequestType
 
@@ -55,7 +55,16 @@ def initialize_database() -> dict:
                 "id", a numerical identifier corresponding to position in list,
                 "name",
                 "visible", a default visibility,
-                "entries", a list [] of entries,
+                "entries", a list [] of entries, each of which should have:
+                    "name", the identity associated with it,
+                    "score", the score,
+                    "date", the time submitted,
+                    "verified", a boolean of whether or not it has been verified by a moderator,
+                    "comments", a list[] of communique regarding this entry each of which has:
+                        "author", the identity of the author,
+                        "date", the time submitted,
+                        "content", the content of the message
+                        
         As functionality is needed, the database can be added to from here.
         '''
         db_to_return = {
@@ -160,7 +169,13 @@ def handle_request(request):
             new_entry = {
                 "name": identity,
                 "score": request["score"],
-                "date": datetime.utcnow(),
+                "date": time.time(),
+                "verified": False,
+                "comments": [{
+                    "identity": identity,
+                    "date": time.time(),
+                    "content": request["comment"],
+                }],
             }
             db["leaderboards"][leaderboard_id].append(new_entry)
             write_database_to_file()
