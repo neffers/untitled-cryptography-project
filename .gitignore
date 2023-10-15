@@ -1,5 +1,6 @@
 .idea
 venv
-client_db.json
-res_db
-/src/__pycache__
+**/.DS_Store
+**/__pycache__
+**/client_db
+**/res_db
