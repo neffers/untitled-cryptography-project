@@ -128,17 +128,21 @@ def handle_request(request):
         }
 
     if request_type == ResourceRequestType.ShowOneLeaderboard:
-        # TODO: Trim unverified entries from leaderboard
         try:
             leaderboard_id = request["leaderboard_id"]
             leaderboard = db["leaderboards"][leaderboard_id]
         except KeyError:
             return return_bad_request("Didn't include leaderboard id, or requested invalid leaderboard")
+        data_to_return = {
+            "id": leaderboard["id"],
+            "name": leaderboard["name"],
+            "entries": [entry for entry in leaderboard["entries"] if entry["verified"]]
+        }
         permission = get_leaderboard_permission(identity, leaderboard_id)
         if leaderboard["visible"] or permission >= Permissions.Read:
             return {
                 "success": True,
-                "data": leaderboard
+                "data": data_to_return,
             }
         else:
             # I don't figure it is a problem to tell the user that the leaderboard exists.
