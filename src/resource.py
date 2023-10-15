@@ -91,17 +91,22 @@ def initialize_database():
         return sqldb
 
 
-# Returns Permissions.NoAccess if no permission is found (including if user is a guest)
-# Deprecated
-def get_leaderboard_permission(identity, leaderboard_id):
-    try:
-        user = [user for user in db["users"] if user["identity"] == identity][0]
-    except KeyError:
-        user = {}  # User is not registered
-    try:
-        return [perm["level"] for perm in user["permissions"] if perm["id"] == leaderboard_id][0]
-    except KeyError:
-        return Permissions.NoAccess
+# Generally used as (lb_id, lb_name, lb_perm, lb_asc) = get_leaderboard_info()
+def get_leaderboard_info(userid, leaderboard_id):
+    cur = db.cursor()
+    # TODO ugly, make it so we don't need to duplicate userid in params?
+    get_leaderboard_info_command = """
+        select l.id, l.name, max(l.default_permission, coalesce(p.permission, 0), class) as perm, l.ascending
+        from leaderboards l
+            left join (select * from permissions where user = ?) p on l.id = p.leaderboard
+            inner join (select class from users where id = ?)
+        where l.id = ?
+    """
+    get_leaderboard_info_params = (userid, userid, leaderboard_id)
+    cur.execute(get_leaderboard_info_command, get_leaderboard_info_params)
+    ret_tuple = cur.fetchone()
+    cur.close()
+    return ret_tuple
 
 
 def return_bad_request(further_info=""):
@@ -174,16 +179,7 @@ def handle_request(request):
             return return_bad_request("Didn't include leaderboard id, or requested invalid leaderboard")
 
         # make sure leaderboard should be visible by user
-        get_leaderboard_info_command = """
-            select l.id, l.name, max(l.default_permission, coalesce(p.permission, 0), class) as perm, l.ascending
-            from leaderboards l
-                left join (select * from permissions where user = ?) p on l.id = p.leaderboard
-                inner join (select class from users where id = ?)
-            where l.id = ?
-        """
-        get_leaderboard_info_params = (userid, userid, leaderboard_id)
-        sql_cur.execute(get_leaderboard_info_command, get_leaderboard_info_params)
-        (leaderboard_id, leaderboard_name, permission, ascending) = sql_cur.fetchone()
+        (leaderboard_id, leaderboard_name, permission, ascending) = get_leaderboard_info(userid, leaderboard_id)
         if permission < 1:
             return return_bad_request("You don't have permission to view that.")
 
