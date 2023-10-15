@@ -221,7 +221,8 @@ def handle_request(request):
         new_lb_params = (new_lb_name, int(time.time()), new_lb_perm, new_lb_asc)
         sql_cur.execute(new_lb_command, new_lb_params)
         db.commit()
-        sql_cur.execute("select * from leaderboards order by id desc")
+        new_lb_id = sql_cur.lastrowid
+        sql_cur.execute("select * from leaderboards where id = ?", (new_lb_id,))
         new_lb = sql_cur.fetchone()
         return {
             "success": True,
