@@ -13,17 +13,17 @@ from enum import IntEnum, auto
 from enums import ResourceRequestType
 
 
-class UserClass(IntEnum):
-    User = auto()
-    Administrator = auto()
-
-
 class Permissions(IntEnum):
     # we want these to have a specific hierarchy
     NoAccess = 0
     Read = 1
     Write = 2
     Moderate = 3
+
+
+class UserClass(IntEnum):
+    User = Permissions.NoAccess
+    Administrator = Permissions.Moderate
 
 
 def initialize_database():
