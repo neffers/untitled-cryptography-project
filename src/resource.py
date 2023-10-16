@@ -392,10 +392,10 @@ def handle_request(request):
                              left join permissions p on p.user = u.id
                              where u.id = ?) x
                 on e.leaderboard = x.leaderboard
-            where (verified or (max(default_permission, class, coalesce(permission, 0)) >= 3) or u.id = ?)
+            where (verified or (max(default_permission, class, coalesce(permission, 0)) >= ?) or e.user = ?)
                 and (e.user = ?)
         """
-        get_entries_params = (request_user_id, request_user_id, user_id, user_id)
+        get_entries_params = (request_user_id, request_user_id, Permissions.Moderate, request_user_id, user_id)
         sql_cur.execute(get_entries_command, get_entries_params)
         entries = sql_cur.fetchall()
 
