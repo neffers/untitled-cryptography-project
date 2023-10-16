@@ -362,6 +362,9 @@ def handle_request(request):
     # User: View User (get visible entries)
     if request_type == ResourceRequestType.ViewUser:
         #TODO: Reject access if permission is NoAccess
+        # From Jordan: As it stands, there's no way for this to be rejected.
+        # There's no permission gate on viewing the user, but the *entries* should be filtered
+        # based on what should be visible to the requesting user
         try:
             user_id = request["user_id"]
         except KeyError:
