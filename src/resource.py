@@ -378,7 +378,7 @@ def handle_request(request):
         
         #If permission is Read, do this:
         #get_entries_command = """
-        #    select leaderboard, score, submission_date
+        #    select id, leaderboard, score, submission_date
         #        from leaderboard_entries
         #    where (user = ?) and verified
         #"""
@@ -388,7 +388,7 @@ def handle_request(request):
 
         #If permission is Write or greater, do this:
         get_entries_command = """
-            select leaderboard, score, submission_date
+            select id, leaderboard, score, submission_date
                 from leaderboard_entries
             where (user = ?)
         """
