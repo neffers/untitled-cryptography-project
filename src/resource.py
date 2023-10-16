@@ -148,6 +148,7 @@ def handle_request(request):
     # Can be used throughout the request handling
     (userid, identity, token, user_class, user_reg_date) = user
 
+    # Basic: List Leaderboards
     if request_type == ResourceRequestType.ListLeaderboards:
         # TODO can this be simplified?
         get_leaderboards_command = """
@@ -165,6 +166,8 @@ def handle_request(request):
             "data": leaderboards_to_return
         }
 
+    # Basic: Open Leaderboard
+    # Leaderboard: List Entries
     if request_type == ResourceRequestType.ShowOneLeaderboard:
         # Parse request
         try:
@@ -200,6 +203,7 @@ def handle_request(request):
             "data": data_to_return,
         }  
 
+    # Basic: Add Leaderboard
     if request_type == ResourceRequestType.CreateLeaderboard:
         if user_class != UserClass.Administrator:
             return return_bad_request("You do not have permission to do that.")
@@ -223,6 +227,7 @@ def handle_request(request):
             "data": new_lb,
         }
 
+    # Leaderboard: Submit Entry
     if request_type == ResourceRequestType.AddEntry:
         try:
             leaderboard_id = request["leaderboard_id"]
@@ -259,6 +264,8 @@ def handle_request(request):
             "data": [],
         }
 
+    # Basic: List Users
+    # TODO: Does this fulfill Basic: Open user and Basic: open self?
     if request_type == ResourceRequestType.ListUsers:
         get_users_command = """
             select u.id, u.identity
@@ -271,6 +278,7 @@ def handle_request(request):
             "data": sql_cur.fetchall(),
         }
 
+    # Leaderboard: List Unverified
     if request_type == ResourceRequestType.ListUnverified:
         try:
             leaderboard_id = request["leaderboard_id"]
