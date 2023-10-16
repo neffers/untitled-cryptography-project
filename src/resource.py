@@ -375,27 +375,25 @@ def handle_request(request):
         get_user_params = (user_id,)
         sql_cur.execute(get_user_command, get_user_params)
         user_data = sql_cur.fetchall()
-        
-        #If permission is Read, do this:
-        #get_entries_command = """
-        #    select id, leaderboard, score, submission_date
-        #        from leaderboard_entries
-        #    where (user = ?) and verified
-        #"""
-        #get_entries_params = (user_id,)
-        #sql_cur.execute(get_entries_command, get_entries_params)
-        #entries = sql_cur.fetchall()
 
-        #If permission is Write or greater, do this:
         get_entries_command = """
-            select id, leaderboard, score, submission_date
-                from leaderboard_entries
-            where (user = ?)
+            select e.id, e.leaderboard, e.score, e.submission_date
+            from leaderboard_entries e
+            left outer join leaderboards l on e.leaderboard = l.id
+            left outer join (select u.class
+                             from users u
+                             where u.id = ?)
+            left outer join (select p.permission, p.leaderboard
+                             from users u
+                             left join permissions p on p.user = u.id
+                             where u.id = ?) x
+                on e.leaderboard = x.leaderboard
+            where (max(default_permission, class, coalesce(permission, 0)) >= 3) and
+            (verified or class >= 2) and (e.user = ?)
         """
-        get_entries_params = (user_id,)
+        get_entries_params = (userid, userid, user_id)
         sql_cur.execute(get_entries_command, get_entries_params)
         entries = sql_cur.fetchall()
-        
 
         data_to_return = {
             "user_data": user_data,

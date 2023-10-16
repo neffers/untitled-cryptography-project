@@ -13,6 +13,7 @@ class ResourceRequestType(IntEnum):
     ListUnverified = auto()
     GetEntry = auto()
     ViewUser = auto()
+    ViewPermissions = auto()
     # TODOS
     # Admin: Score Order
     # Admin: Remove Leaderboard
@@ -22,6 +23,5 @@ class ResourceRequestType(IntEnum):
     # Entry: Verify Entry
     # Entry: Unverify Entry
     # Entry: Remove Entry
-    # User: View Permission
     # User: Set Permission
     # User: Remove User

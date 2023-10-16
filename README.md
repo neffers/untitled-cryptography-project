@@ -131,7 +131,7 @@ Please see the [Phase 2 description](desc/phase_2.pdf) for details.
   - Gives an error if a user with the id doesn't exist
   - Shows the name and registration date of the user
   - Lists all entries from a user if requester has write access, otherwise only verified entries are visible
-- MOD: view permissions
+- MOD: view permissions [user_id]
   - List all permissions given to this user, as leaderboard:access pairs
 - MOD: set permission for [leaderboard name] to [access level]
   - sets the user's access level for the given leaderboard
