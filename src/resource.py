@@ -309,6 +309,56 @@ def handle_request(request):
             "data": entries,
         }
 
+    # Leaderboard: Open Entry
+    # Entry: View Entry
+    # Entry: View Comments
+    # User: Open Submission
+    if request_type == ResourceRequestType.GetEntry:
+        try:
+            entry_id = request["entry_id"]
+        except KeyError:
+            return return_bad_request("Must include an entry ID.")
+        # TODO check permission
+        get_entry_command = """
+            select e.id, user, u.identity, score, submission_date, verified, verifier, v.identity
+            from leaderboard_entries e
+            left join main.users u on e.user = u.id
+            left join main.users v on e.verifier = v.id
+            where e.id = ?
+        """
+        get_entry_params = (entry_id,)
+        sql_cur.execute(get_entry_command, get_entry_params)
+        entry = sql_cur.fetchone()
+
+        get_comments_command = """
+            select u.identity, date, content
+            from entry_comments c
+            left join main.users u on u.id = c.user
+            where c.entry = ?
+        """
+        get_comments_params = (entry_id,)
+        sql_cur.execute(get_comments_command, get_comments_params)
+        comments = sql_cur.fetchall()
+
+        get_files_command = """
+            select id, name, submission_date
+            from files
+            where entry = ?
+        """
+        get_files_params = (entry_id,)
+        sql_cur.execute(get_files_command, get_files_params)
+        files = sql_cur.fetchall()
+
+        data_to_return = {
+            "entry": entry,
+            "comments": comments,
+            "files": files,
+        }
+        return {
+            "success": True,
+            "data": data_to_return,
+        }
+
 class Handler(socketserver.StreamRequestHandler):
     def handle(self):
         print("handling packet")

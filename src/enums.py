@@ -11,3 +11,4 @@ class ResourceRequestType(IntEnum):
     AddEntry = auto()
     ListUsers = auto()
     ListUnverified = auto()
+    GetEntry = auto()
