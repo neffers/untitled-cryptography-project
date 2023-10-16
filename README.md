@@ -130,7 +130,7 @@ Please see the [Phase 2 description](desc/phase_2.pdf) for details.
   - Access Denied if requester has No Access
   - Gives an error if a user with the id doesn't exist
   - Shows the name and registration date of the user
-  - Lists all entries from a user if requester has write access, otherwise only verified entries are visible
+  - Lists all entries from a user that the requester has access to
 - MOD: view permissions [user_id]
   - List all permissions given to this user, as leaderboard:access pairs
 - MOD: set permission for [leaderboard name] to [access level]
