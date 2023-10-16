@@ -69,7 +69,7 @@ def initialize_database():
             id INTEGER PRIMARY KEY,
             user INTEGER REFERENCES users(id),
             entry INTEGER REFERENCES leaderboard_entries(id),
-            date REAL,
+            date INTEGER,
             content TEXT
         );
         CREATE TABLE files (
