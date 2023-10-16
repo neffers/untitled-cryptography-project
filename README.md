@@ -126,8 +126,11 @@ Please see the [Phase 2 description](desc/phase_2.pdf) for details.
   - Must be owner of submission or moderator
   - take the entry out of the database
 #### Commands Associated With a User
-- READ: view user
-  - Show the name of the user, account creation date, number of entries
+- READ: view user [user_id]
+  - Access Denied if requester has No Access
+  - Gives an error if a user with the id doesn't exist
+  - Shows the name and registration date of the user
+  - Lists all entries from a user if requester has write access, otherwise only verified entries are visible
 - MOD: view permissions
   - List all permissions given to this user, as leaderboard:access pairs
 - MOD: set permission for [leaderboard name] to [access level]

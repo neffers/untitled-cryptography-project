@@ -361,6 +361,7 @@ def handle_request(request):
     
     # User: View User (get visible entries)
     if request_type == ResourceRequestType.ViewUser:
+        #TODO: Reject access if permission is NoAccess
         try:
             user_id = request["user_id"]
         except KeyError:
@@ -375,14 +376,26 @@ def handle_request(request):
         sql_cur.execute(get_user_command, get_user_params)
         user_data = sql_cur.fetchall()
         
+        #If permission is Read, do this:
+        #get_entries_command = """
+        #    select leaderboard, score, submission_date
+        #        from leaderboard_entries
+        #    where (user = ?) and verified
+        #"""
+        #get_entries_params = (user_id,)
+        #sql_cur.execute(get_entries_command, get_entries_params)
+        #entries = sql_cur.fetchall()
+
+        #If permission is Write or greater, do this:
         get_entries_command = """
             select leaderboard, score, submission_date
                 from leaderboard_entries
-            where (user = ?) and verified
+            where (user = ?)
         """
         get_entries_params = (user_id,)
         sql_cur.execute(get_entries_command, get_entries_params)
         entries = sql_cur.fetchall()
+        
 
         data_to_return = {
             "user_data": user_data,
