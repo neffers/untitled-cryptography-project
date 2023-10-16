@@ -114,7 +114,7 @@ def handle_request(request):
     # Every request needs to have these
     try:
         request_type = request["type"]
-        identity = request["identity"]
+        request_identity = request["identity"]
         token = request["token"]
     except KeyError:
         return return_bad_request("Didn't include request type, identity, or token")
@@ -128,25 +128,25 @@ def handle_request(request):
     if len(admins) == 0:
         print("No admin found, adding newly connected user to admin list")
         create_admin_command = "INSERT INTO users(identity, token, class) VALUES(?, ?, ?)"
-        admin_params = (identity, token, UserClass.Administrator)
+        admin_params = (request_identity, token, UserClass.Administrator)
         sql_cur.execute(create_admin_command, admin_params)
         db.commit()
 
     get_user_command = "SELECT * FROM users WHERE identity = ?"
-    user = sql_cur.execute(get_user_command, (identity,)).fetchone()
+    requesting_user = sql_cur.execute(get_user_command, (request_identity,)).fetchone()
 
-    if user is not None:
+    if requesting_user is not None:
         print("Found user:")
-        print(user)
+        print(requesting_user)
     else:
         # Register user automatically
         print("User not previously registered! Registering...")
         insert_user_command = "INSERT INTO users(identity, token, class, registration_date) VALUES(?,?,?,?)"
-        insert_user_params = (identity, token, UserClass.User, int(time.time()))
+        insert_user_params = (request_identity, token, UserClass.User, int(time.time()))
         sql_cur.execute(insert_user_command, insert_user_params)
-        user = sql_cur.execute(get_user_command, (identity,)).fetchone()
+        requesting_user = sql_cur.execute(get_user_command, (request_identity,)).fetchone()
     # Can be used throughout the request handling
-    (userid, identity, token, user_class, user_reg_date) = user
+    (request_user_id, request_identity, token, user_class, user_reg_date) = requesting_user
 
     # Basic: List Leaderboards
     if request_type == ResourceRequestType.ListLeaderboards:
@@ -158,7 +158,7 @@ def handle_request(request):
                 inner join (select class from users where id = ?)
             where perm >= ?
         """
-        get_leaderboards_params = (userid, userid, Permissions.Read)
+        get_leaderboards_params = (request_user_id, request_user_id, Permissions.Read)
         sql_cur.execute(get_leaderboards_command, get_leaderboards_params)
         leaderboards_to_return = sql_cur.fetchall()
         return {
@@ -176,7 +176,8 @@ def handle_request(request):
             return return_bad_request("Didn't include leaderboard id, or requested invalid leaderboard")
 
         # make sure leaderboard should be visible by user
-        (leaderboard_id, leaderboard_name, permission, ascending) = get_leaderboard_info(userid, leaderboard_id)
+        (leaderboard_id, leaderboard_name, permission, ascending) = (
+            get_leaderboard_info(request_user_id, leaderboard_id))
         if permission < 1:
             return return_bad_request("You don't have permission to view that.")
 
@@ -188,7 +189,7 @@ def handle_request(request):
             where (verified or user = ?) and l.id = ?
             order by score desc
         """
-        get_entries_params = (userid, leaderboard_id)
+        get_entries_params = (request_user_id, leaderboard_id)
         sql_cur.execute(get_entries_command, get_entries_params)
         entries = sql_cur.fetchall()
         if ascending:
@@ -237,7 +238,7 @@ def handle_request(request):
             return return_bad_request("request must include leaderboard id, score, and comment")
         # error if leaderboard id doesn't exist
         try:
-            (lb_id, lb_name, lb_perm, lb_asc) = get_leaderboard_info(userid, leaderboard_id)
+            (lb_id, lb_name, lb_perm, lb_asc) = get_leaderboard_info(request_user_id, leaderboard_id)
         except TypeError:
             return return_bad_request("That leaderboard does not exist")
         # error if you don't have permission to write to it
@@ -247,14 +248,14 @@ def handle_request(request):
             insert into leaderboard_entries(user, leaderboard, score, submission_date, verified)
             values(?,?,?,?,?)
         """
-        create_entry_params = (userid, leaderboard_id, entry_score, int(time.time()), 0)
+        create_entry_params = (request_user_id, leaderboard_id, entry_score, int(time.time()), 0)
         sql_cur.execute(create_entry_command, create_entry_params)
         entry_id = sql_cur.lastrowid
         create_comment_command = """
             insert into entry_comments(user, entry, date, content)
             values(?,?,?,?)
         """
-        create_comment_params = (userid, entry_id, int(time.time()), comment)
+        create_comment_params = (request_user_id, entry_id, int(time.time()), comment)
         sql_cur.execute(create_comment_command, create_comment_params)
         db.commit()
         comment_id = sql_cur.lastrowid
@@ -300,7 +301,7 @@ def handle_request(request):
             where (user = ? or max(default_permission, class, coalesce(permission, 0)) >= 3) and not verified
                 and e.leaderboard = ?
         """
-        list_unverified_params = (userid, userid, userid, leaderboard_id)
+        list_unverified_params = (request_user_id, request_user_id, request_user_id, leaderboard_id)
         sql_cur.execute(list_unverified_command, list_unverified_params)
 
         entries = sql_cur.fetchall()
@@ -394,7 +395,7 @@ def handle_request(request):
             where (max(default_permission, class, coalesce(permission, 0)) >= 3) and
             (verified or class >= 2) and (e.user = ?)
         """
-        get_entries_params = (userid, userid, user_id)
+        get_entries_params = (request_user_id, request_user_id, user_id)
         sql_cur.execute(get_entries_command, get_entries_params)
         entries = sql_cur.fetchall()
 
