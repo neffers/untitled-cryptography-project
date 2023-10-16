@@ -297,7 +297,7 @@ def handle_request(request):
                                       where u.id = ?) x
                                      on e.leaderboard = x.leaderboard
             where (user = ? or max(default_permission, class, coalesce(permission, 0)) >= 3) and not verified
-                and e.leaderboard = ?
+              and e.leaderboard = ?
         """
         list_unverified_params = (request_user_id, request_user_id, request_user_id, leaderboard_id)
         sql_cur.execute(list_unverified_command, list_unverified_params)
