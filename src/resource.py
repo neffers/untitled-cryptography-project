@@ -173,7 +173,7 @@ def handle_request(request):
         try:
             leaderboard_id = request["leaderboard_id"]
         except KeyError:
-            return return_bad_request("Didn't include leaderboard id, or requested invalid leaderboard")
+            return return_bad_request("Didn't include leaderboard id")
 
         # make sure leaderboard should be visible by user
         (leaderboard_id, leaderboard_name, permission, ascending) = (
@@ -183,9 +183,10 @@ def handle_request(request):
 
         # TODO this doesn't list all entries for moderators
         get_entries_command = """
-            select e.id, user, score, submission_date
+            select e.id, user, u.identity, score, submission_date
                 from leaderboard_entries e
                 join main.leaderboards l on e.leaderboard = l.id
+                join main.users u on e.user = u.id
             where (verified or user = ?) and l.id = ?
             order by score desc
         """
@@ -221,11 +222,9 @@ def handle_request(request):
         sql_cur.execute(new_lb_command, new_lb_params)
         db.commit()
         new_lb_id = sql_cur.lastrowid
-        sql_cur.execute("select * from leaderboards where id = ?", (new_lb_id,))
-        new_lb = sql_cur.fetchone()
         return {
             "success": True,
-            "data": new_lb,
+            "data": new_lb_id,
         }
 
     # Leaderboard: Submit Entry
@@ -259,10 +258,9 @@ def handle_request(request):
         sql_cur.execute(create_comment_command, create_comment_params)
         db.commit()
         comment_id = sql_cur.lastrowid
-        # TODO What should this return?
         return {
             "success": True,
-            "data": [],
+            "data": entry_id,
         }
 
     # Basic: List Users
@@ -287,17 +285,17 @@ def handle_request(request):
             return return_bad_request("Did not include a leaderboard id")
 
         list_unverified_command = """
-            select e.id, user, score, submission_date
+            select e.id, user, identity, score, submission_date
             from leaderboard_entries e
-            left outer join leaderboards l on e.leaderboard = l.id
-            left outer join (select u.class
-                             from users u
-                             where u.id = ?)
-            left outer join (select p.permission, p.leaderboard
-                             from users u
-                             left join permissions p on p.user = u.id
-                             where u.id = ?) x
-                on e.leaderboard = x.leaderboard
+                     left outer join leaderboards l on e.leaderboard = l.id
+                     left outer join (select u.class, u.identity
+                                      from users u
+                                      where u.id = ?)
+                     left outer join (select p.permission, p.leaderboard
+                                      from users u
+                                               left join permissions p on p.user = u.id
+                                      where u.id = ?) x
+                                     on e.leaderboard = x.leaderboard
             where (user = ? or max(default_permission, class, coalesce(permission, 0)) >= 3) and not verified
                 and e.leaderboard = ?
         """
@@ -378,7 +376,7 @@ def handle_request(request):
         """
         get_user_params = (user_id,)
         sql_cur.execute(get_user_command, get_user_params)
-        user_data = sql_cur.fetchall()
+        user_data = sql_cur.fetchone()
 
         get_entries_command = """
             select e.id, e.leaderboard, e.score, e.submission_date
@@ -448,7 +446,7 @@ def handle_request(request):
         db.commit()
         return {
             "success": True,
-            "data": [],
+            "data": None,
         }
 
 
