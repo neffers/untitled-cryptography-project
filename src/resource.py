@@ -408,6 +408,50 @@ def handle_request(request):
             "data": data_to_return,
         }
 
+    # Entry: Verify Entry
+    # Entry: Unverify Entry
+    if request_type == ResourceRequestType.ModifyEntryVerification:
+        try:
+            entry_id = request["entry_id"]
+            verified = request["verified"]
+        except KeyError:
+            return return_bad_request("Must include entry_id and verification bool")
+        get_entry_command = """
+            select leaderboard, verified
+            from leaderboard_entries
+            where id = ?
+        """
+        get_entry_params = (entry_id,)
+        sql_cur.execute(get_entry_command, get_entry_params)
+        try:
+            (leaderboard_id, entry_verified) = sql_cur.fetchone()
+        except TypeError:
+            return return_bad_request("The specified entry does not exist")
+
+        (lb_id, lb_name, lb_perm, lb_asc) = get_leaderboard_info(request_user_id, leaderboard_id)
+
+        if lb_perm < Permissions.Moderate:
+            return return_bad_request("You do not have permission to do that")
+
+        if verified and entry_verified:
+            return return_bad_request("That entry has already been verified")
+        if not verified and not entry_verified:
+            return return_bad_request("That entry is already not verified")
+
+        modify_entry_command = """
+            update leaderboard_entries
+            set verified = ?, verifier = ?, verification_date = ?
+            where id = ?
+        """
+        modify_entry_params = (verified, request_user_id, int(time.time()), entry_id)
+        sql_cur.execute(modify_entry_command, modify_entry_params)
+        db.commit()
+        return {
+            "success": True,
+            "data": [],
+        }
+
+
 class Handler(socketserver.StreamRequestHandler):
     def handle(self):
         print("handling packet")
