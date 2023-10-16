@@ -268,8 +268,8 @@ def handle_request(request):
     # TODO: Does this fulfill Basic: Open user and Basic: open self?
     if request_type == ResourceRequestType.ListUsers:
         get_users_command = """
-            select u.id, u.identity
-                from users u
+            select id, identity
+                from users
             order by id
         """
         sql_cur.execute(get_users_command)
@@ -353,6 +353,40 @@ def handle_request(request):
             "entry": entry,
             "comments": comments,
             "files": files,
+        }
+        return {
+            "success": True,
+            "data": data_to_return,
+        }
+    
+    # User: View User (get visible entries)
+    if request_type == ResourceRequestType.ViewUser:
+        try:
+            user_id = request["user_id"]
+        except KeyError:
+            return return_bad_request("Must include a user ID.")
+        
+        get_user_command = """
+            select identity, registration_date
+                from users
+            where id = ?
+        """
+        get_user_params = (user_id,)
+        sql_cur.execute(get_user_command, get_user_params)
+        user_data = sql_cur.fetchall()
+        
+        get_entries_command = """
+            select leaderboard, score, submission_date
+                from leaderboard_entries
+            where (user = ?) and verified
+        """
+        get_entries_params = (user_id,)
+        sql_cur.execute(get_entries_command, get_entries_params)
+        entries = sql_cur.fetchall()
+
+        data_to_return = {
+            "user_data": user_data,
+            "entries": entries,
         }
         return {
             "success": True,
