@@ -448,6 +448,30 @@ def handle_request(request):
             "success": True,
             "data": None,
         }
+    
+    if request_type == ResourceRequestType.AddComment:
+        try:
+            entry_id = request["entry_id"]
+            content = request["content"]
+        except KeyError:
+            return return_bad_request("fields entry and content"
+                                      "required")
+
+        #TODO validate permissions
+        sql_cmd = """
+        insert into entry_comments(user, entry, date, content)
+            values (?,?,?,?)
+        """
+        cur_time = int(time.time())
+        sql_cur.execute(sql_cmd, user_id, entry_id, cur_time,
+                        content)
+        db.commit()
+        return {
+            "success": True,
+            "data": None,
+        }
+
+    
 
 
 class Handler(socketserver.StreamRequestHandler):
