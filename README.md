@@ -155,9 +155,13 @@ Please see the [Phase 2 description](desc/phase_2.pdf) for details.
         - score on the entry
         - verified boolean
         - submission date
-- `ViewPermissions` TODO
+- `ViewPermissions`
   - Additional client request fields:
+    - `user_id`: the id of the user whose permissions will be viewed
   - Resource server response `data`:
+    - a `list` of tuples each with:
+      - the id of a leaderboard
+      - the permission of the user for this leaderboard
 - `ModifyEntryVerification`
   - Additional client request fields:
     - `entry_id`: the id of the entry to change
@@ -250,8 +254,6 @@ Please see the [Phase 2 description](desc/phase_2.pdf) for details.
   - List all permissions given to this user, as leaderboard:access pairs
 - MOD: set permission for [leaderboard name] to [access level]
   - sets the user's access level for the given leaderboard
-- READ: list submissions
-  - lists all submissions (ID, leaderboard, score, date/time) made by this user
 - READ: open submission [entry ID]
   - sets local state variable 'entry' to the given ID
   - note: this replicates behavior for open entry, bad thing?
