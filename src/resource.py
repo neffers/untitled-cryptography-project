@@ -88,7 +88,6 @@ def initialize_database():
 # Generally used as (lb_id, lb_name, lb_perm, lb_asc) = get_leaderboard_info()
 def get_leaderboard_info(userid, leaderboard_id):
     cur = db.cursor()
-    # TODO ugly, make it so we don't need to duplicate userid in params?
     get_leaderboard_info_command = """
         select l.id, l.name, max(l.default_permission, coalesce(p.permission, 0), class) as perm, l.ascending
         from leaderboards l
@@ -150,7 +149,6 @@ def handle_request(request):
 
     # Basic: List Leaderboards
     if request_type == ResourceRequestType.ListLeaderboards:
-        # TODO can this be simplified?
         get_leaderboards_command = """
             select l.id, l.name, max(l.default_permission, coalesce(p.permission, 0), class) as perm
             from leaderboards l
@@ -264,7 +262,6 @@ def handle_request(request):
         }
 
     # Basic: List Users
-    # TODO: Does this fulfill Basic: Open user and Basic: open self?
     if request_type == ResourceRequestType.ListUsers:
         get_users_command = """
             select id, identity
@@ -360,11 +357,9 @@ def handle_request(request):
         }
     
     # User: View User (get visible entries)
+    # Basic: Open user
+    # Basic: open self
     if request_type == ResourceRequestType.ViewUser:
-        #TODO: Reject access if permission is NoAccess
-        # From Jordan: As it stands, there's no way for this to be rejected.
-        # There's no permission gate on viewing the user, but the *entries* should be filtered
-        # based on what should be visible to the requesting user
         try:
             user_id = request["user_id"]
         except KeyError:
