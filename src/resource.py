@@ -272,9 +272,10 @@ def handle_request(request):
             order by id
         """
         sql_cur.execute(get_users_command)
+        users = sql_cur.fetchall()
         return {
             "success": True,
-            "data": sql_cur.fetchall(),
+            "data": users,
         }
 
     # Leaderboard: List Unverified
@@ -472,12 +473,12 @@ def handle_request(request):
             "data": None,
         }
 
-# Admin: Remove Leaderboard
+    # Admin: Remove Leaderboard
     if request_type == ResourceRequestType.RemoveLeaderboard:
         if user_class != UserClass.Administrator:
             return return_bad_request("only admin can do that")
         try:
-            lbd_id = request["leaderboard_id"]
+            ldb_id = request["leaderboard_id"]
         except KeyError:
             return return_bad_request()
         
@@ -529,6 +530,43 @@ def handle_request(request):
         db.commit()
         return {"success":True, "data":None}
 
+    # User: View Permissions
+    if request_type == ResourceRequestType.ViewPermissions:
+        if user_class < UserClass.Administrator:
+            return return_bad_request("You don't have permission to do this")
+        try:
+            user_id = request["user_id"]
+        except KeyError:
+            return return_bad_request("Must include user_id")
+        view_permissions_command = "SELECT leaderboard, permission FROM permissions WHERE user = ?"
+        sql_cur.execute(view_permissions_command, (user_id,))
+        permissions = sql_cur.fetchall()
+        return {
+            "success": True,
+            "data": permissions,
+        }
+    
+    # User: Set Permission
+    if request_type == ResourceRequestType.SetPermission:
+        if user_class < UserClass.Administrator:
+            return return_bad_request("You don't have permission to do this")
+        try:
+            user_id = request["user_id"]
+            ldb_id = request["leaderboard_id"]
+            p = request["permission"]
+        except KeyError:
+            return return_bad_request("Must include user_id")
+        set_permission_command = """
+            CASE
+                WHEN exists (SELECT permission FROM permissions WHERE (user = ?) AND (leaderboard = ?))
+                THEN (UPDATE permissions SET (permission = ?, change_date = ?) WHERE (user = ?) AND (leaderboard = ?))
+                ELSE (INSERT INTO permissions (user, leaderboard, permission, change_date) VALUES (?, ?, ?, ?))
+            END
+        """
+        set_permission_params = (user_id, ldb_id, p, int(time.time()), user_id, ldb_id, user_id, ldb_id, p, int(time.time()),)
+        sql_cur.execute(set_permission_command, set_permission_params)
+        db.commit()
+        return {"success": True, "data": None}
 
 class Handler(socketserver.StreamRequestHandler):
     def handle(self):

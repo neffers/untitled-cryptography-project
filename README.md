@@ -155,9 +155,13 @@ Please see the [Phase 2 description](desc/phase_2.pdf) for details.
         - score on the entry
         - verified boolean
         - submission date
-- `ViewPermissions` TODO
+- `ViewPermissions`
   - Additional client request fields:
+    - `user_id`: the id of the user whose permissions will be viewed
   - Resource server response `data`:
+    - a `list` of tuples each with:
+      - the id of a leaderboard
+      - the permission of the user for this leaderboard
 - `ModifyEntryVerification`
   - Additional client request fields:
     - `entry_id`: the id of the entry to change
@@ -180,6 +184,14 @@ Please see the [Phase 2 description](desc/phase_2.pdf) for details.
   - Removes all comments, files and the entry from leaderboard.
   - Additional client request fields:
     - `entry_id`: the id of the entry to remove
+  - Resource server response `data`
+    - `None`, use `success` alone to determine outcome
+- `SetPermission`
+  - Sets a user's permission for a leaderboard to a certain permission level. Can update a current permission or set a new permission.
+  - Additional client request fields:
+    - `user_id`: the id of the user whose permission is to be updated
+    - `leaderboard_id`: the leaderboard for the permission
+    - `permission`: the new permission for the user
   - Resource server response `data`
     - `None`, use `success` alone to determine outcome
 - Further TODOS in enums.py
@@ -248,10 +260,8 @@ Please see the [Phase 2 description](desc/phase_2.pdf) for details.
   - Lists all entries from a user that the requester has access to
 - MOD: view permissions [user_id]
   - List all permissions given to this user, as leaderboard:access pairs
-- MOD: set permission for [leaderboard name] to [access level]
+- MOD: set user [user_id] permission for [leaderboard_id] to [permission]
   - sets the user's access level for the given leaderboard
-- READ: list submissions
-  - lists all submissions (ID, leaderboard, score, date/time) made by this user
 - READ: open submission [entry ID]
   - sets local state variable 'entry' to the given ID
   - note: this replicates behavior for open entry, bad thing?
