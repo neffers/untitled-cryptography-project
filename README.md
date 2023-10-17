@@ -164,6 +164,24 @@ Please see the [Phase 2 description](desc/phase_2.pdf) for details.
     - `verified`: the state to set (boolean)
   - Resource server response `data`:
     - `None`, use `success` alone to determine outcome.
+- `AddComment`
+  - Additional client request fields:
+    - `entry_id`: the id of the entry to add comment to
+    - `content`: the text content of the comment
+  - Resource server response `data`:
+    - `None`, use `success` alone to determine outcome.
+- `RemoveLeaderboard`
+  - Removes all comments, entries, and files associated with leaderboard as well as the leaderboard itself
+  - Additional client request fields:
+    - `leaderboard_id`: the id of the leaderboard to remove
+  - Resource server response `data`:
+    - `None`, use `success` alone to determine outcome.
+- `RemoveEntry`
+  - Removes all comments, files and the entry from leaderboard.
+  - Additional client request fields:
+    - `entry_id`: the id of the entry to remove
+  - Resource server response `data`
+    - `None`, use `success` alone to determine outcome
 - Further TODOS in enums.py
 
 ### Clientside Commands
