@@ -545,6 +545,28 @@ def handle_request(request):
             "success": True,
             "data": permissions,
         }
+    
+    # User: Set Permission
+    if request_type == ResourceRequestType.SetPermission:
+        if user_class < UserClass.Administrator:
+            return return_bad_request("You don't have permission to do this")
+        try:
+            user_id = request["user_id"]
+            ldb_id = request["leaderboard_id"]
+            p = request["permission"]
+        except KeyError:
+            return return_bad_request("Must include user_id")
+        set_permission_command = """
+            CASE
+                WHEN exists (SELECT permission FROM permissions WHERE (user = ?) AND (leaderboard = ?))
+                THEN (UPDATE permissions SET (permission = ?, change_date = ?) WHERE (user = ?) AND (leaderboard = ?))
+                ELSE (INSERT INTO permissions (user, leaderboard, permission, change_date) VALUES (?, ?, ?, ?))
+            END
+        """
+        set_permission_params = (user_id, ldb_id, p, int(time.time()), user_id, ldb_id, user_id, ldb_id, p, int(time.time()),)
+        sql_cur.execute(set_permission_command, set_permission_params)
+        db.commit()
+        return {"success": True, "data": None}
 
 class Handler(socketserver.StreamRequestHandler):
     def handle(self):

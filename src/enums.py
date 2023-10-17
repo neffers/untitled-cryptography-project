@@ -18,9 +18,9 @@ class ResourceRequestType(IntEnum):
     RemoveLeaderboard = auto()
     AddComment = auto()
     RemoveEntry = auto()
+    SetPermission = auto()
     # TODOS
     # Admin: Score Order
     # Entry: Add Proof
     # Entry: Download Proof
-    # User: Set Permission
     # User: Remove User
