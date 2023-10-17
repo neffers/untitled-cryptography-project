@@ -87,7 +87,7 @@ Please see the [Phase 2 description](desc/phase_2.pdf) for details.
         - the id of the submitting user
         - the identity (name) of the submitting user
         - the submitter's score
-        - the submittion_date as an int
+        - the submission date as an int
 - `CreateLeaderboard`
   - Additional client request fields:
     - `leaderboard_name`: the name for the new leaderboard
@@ -153,6 +153,7 @@ Please see the [Phase 2 description](desc/phase_2.pdf) for details.
         - id of the entry
         - id of the leaderboard associated
         - score on the entry
+        - verified boolean
         - submission date
 - `ViewPermissions` TODO
   - Additional client request fields:
@@ -163,6 +164,7 @@ Please see the [Phase 2 description](desc/phase_2.pdf) for details.
     - `verified`: the state to set (boolean)
   - Resource server response `data`:
     - `None`, use `success` alone to determine outcome.
+- Further TODOS in enums.py
 
 ### Clientside Commands
 #### Basic Commands

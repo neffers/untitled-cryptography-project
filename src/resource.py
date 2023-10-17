@@ -379,7 +379,7 @@ def handle_request(request):
         user_data = sql_cur.fetchone()
 
         get_entries_command = """
-            select e.id, e.leaderboard, e.score, e.submission_date
+            select e.id, e.leaderboard, e.score, e.verified, e.submission_date
             from leaderboard_entries e
             left outer join leaderboards l on e.leaderboard = l.id
             left outer join (select u.class
