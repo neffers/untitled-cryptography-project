@@ -99,6 +99,40 @@ def request_modify_entry_verification(identity, token, entry_id, verified):
         "verified": verified
     }
 
+def request_remove_leaderboard(identity, token, leaderboard_id):
+    return {
+        "type": ResourceRequestType.RemoveLeaderboard,
+        "leaderboard_id": leaderboard_id,
+        "identity": identity,
+        "token": token
+    }
+
+def request_add_comment(identity, token, entry_id, content):
+    return {
+        "type": ResourceRequestType.RemoveLeaderboard,
+        "entry_id": entry_id,
+        "content": content,
+        "identity": identity,
+        "token": token
+    }
+
+def request_remove_entry(identity, token, entry_id):
+    return {
+        "type": ResourceRequestType.RemoveLeaderboard,
+        "entry_id": entry_id,
+        "identity": identity,
+        "token": token
+    }
+
+def request_set_permission(identity,token, user_id, leaderboard_id, permission):
+    return {
+        "type": ResourceRequestType.RemoveLeaderboard,
+        "user_id": user_id,
+        "permission": permission,
+        "identity": identity,
+        "token": token,
+        "leaderboard_id": leaderboard_id
+    }
 
 def clear_screen():
     if os.name == 'nt':
