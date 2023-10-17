@@ -140,6 +140,7 @@ def handle_request(request):
     else:
         # Register user automatically
         print("User not previously registered! Registering...")
+        # TODO: Eventually, this should make request to authentication server to verify token?
         insert_user_command = "INSERT INTO users(identity, token, class, registration_date) VALUES(?,?,?,?)"
         insert_user_params = (request_identity, token, UserClass.User, int(time.time()))
         sql_cur.execute(insert_user_command, insert_user_params)
