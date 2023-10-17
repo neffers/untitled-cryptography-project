@@ -465,7 +465,7 @@ def handle_request(request):
             values (?,?,?,?)
         """
         cur_time = int(time.time())
-        sql_cur.execute(sql_cmd, (user_id, entry_id, cur_time,
+        sql_cur.execute(sql_cmd, (request_user_id, entry_id, cur_time,
                         content))
         db.commit()
         return {
