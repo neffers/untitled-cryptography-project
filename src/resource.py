@@ -3,7 +3,7 @@ import json
 import sqlite3
 import time
 from os import path
-from enum import IntEnum, auto
+from enum import IntEnum
 from enums import ResourceRequestType
 
 
