@@ -448,7 +448,8 @@ def handle_request(request):
             "success": True,
             "data": None,
         }
-    
+
+    # Entry: Add comment
     if request_type == ResourceRequestType.AddComment:
         try:
             entry_id = request["entry_id"]
@@ -471,6 +472,7 @@ def handle_request(request):
             "data": None,
         }
 
+# Admin: Remove Leaderboard
     if request_type == ResourceRequestType.RemoveLeaderboard:
         if user_class != UserClass.Administrator:
             return return_bad_request("only admin can do that")
@@ -503,8 +505,9 @@ def handle_request(request):
         db.commit()
         return {"success":True, "data":None}
 
+    # Entry: Remove Entry
     if request_type == ResourceRequestType.RemoveEntry:
-        if user_class < UserClass.Moderate:
+        if user_class < UserClass.Administrator:
             return return_bad_request("insufficient perms")
         try:
             entry_id = request["entry_id"]
