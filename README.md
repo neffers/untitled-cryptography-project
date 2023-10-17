@@ -55,8 +55,7 @@ Please see the [Phase 2 description](desc/phase_2.pdf) for details.
   - Delete users
   - Modify permissions for any user for any leaderboard
 - The first user to connect to a resource server is given admin permissions
-
-### Clientside Commands
+##### Making Requests
 - All client requests to the resource server should include the following fields:
   - `identity` the identity used to log in to the auth server
   - `token` the token received back from the auth server
@@ -66,13 +65,111 @@ Please see the [Phase 2 description](desc/phase_2.pdf) for details.
   - `success` a boolean indicating if the requested operation was successful or not
   - `data` a blob of data formatted depending on the request
     - Upon failure, this will simply be a string indicating a reason for the failure.
+- Additionally, the resource server will serve all dates as unix epoch ints
+###### Request Types
+- `ListLeaderboards`
+  - Additional client request fields:
+    - None
+  - Resource server response `data`:
+    - A `list` of leaderboards, each a tuple of the following:
+      - id of the leaderboard
+      - name of the leaderboard
+      - permission of the requesting user (see `enums.py` for values)
+- `ShowOneLeaderboard`
+  - Additional client request fields:
+    - `leaderboard_id`: the id of the leaderboard requested
+  - Resource server response `data`:
+    - A `dict` containing the following:
+      - `id`: the id of the leaderboard
+      - `name`: the name of the leaderboard
+      - `entries`: a `list` of tuples sorted by score in the proper orientation with the following:
+        - the id of the entry
+        - the id of the submitting user
+        - the identity (name) of the submitting user
+        - the submitter's score
+        - the submission date as an int
+- `CreateLeaderboard`
+  - Additional client request fields:
+    - `leaderboard_name`: the name for the new leaderboard
+    - `leaderboard_permission`: the default permission for the new leaderboard
+    - `leaderboard_ascending`: `True` to sort scores ascending, `False` to sort descending.
+  - Resource server response `data`:
+    - The new leaderboard's id
+- `AddEntry`
+  - Additional client request fields:
+    - `leaderboard_id`: id of the leaderboard
+    - `score`: the score
+    - `comment`: a comment / description
+  - Resource server response `data`:
+    - the new entry's id
+- `ListUsers`
+  - Additional client request fields:
+    - None
+  - Resource server response `data`:
+    - a `list` of tuples each with:
+      - id of the user
+      - identity of the user (username, effectively)
+- `ListUnverified`
+  - Additional client request fields:
+    - `leaderboard_id`: id of the leaderboard
+  - Resource server response `data`:
+    - a `list` of unverified entries, each a tuple with the following:
+      - the entry id
+      - the submitting user's id
+      - the submitting user's identity
+      - entry score
+      - date entry submitted
+- `GetEntry`
+  - Additional client request fields:
+    - `entry_id`: the id of the requested entry
+  - Resource server response `data`:
+    - a `dict` with the following fields:
+      - `entry`, a tuple of the following items:
+        - the id of the entry
+        - the id of the submitter
+        - the identity of the submitter
+        - score of the entry
+        - submission date
+        - verified state
+        - verifying user's id
+        - verifying user's identity
+      - `comments`: a `list` of tuples, each with the following items:
+        - posting user's identity
+        - posting date
+        - content of the comment
+      - `files`: a `list` of tuples, each with the following items:
+        - id of the file
+        - filename
+        - date of submission
+- `ViewUser`
+  - Additional client request fields:
+    - `'user_id`: the id of the requested user
+  - Resource server response `data`:
+    - a `dict` with the following entries:
+      - `user_data`: a tuple of the following items
+        - identity of the user
+        - registration date
+      - `entries`: a `list` of tuples visible to the requesting user, each with the following items:
+        - id of the entry
+        - id of the leaderboard associated
+        - score on the entry
+        - verified boolean
+        - submission date
+- `ViewPermissions` TODO
+  - Additional client request fields:
+  - Resource server response `data`:
+- `ModifyEntryVerification`
+  - Additional client request fields:
+    - `entry_id`: the id of the entry to change
+    - `verified`: the state to set (boolean)
+  - Resource server response `data`:
+    - `None`, use `success` alone to determine outcome.
+- Further TODOS in enums.py
+
+### Clientside Commands
 #### Basic Commands
 - READ: list leaderboards
   - shows all leaderboard names on this server
-  - Additional client request fields:
-    - None
-  - Resource server response:
-    - A `list` of leaderboards, each a tuple of `(id, name, permission)` indicating the requesting user's access level.
 - READ: open leaderboard [leaderboard name]
   - sets local state variable 'leaderboard' to the specified leaderboard name  
 - ADMIN: add leaderboard [leaderboard name]
@@ -126,9 +223,12 @@ Please see the [Phase 2 description](desc/phase_2.pdf) for details.
   - Must be owner of submission or moderator
   - take the entry out of the database
 #### Commands Associated With a User
-- READ: view user
-  - Show the name of the user, account creation date, number of entries
-- MOD: view permissions
+- READ: view user [user_id]
+  - Access Denied if requester has No Access
+  - Gives an error if a user with the id doesn't exist
+  - Shows the name and registration date of the user
+  - Lists all entries from a user that the requester has access to
+- MOD: view permissions [user_id]
   - List all permissions given to this user, as leaderboard:access pairs
 - MOD: set permission for [leaderboard name] to [access level]
   - sets the user's access level for the given leaderboard
