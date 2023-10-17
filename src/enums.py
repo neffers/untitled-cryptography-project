@@ -15,12 +15,12 @@ class ResourceRequestType(IntEnum):
     ViewUser = auto()
     ViewPermissions = auto()
     ModifyEntryVerification = auto()
+    RemoveLeaderboard = auto()
+    AddComment = auto()
+    RemoveEntry = auto()
     # TODOS
     # Admin: Score Order
-    # Admin: Remove Leaderboard
     # Entry: Add Proof
     # Entry: Download Proof
-    # Entry: Add comment
-    # Entry: Remove Entry
     # User: Set Permission
     # User: Remove User
