@@ -272,9 +272,10 @@ def handle_request(request):
             order by id
         """
         sql_cur.execute(get_users_command)
+        users = sql_cur.fetchall()
         return {
             "success": True,
-            "data": sql_cur.fetchall(),
+            "data": users,
         }
 
     # Leaderboard: List Unverified
@@ -449,6 +450,123 @@ def handle_request(request):
             "data": None,
         }
 
+    # Entry: Add comment
+    if request_type == ResourceRequestType.AddComment:
+        try:
+            entry_id = request["entry_id"]
+            content = request["content"]
+        except KeyError:
+            return return_bad_request("fields entry and content"
+                                      "required")
+
+        #TODO validate permissions
+        sql_cmd = """
+        insert into entry_comments(user, entry, date, content)
+            values (?,?,?,?)
+        """
+        cur_time = int(time.time())
+        sql_cur.execute(sql_cmd, (user_id, entry_id, cur_time,
+                        content))
+        db.commit()
+        return {
+            "success": True,
+            "data": None,
+        }
+
+    # Admin: Remove Leaderboard
+    if request_type == ResourceRequestType.RemoveLeaderboard:
+        if user_class != UserClass.Administrator:
+            return return_bad_request("only admin can do that")
+        try:
+            ldb_id = request["leaderboard_id"]
+        except KeyError:
+            return return_bad_request()
+        
+        remove_lbd = """
+            delete from leaderboards where id = ?
+        """
+        remove_entry_comments = """
+            delete from entry_comments where 
+                entry in (select id from leaderboard_entries 
+                    where leaderboard_entries.leaderboard = ?)
+        """
+        remove_files = """
+            delete from files where 
+                entry in (select id from leaderboard_entries 
+                    where leaderboard_entries.leaderboard = ?)
+        """
+        remove_entries = """
+            delete from leaderboard_entries where 
+                leaderboard_id = ?
+        """
+        sql_cur.execute(remove_lbd, (ldb_id, ))
+        sql_cur.execute(remove_entry_comments, (ldb_id, ))
+        sql_cur.execute(remove_files, (ldb_id, ))
+        sql_cur.execute(remove_entries, (ldb_id, ))
+        db.commit()
+        return {"success":True, "data":None}
+
+    # Entry: Remove Entry
+    if request_type == ResourceRequestType.RemoveEntry:
+        if user_class < UserClass.Administrator:
+            return return_bad_request("insufficient perms")
+        try:
+            entry_id = request["entry_id"]
+        except KeyError:
+            return return_bad_request("expected entry_id")
+
+        remove_comments = """
+            delete from entry_comments where entry = ?
+        """
+        remove_files = """
+            delete from files where entry = ?
+        """
+        remove_entry = """
+            delete fron leaderboard_entries where id = ?
+        """ 
+        sql_cur.execute(remove_comments, (entry_id, ))
+        sql_cur.execute(remove_files, (entry_id, ))
+        sql_cur.execute(remove_entry, (entry_id, ))
+        db.commit()
+        return {"success":True, "data":None}
+
+    # User: View Permissions
+    if request_type == ResourceRequestType.ViewPermissions:
+        if user_class < UserClass.Administrator:
+            return return_bad_request("You don't have permission to do this")
+        try:
+            user_id = request["user_id"]
+        except KeyError:
+            return return_bad_request("Must include user_id")
+        view_permissions_command = "SELECT leaderboard, permission FROM permissions WHERE user = ?"
+        sql_cur.execute(view_permissions_command, (user_id,))
+        permissions = sql_cur.fetchall()
+        return {
+            "success": True,
+            "data": permissions,
+        }
+    
+    # User: Set Permission
+    if request_type == ResourceRequestType.SetPermission:
+        if user_class < UserClass.Administrator:
+            return return_bad_request("You don't have permission to do this")
+        try:
+            user_id = request["user_id"]
+            ldb_id = request["leaderboard_id"]
+            p = request["permission"]
+        except KeyError:
+            return return_bad_request("Must include user_id")
+        set_permission_command = """
+            CASE
+                WHEN exists (SELECT permission FROM permissions WHERE (user = ?) AND (leaderboard = ?))
+                THEN (UPDATE permissions SET (permission = ?, change_date = ?) WHERE (user = ?) AND (leaderboard = ?))
+                ELSE (INSERT INTO permissions (user, leaderboard, permission, change_date) VALUES (?, ?, ?, ?))
+            END
+        """
+        set_permission_params = (user_id, ldb_id, p, int(time.time()), user_id, ldb_id, user_id, ldb_id, p, int(time.time()),)
+        sql_cur.execute(set_permission_command, set_permission_params)
+        db.commit()
+        return {"success": True, "data": None}
 
 class Handler(socketserver.StreamRequestHandler):
     def handle(self):
@@ -471,11 +589,11 @@ class Handler(socketserver.StreamRequestHandler):
 
 
 if __name__ == "__main__":
+    
     # TODO get this from command line or config file?
     db_filename = "res_db"
 
     db = initialize_database()
-
     HOST, PORT = "localhost", 8086
     with socketserver.TCPServer((HOST, PORT), Handler) as server:
         server.serve_forever()
