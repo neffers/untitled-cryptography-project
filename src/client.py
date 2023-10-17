@@ -152,7 +152,8 @@ def do_view_permissions(identity, token, reader, writer, user_id):
 
 def do_set_permission(identity, token, reader, writer, user_id):
     leaderboard_id = input("Enter the leaderboard where the permission will be changed: ")
-    request = request_set_permission(identity, token, leaderboard_id)
+    permission = input("What is the new permission level for the user?\nPlease enter 'none', 'read', 'write', or 'moderator': ")
+    request = request_set_permission(identity, token, leaderboard_id, user_id, permission)
     response = asyncio.run_until_complete(make_request(request, reader, writer))
     if response["success"] == True:
         pass
@@ -486,147 +487,15 @@ async def server_loop(res_ip, res_port):
         if choose == 1:
             # list leaderboards
             do_show_leaderboards(identity, token, reader, writer)
-            """ request = request_show_leaderboards(identity, token)
-            response = asyncio.run_until_complete(make_request(request, reader, writer))
-            if response["success"] == True:
-                print(response["data"])
-            else:
-               print(response["success"]) """
         if choose == 2:
             # open leaderboard
             leaderboard_options(identity, token, reader, writer)
-            """ leaderboard_id = input("Enter the leaderboard ID: ")
-            leaderboard_id = int(leaderboard_id)
-            # begin list options
-            print("Leaderboard Commands:\n[1] List Entries\n[2] Open Unverified\n[3] Submit Entry\n[4] Open Entry\n[5] Score Order\n[6] Remove Leaderboard\n")
-            choose2 = input("Choose the corresponding number: ")
-            choose2 = int(choose2)
-            if choose2 == 1:
-                # list entries
-                request = request_one_leaderboard(identity, token, leaderboard_id)
-                response = asyncio.run_until_complete(make_request(request, reader, writer))
-                if response["success"] == True:
-                    print(response["data"])
-                else:
-                    print(response["success"])
-            if choose2 == 2:
-                # open unverified
-                request = request_list_unverified(identity, token, leaderboard_id)
-                response = asyncio.run_until_complete(make_request(request, reader, writer))
-                if response["success"] == True:
-                    print(response["data"])
-                else:
-                    print(response["success"])
-            if choose2 == 3:
-                # submit entry
-                score = input("Enter your score: ")
-                score = float(score)
-                comment = input("Enter any comments about your score: ")
-                request = request_add_entry(identity, token, leaderboard_id, score, comment)
-                response = asyncio.run_until_complete(make_request(request, reader, writer))
-                if response["success"] == True:
-                    print("Entry successfully submitted. Entry ID is "+response["data"])
-                else:
-                    print(response["success"]) """
-            """ if choose2 == 4:
-                # open entry
-                entry_options(identity, token, reader, writer)
-                entry_id = input("Enter the ID of the entry: ")
-                # begin entry options
-                print("Leaderboard Commands:\n[1] View Entry\n[2] Add Proof\n[3] Download Proof\n[4] View Comments\n[5] Post Comment\n[6] Verify Entry\n[7] Unverify Entry\n[8] Remove Entry\n")
-                choose3 = input("Choose the corresponding number: ")
-                choose3 = int(choose3)
-                if choose3 == 1:
-                    # view entry
-                    request = request_get_entry(identity, token, entry_id)
-                    response = asyncio.run_until_complete(make_request(request, reader, writer))
-                    if response["success"] == True:
-                        print(response["data"])
-                    else:
-                        print(response["success"])
-                if choose3 == 2:
-                    # add proof
-                    pass
-                if choose3 == 3:
-                    # download proof
-                    pass
-                if choose3 == 4:
-                    # view comments
-                    request = request_get_entry(identity, token, entry_id)
-                    response = asyncio.run_until_complete(make_request(request, reader, writer))
-                    if response["success"] == True:
-                        print(response["data"])
-                    else:
-                        print(response["success"])
-                if choose3 == 5:
-                    # post comment
-                    content = input("Enter your comment to the entry: ")
-                    request = request_add_comment(identity, token, entry_id, content)
-                    response = asyncio.run_until_complete(make_request(request, reader, writer))
-                    if response["success"] == True:
-                        pass
-                    else:
-                        print(response["success"])
-                if choose3 == 6:
-                    # verify entry
-                    request = request_modify_entry_verification(identity, token, entry_id, True)
-                    response = asyncio.run_until_complete(make_request(request, reader, writer))
-                    if response["success"] == True:
-                        pass
-                    else:
-                        print(response["success"])
-                if choose3 == 7:
-                    # unverify entry
-                    request = request_modify_entry_verification(identity, token, entry_id, False)
-                    response = asyncio.run_until_complete(make_request(request, reader, writer))
-                    if response["success"] == True:
-                        pass
-                    else:
-                        print(response["success"])
-                if choose3 == 8:
-                    # remove entry
-                    request = request_remove_entry(identity, token, entry_id)
-                    response = asyncio.run_until_complete(make_request(request, reader, writer))
-                    if response["success"] == True:
-                        pass
-                    else:
-                        print(response["success"]) """
-            """ if choose2 == 5:
-                # score order
-                pass
-            if choose2 == 6:
-                # remove leaderboard
-                request = request_remove_leaderboard(identity, token, leaderboard_id)
-                response = asyncio.run_until_complete(make_request(request, reader, writer))
-                if response["success"] == True:
-                    pass
-                else:
-                    print(response["success"]) """
         if choose == 3:
             # create leaderboard
             do_create_leaderboard(identity, token, reader, writer)
-            """ leaderboard_name = input("Enter the name for the new leaderboard: ")
-            leaderboard_permission = input("What is the default permission level for users?\nPlease enter 'none', 'read', 'write', or 'moderator': ")
-            leaderboard_ascending = input("Do you want your leaderboard to score ascending [1] or descending [2] ? ")
-            if leaderboard_ascending == 1:
-                leaderboard_ascending = True
-            else:
-                leaderboard_ascending = False
-            request = request_create_leaderboard(identity, token, leaderboard_name, leaderboard_permission, leaderboard_ascending)
-            response = asyncio.run_until_complete(make_request(request, reader, writer))
-            if response["success"] == True:
-                print("Leaderboard successfully created. Leaderboard ID is "+response["data"])
-            else:
-                print(response["success"]) """
         if choose == 4:
             # list users
             do_list_users(identity, token, reader, writer)
-            """ request = request_list_users(identity, token)
-            response = asyncio.run_until_complete(make_request(request, reader, writer))
-            if response["success"] == True:
-                print(response["data"])
-            else:
-                print(response["success"]) """
         if choose == 5 or choose == 6:
             # open user
             if choose == 5:
@@ -635,40 +504,6 @@ async def server_loop(res_ip, res_port):
             if choose == 6:
                 user_id = identity
             user_options(identity, token, reader, writer, user_id)
-            """ # begin user options
-            print("User Commands:\n[1] View User\n[2] View Permissions\n[3] Set Permissions\n[4] Open Submission\n[5] Remove User\n")
-            choose4 = input("Choose the corresponding number: ")
-            choose4 = int(choose4)
-            if choose4 == 1:
-                # view user
-                request = request_view_user(identity, token, user_id)
-                response = asyncio.run_until_complete(make_request(request, reader, writer))
-                if response["success"] == True:
-                    print(response["data"])
-                else:
-                    print(response["success"])
-            if choose4 == 2:
-                # view permissions
-                request = request_view_permissions(identity, token, user_id)
-                response = asyncio.run_until_complete(make_request(request, reader, writer))
-                if response["success"] == True:
-                    print(response["data"])
-                else:
-                    print(response["success"])
-            if choose4 == 3:
-                # set permissions
-                request = request_set_permission(identity, token, leaderboard_id)
-                response = asyncio.run_until_complete(make_request(request, reader, writer))
-                if response["success"] == True:
-                    pass
-                else:
-                    print(response["success"])
-            if choose4 == 4:
-                # open submission
-                pass
-            if choose4 == 5:
-                # remove user
-                pass """
         if choose == 7:
             # quit
             break
