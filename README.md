@@ -202,7 +202,7 @@ Please see the [Phase 2 description](desc/phase_2.pdf) for details.
   - shows all leaderboard names on this server
 - READ: open leaderboard [leaderboard name]
   - sets local state variable 'leaderboard' to the specified leaderboard name  
-- ADMIN: add leaderboard [leaderboard name]
+- ADMIN: create leaderboard [leaderboard name]
   - adds a leaderboard with the specified name
 - READ: list users
   - outputs a list of all users with ID and identity
