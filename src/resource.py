@@ -3,21 +3,7 @@ import json
 import sqlite3
 import time
 from os import path
-from enum import IntEnum
-from enums import ResourceRequestType
-
-
-class Permissions(IntEnum):
-    # we want these to have a specific hierarchy
-    NoAccess = 0
-    Read = 1
-    Write = 2
-    Moderate = 3
-
-
-class UserClass(IntEnum):
-    User = Permissions.NoAccess
-    Administrator = Permissions.Moderate
+from enums import ResourceRequestType, Permissions, UserClass
 
 
 def initialize_database():

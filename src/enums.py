@@ -24,3 +24,16 @@ class ResourceRequestType(IntEnum):
     # Entry: Add Proof
     # Entry: Download Proof
     # User: Remove User
+
+
+class Permissions(IntEnum):
+    # we want these to have a specific hierarchy
+    NoAccess = 0
+    Read = 1
+    Write = 2
+    Moderate = 3
+
+
+class UserClass(IntEnum):
+    User = Permissions.NoAccess
+    Administrator = Permissions.Moderate
