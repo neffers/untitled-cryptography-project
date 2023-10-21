@@ -20,8 +20,8 @@ class ResourceRequestType(IntEnum):
     RemoveEntry = auto()
     SetPermission = auto()
     RemoveUser = auto()
+    ChangeScoreOrder = auto()
     # TODOS
-    # Admin: Score Order
     # Entry: Add Proof
     # Entry: Download Proof
 

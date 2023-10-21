@@ -201,6 +201,13 @@ Please see the [Phase 2 description](desc/phase_2.pdf) for details.
     - `user_id`: the id of the user to be removed
   - Resource server response `data`
     - `None`, use `success` alone to determine outcome
+- `ChangeScoreOrder`
+  - Sets a leaderboard's scoring order
+  - Additional client request fields:
+    - `leaderboard_id`: the id of the leaderboard to be modified
+    - `ascending`: boolean corresponding to if the leaderboard should be set to ascending (false for descending)
+  - Resource server response `data`
+    - `None`, use `success` alone to determine outcome
 - Further TODOS in enums.py
 
 ### Clientside Commands

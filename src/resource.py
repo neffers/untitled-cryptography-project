@@ -613,12 +613,16 @@ def handle_request(request):
             return return_bad_request("Must include leaderboard id and ascending boolean")
 
         update_order_command = """
+            update leaderboards
+            set ascending = ?
+            where id = ?
         """
         update_order_params = (ascending, leaderboard_id)
         sql_cur.execute(update_order_command, update_order_params)
         db.commit()
         return {
-
+            "success": True,
+            "data": None
         }
 
 
