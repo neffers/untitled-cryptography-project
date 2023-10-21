@@ -703,14 +703,11 @@ class Handler(socketserver.StreamRequestHandler):
         print("received {} from {}".format(self.data, self.client_address[0]))
         try:
             request = json.loads(self.data)
+            response = handle_request(request)
         except json.decoder.JSONDecodeError:
             print("Could not interpret packet!")
             response = return_bad_request("Could not interpret packet.")
-            print("sending {}".format(response))
-            self.wfile.write(json.dumps(response).encode() + b"\n")
-            return
 
-        response = handle_request(request)
         print("sending {}".format(response))
         self.wfile.write(json.dumps(response).encode() + b"\n")
 
