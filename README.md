@@ -88,6 +88,7 @@ Please see the [Phase 2 description](desc/phase_2.pdf) for details.
         - the identity (name) of the submitting user
         - the submitter's score
         - the submission date as an int
+        - the submission's verified status
 - `CreateLeaderboard`
   - Additional client request fields:
     - `leaderboard_name`: the name for the new leaderboard

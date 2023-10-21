@@ -168,19 +168,31 @@ def handle_request(request):
         # make sure leaderboard should be visible by user
         (leaderboard_id, leaderboard_name, permission, ascending) = (
             get_leaderboard_info(request_user_id, leaderboard_id))
-        if permission < 1:
+        if permission < Permissions.Read:
             return return_bad_request("You don't have permission to view that.")
+        # If moderator, return all entries
+        if permission >= Permissions.Moderate:
+            get_entries_command = """
+                select e.id, user, u.identity, score, submission_date, verified
+                    from leaderboard_entries e
+                    join main.leaderboards l on e.leaderboard = l.id
+                    join main.users u on e.user = u.id
+                where l.id = ?
+                order by score desc
+            """
+            get_entries_params = (leaderboard_id,)
+        else:
+            # Non-mods get visible entries and those that they submitted
+            get_entries_command = """
+                select e.id, user, u.identity, score, submission_date, verified
+                    from leaderboard_entries e
+                    join main.leaderboards l on e.leaderboard = l.id
+                    join main.users u on e.user = u.id
+                where (verified or user = ?) and l.id = ?
+                order by score desc
+            """
+            get_entries_params = (request_user_id, leaderboard_id)
 
-        # TODO this doesn't list all entries for moderators
-        get_entries_command = """
-            select e.id, user, u.identity, score, submission_date
-                from leaderboard_entries e
-                join main.leaderboards l on e.leaderboard = l.id
-                join main.users u on e.user = u.id
-            where (verified or user = ?) and l.id = ?
-            order by score desc
-        """
-        get_entries_params = (request_user_id, leaderboard_id)
         sql_cur.execute(get_entries_command, get_entries_params)
         entries = sql_cur.fetchall()
         if ascending:
