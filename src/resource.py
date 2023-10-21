@@ -10,13 +10,18 @@ def initialize_database():
     # Initialize DB either from file or with defaults
     if path.exists(db_filename):
         print("Found existing database. Loading from there.")
-        return sqlite3.connect(db_filename)
+        sqldb = sqlite3.connect(db_filename)
+        dbcursor = sqldb.cursor()
+
+        enable_foreign_keys = "PRAGMA foreign_keys = 1"
+        dbcursor.execute(enable_foreign_keys)
+        return sqldb
     else:
         print("Did not find a database. Initializing new database from schema...")
         sqldb = sqlite3.connect(db_filename)
         dbcursor = sqldb.cursor()
 
-        enable_foreign_keys = "PRAGMA foreign_keys = ON;"
+        enable_foreign_keys = "PRAGMA foreign_keys = 1"
         dbcursor.execute(enable_foreign_keys)
 
         # The base database schema
