@@ -232,8 +232,17 @@ async def do_set_permission(identity, token, reader, writer, user_id):
     if response["success"]:
         print("Operation successful.")
     else:
-        print(response["success"])
         print(response["data"])
+
+
+async def do_remove_user(identity, token, reader, writer, user_id):
+    request = request_remove_user(identity, token, user_id)
+    response = await make_request(request, reader, writer)
+    if "success" not in response or "data" not in response:
+        print("Malformed packet: " + str(response))
+    if response["success"]:
+        print("Operation Successful.")
+    else:
         print(response["data"])
 
 
@@ -488,7 +497,17 @@ async def do_add_entry(identity, token, reader, writer, leaderboard_id):
         # TODO formatting
         print(response["data"])
     else:
-        print(response["success"])
+        print(response["data"])
+
+
+async def do_set_score_order(identity, token, reader, writer, leaderboard_id, ascending):
+    request = request_set_score_order(identity, token, leaderboard_id, ascending)
+    response = await make_request(request, reader, writer)
+    if "success" not in response or "data" not in response:
+        print("Malformed packet: " + str(response))
+    if response["success"]:
+        print("Operation successful.")
+    else:
         print(response["data"])
 
 
