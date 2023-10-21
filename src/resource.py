@@ -352,6 +352,7 @@ def handle_request(request):
             from entry_comments c
             left join main.users u on u.id = c.user
             where c.entry = ?
+            order by date
         """
         get_comments_params = (entry_id,)
         sql_cur.execute(get_comments_command, get_comments_params)
