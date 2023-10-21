@@ -205,7 +205,7 @@ def handle_request(request):
         return {
             "success": True,
             "data": data_to_return,
-        }  
+        }
 
     # Basic: Add Leaderboard
     if request_type == ResourceRequestType.CreateLeaderboard:
@@ -376,7 +376,7 @@ def handle_request(request):
             "success": True,
             "data": data_to_return,
         }
-    
+
     # User: View User (get visible entries)
     # Basic: Open user
     # Basic: open self
@@ -385,7 +385,7 @@ def handle_request(request):
             user_id = request["user_id"]
         except KeyError:
             return return_bad_request("Must include a user ID.")
-        
+
         get_user_command = """
             select identity, registration_date
                 from users
@@ -510,7 +510,7 @@ def handle_request(request):
             ldb_id = request["leaderboard_id"]
         except KeyError:
             return return_bad_request()
-        
+
         remove_lbd = """
             delete from leaderboards where id = ?
         """
@@ -528,12 +528,15 @@ def handle_request(request):
             delete from leaderboard_entries where 
                 leaderboard_id = ?
         """
-        sql_cur.execute(remove_lbd, (ldb_id, ))
-        sql_cur.execute(remove_entry_comments, (ldb_id, ))
-        sql_cur.execute(remove_files, (ldb_id, ))
-        sql_cur.execute(remove_entries, (ldb_id, ))
+        sql_cur.execute(remove_lbd, (ldb_id,))
+        sql_cur.execute(remove_entry_comments, (ldb_id,))
+        sql_cur.execute(remove_files, (ldb_id,))
+        sql_cur.execute(remove_entries, (ldb_id,))
         db.commit()
-        return {"success":True, "data":None}
+        return {
+            "success": True,
+            "data": None
+        }
 
     # Entry: Remove Entry
     if request_type == ResourceRequestType.RemoveEntry:
@@ -552,12 +555,15 @@ def handle_request(request):
         """
         remove_entry = """
             delete fron leaderboard_entries where id = ?
-        """ 
-        sql_cur.execute(remove_comments, (entry_id, ))
-        sql_cur.execute(remove_files, (entry_id, ))
-        sql_cur.execute(remove_entry, (entry_id, ))
+        """
+        sql_cur.execute(remove_comments, (entry_id,))
+        sql_cur.execute(remove_files, (entry_id,))
+        sql_cur.execute(remove_entry, (entry_id,))
         db.commit()
-        return {"success":True, "data":None}
+        return {
+            "success": True,
+            "data": None
+        }
 
     # User: View Permissions
     if request_type == ResourceRequestType.ViewPermissions:
@@ -574,7 +580,7 @@ def handle_request(request):
             "success": True,
             "data": permissions,
         }
-    
+
     # User: Set Permission
     if request_type == ResourceRequestType.SetPermission:
         if user_class < UserClass.Administrator:
@@ -592,10 +598,12 @@ def handle_request(request):
                 ELSE (INSERT INTO permissions (user, leaderboard, permission, change_date) VALUES (?, ?, ?, ?))
             END
         """
-        set_permission_params = (user_id, ldb_id, p, int(time.time()), user_id, ldb_id, user_id, ldb_id, p, int(time.time()),)
+        set_permission_params = (
+        user_id, ldb_id, p, int(time.time()), user_id, ldb_id, user_id, ldb_id, p, int(time.time()),)
         sql_cur.execute(set_permission_command, set_permission_params)
         db.commit()
         return {"success": True, "data": None}
+
 
 class Handler(socketserver.StreamRequestHandler):
     def handle(self):
