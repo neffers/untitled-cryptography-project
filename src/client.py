@@ -565,19 +565,19 @@ async def leaderboard_options(identity, token, reader, writer, leaderboard_id):
         choice = int(choice)
         if choice == 0:
             break
-        if choice == 1:
+        elif choice == 1:
             await do_one_leaderboard(identity, token, reader, writer, leaderboard_id)
-        if choice == 2:
+        elif choice == 2:
             await do_list_unverified(identity, token, reader, writer, leaderboard_id)
-        if choice == 3:
+        elif choice == 3:
             await do_add_entry(identity, token, reader, writer, leaderboard_id)
-        if choice == 4:
+        elif choice == 4:
             entry_id = input("Enter the ID of the entry: ")
             await entry_options(identity, token, reader, writer, entry_id)
-        if choice == 5:
+        elif choice == 5:
             ascending = input("Set to ascending [1] or descending [2]: ")
             await do_set_score_order(identity, token, reader, writer, leaderboard_id, ascending)
-        if choice == 6:
+        elif choice == 6:
             await do_remove_leaderboard(identity, token, reader, writer, leaderboard_id)
 
 
@@ -732,10 +732,9 @@ async def server_loop(res_ip, res_port):
     except OSError as e:
         print("Connection to resource server failed! error: " + str(e))
         return
+    print("Connected to " + res_ip + ":" + res_port + " as " + identity + "\n")
     while True:
         # clear_screen()
-        print("Current Server: " + res_ip + ":" + res_port)
-        print("Current User: " + identity + "\n")
         print(
             "Basic Commands:\n"
             "[0] Quit\n"
