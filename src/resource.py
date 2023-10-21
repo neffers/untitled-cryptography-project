@@ -322,7 +322,20 @@ def handle_request(request):
             entry_id = request["entry_id"]
         except KeyError:
             return return_bad_request("Must include an entry ID.")
-        # TODO check permission
+
+        # Check permissions by first getting leaderboard id and then getting requesting user's perms for it
+        get_leaderboard_id_command = """
+            select leaderboard, verified
+            from leaderboard_entries
+            where id = ?
+        """
+        get_leaderboard_id_params = (entry_id,)
+        sql_cur.execute(get_leaderboard_id_command, get_leaderboard_id_params)
+        (leaderboard_id, verified) = sql_cur.fetchone()
+        (lb_id, lb_name, lb_perm, lb_asc) = get_leaderboard_info(request_user_id, leaderboard_id)
+        if lb_perm < Permissions.Read or (not verified and lb_perm < Permissions.Moderate):
+            return return_bad_request("You do not have permission to view that.")
+
         get_entry_command = """
             select e.id, user, u.identity, score, submission_date, verified, verifier, v.identity
             from leaderboard_entries e
