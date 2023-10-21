@@ -7,7 +7,7 @@ from enums import ResourceRequestType
 async def make_request(request: dict, reader, writer) -> dict:
     writer.write(bytes(json.dumps(request) + "\n", "utf-8"))
     await writer.drain()
-    response_data = await reader.readline()
+    response_data = await reader.read()
     try:
         response = json.loads(response_data.decode())
         return response
@@ -38,7 +38,7 @@ def request_create_leaderboard(identity, token, leaderboard_name, leaderboard_pe
         "identity": identity,
         "token": token,
         "leaderboard_name": leaderboard_name,
-        "leaderboard_permission": leaderboard_permission,
+        "leaderboard_permission": int(leaderboard_permission),
         "leaderboard_ascending": leaderboard_ascending,
     }
 
@@ -443,8 +443,11 @@ async def do_show_leaderboards(identity, token, reader, writer):
 async def do_create_leaderboard(identity, token, reader, writer):
     leaderboard_name = input("Enter the name for the new leaderboard: ")
     leaderboard_permission = input(
-        "What is the default permission level for users?\n"
-        "Please enter 'none', 'read', 'write', or 'moderator': ")
+        "[0] None\n"
+        "[1] Read\n"
+        "[2] Write\n"
+        "[3] Moderator\n"
+        "Enter default permissions for leaderboard: ")
     leaderboard_ascending = input("Score ascending [1] or descending [2]: ") == 1
     request = request_create_leaderboard(identity, token, leaderboard_name, leaderboard_permission,
                                          leaderboard_ascending)
