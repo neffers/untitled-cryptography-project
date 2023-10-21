@@ -16,10 +16,11 @@ async def make_request(request: dict, reader, writer) -> dict:
         return dict()
 
 
+# currently the only auth server request, so not using enum types
 def request_token(identity):
     return {
         "type": "token",
-        "identity": identity
+        "identity": identity,
     }
 
 
@@ -27,7 +28,7 @@ def request_show_leaderboards(identity, token):
     return {
         "type": ResourceRequestType.ListLeaderboards,
         "identity": identity,
-        "token": token
+        "token": token,
     }
 
 
@@ -38,7 +39,7 @@ def request_create_leaderboard(identity, token, leaderboard_name, leaderboard_pe
         "token": token,
         "leaderboard_name": leaderboard_name,
         "leaderboard_permission": leaderboard_permission,
-        "leaderboard_ascending": leaderboard_ascending
+        "leaderboard_ascending": leaderboard_ascending,
     }
 
 
@@ -49,7 +50,17 @@ def request_add_entry(identity, token, leaderboard_id, score, comment):
         "token": token,
         "leaderboard_id": leaderboard_id,
         "score": score,
-        "comment": comment
+        "comment": comment,
+    }
+
+
+def request_set_score_order(identity, token, leaderboard_id, ascending):
+    return {
+        "type": ResourceRequestType.ChangeScoreOrder,
+        "identity": identity,
+        "token": token,
+        "leaderboard_id": leaderboard_id,
+        "ascending": ascending,
     }
 
 
@@ -57,101 +68,131 @@ def request_list_users(identity, token):
     return {
         "type": ResourceRequestType.ListUsers,
         "identity": identity,
-        "token": token
+        "token": token,
     }
 
 
 def request_list_unverified(identity, token, leaderboard_id):
     return {
         "type": ResourceRequestType.ListUnverified,
-        "leaderboard_id": leaderboard_id,
         "identity": identity,
-        "token": token
+        "token": token,
+        "leaderboard_id": leaderboard_id,
     }
 
 
 def request_get_entry(identity, token, entry_id):
     return {
         "type": ResourceRequestType.GetEntry,
-        "entry_id": entry_id,
         "identity": identity,
-        "token": token
+        "token": token,
+        "entry_id": entry_id,
+    }
+
+
+def request_add_proof(identity, token, entry_id, filename, blob):
+    return {
+        "type": ResourceRequestType.AddProof,
+        "identity": identity,
+        "token": token,
+        "entry_id": entry_id,
+        "filename": filename,
+        "file": blob,
+    }
+
+
+def request_get_proof(identity, token, entry_id, filename):
+    return {
+        "type": ResourceRequestType.DownloadProof,
+        "identity": identity,
+        "token": token,
+        "entry_id": entry_id,
+        "filename": filename,
     }
 
 
 def request_view_user(identity, token, user_id):
     return {
         "type": ResourceRequestType.ViewUser,
-        "user_id": user_id,
         "identity": identity,
-        "token": token
+        "token": token,
+        "user_id": user_id,
     }
 
 
 def request_one_leaderboard(identity, token, leaderboard_id):
     return {
         "type": ResourceRequestType.ShowOneLeaderboard,
-        "leaderboard_id": leaderboard_id,
         "identity": identity,
-        "token": token
+        "token": token,
+        "leaderboard_id": leaderboard_id,
     }
 
 
 def request_view_permissions(identity, token, user_id):
     return {
-        "type": ResourceRequestType.GetEntry,
-        "user_id": user_id,
+        "type": ResourceRequestType.ViewPermissions,
         "identity": identity,
-        "token": token
+        "token": token,
+        "user_id": user_id,
     }
 
 
 def request_modify_entry_verification(identity, token, entry_id, verified):
     return {
-        "type": ResourceRequestType.GetEntry,
-        "entry_id": entry_id,
+        "type": ResourceRequestType.ModifyEntryVerification,
         "identity": identity,
         "token": token,
-        "verified": verified
+        "entry_id": entry_id,
+        "verified": verified,
     }
 
 
 def request_remove_leaderboard(identity, token, leaderboard_id):
     return {
         "type": ResourceRequestType.RemoveLeaderboard,
-        "leaderboard_id": leaderboard_id,
         "identity": identity,
-        "token": token
+        "token": token,
+        "leaderboard_id": leaderboard_id,
     }
 
 
 def request_add_comment(identity, token, entry_id, content):
     return {
-        "type": ResourceRequestType.RemoveLeaderboard,
+        "type": ResourceRequestType.AddComment,
+        "identity": identity,
+        "token": token,
         "entry_id": entry_id,
         "content": content,
-        "identity": identity,
-        "token": token
     }
 
 
 def request_remove_entry(identity, token, entry_id):
     return {
-        "type": ResourceRequestType.RemoveLeaderboard,
-        "entry_id": entry_id,
+        "type": ResourceRequestType.RemoveEntry,
         "identity": identity,
-        "token": token
+        "token": token,
+        "entry_id": entry_id,
     }
 
 
 def request_set_permission(identity, token, user_id, leaderboard_id, permission):
     return {
-        "type": ResourceRequestType.RemoveLeaderboard,
-        "user_id": user_id,
-        "permission": permission,
+        "type": ResourceRequestType.SetPermission,
         "identity": identity,
         "token": token,
-        "leaderboard_id": leaderboard_id
+        "user_id": user_id,
+        "permission": permission,
+        "leaderboard_id": leaderboard_id,
+    }
+
+
+def request_remove_user(identity, token, user_id):
+    return {
+        "type": ResourceRequestType.RemoveUser,
+        "identity": identity,
+        "token": token,
+        "user_id": user_id,
     }
 
 
@@ -192,31 +233,6 @@ async def do_set_permission(identity, token, reader, writer, user_id):
 
 
 async def user_options(identity, token, reader, writer, user_id):
-    print(
-        "User Commands:\n"
-        "[1] View User\n"
-        "[2] View Permissions\n"
-        "[3] Set Permissions\n"
-        "[4] Open Submission\n"
-        "[5] Remove User\n")
-    choose4 = input("Choose the corresponding number: ")
-    choose4 = int(choose4)
-    if choose4 == 1:
-        # view user
-        await do_view_user(identity, token, reader, writer, user_id)
-    if choose4 == 2:
-        # view permissions
-        await do_view_permissions(identity, token, reader, writer, user_id)
-    if choose4 == 3:
-        # set permissions
-        await do_set_permission(identity, token, reader, writer, user_id)
-    if choose4 == 4:
-        # open submission
-        entry_id = input("Enter the ID of the entry: ")
-        await entry_options(identity, token, reader, writer, entry_id)
-    if choose4 == 5:
-        # remove user
-        pass
     while True:
         print(
             "User Commands:\n"
