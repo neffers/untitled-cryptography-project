@@ -22,8 +22,7 @@ class ResourceRequestType(IntEnum):
     RemoveUser = auto()
     ChangeScoreOrder = auto()
     AddProof = auto()
-    # TODOS
-    # Entry: Download Proof
+    DownloadProof = auto()
 
 
 class Permissions(IntEnum):

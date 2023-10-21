@@ -657,6 +657,43 @@ def handle_request(request):
             "data": None
         }
 
+    # Entry: Download Proof
+    if request_type == ResourceRequestType.DownloadProof:
+        try:
+            file_id = request["file_id"]
+        except KeyError:
+            return return_bad_request("Must include a file id")
+
+        # make sure the user should be able to see the associated entry
+        get_leaderboard_command = """
+            select e.user, e.verified, e.leaderboard
+            from leaderboard_entries e
+            where e.id in (select entry
+                         from files
+                         where id = ?)
+        """
+        get_leaderboard_params = (file_id,)
+        sql_cur.execute(get_leaderboard_command, get_leaderboard_params)
+        (submitter, verified, leaderboard_id) = sql_cur.fetchone()
+        (lb_id, lb_name, lb_perm, lb_asc) = get_leaderboard_info(request_user_id, leaderboard_id)
+        if submitter == request_user_id or lb_perm >= Permissions.Moderate or (verified and lb_perm >= Permissions.Read):
+            pass
+        else:
+            return return_bad_request("You do not have permission to do that")
+
+        get_file_command = """
+            select data
+            from files
+            where id = ?
+        """
+        get_file_params = (file_id,)
+        sql_cur.execute(get_file_command, get_file_params)
+        (file) = sql_cur.fetchone()
+        return {
+            "success": True,
+            "data": file
+        }
+
 
 class Handler(socketserver.StreamRequestHandler):
     def handle(self):

@@ -216,7 +216,12 @@ Please see the [Phase 2 description](desc/phase_2.pdf) for details.
     - `file`: a byte blob of the file
   - Resource server response `data`
     - `None`, use `success` alone to determine outcome
-- Further TODOS in enums.py
+- `DownloadProof`
+  - Download a proof file from the server
+  - Additional client request fields:
+    - `file_id`: the id of the file to download
+  - Resource server response `data`
+    - the requested file as a byte blob
 
 ### Clientside Commands
 #### Basic Commands
