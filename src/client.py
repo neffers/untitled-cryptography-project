@@ -151,37 +151,37 @@ def request_set_permission(identity, token, user_id, leaderboard_id, permission)
     }
 
 
-def do_view_user(identity, token, reader, writer, user_id):
+async def do_view_user(identity, token, reader, writer, user_id):
     request = request_view_user(identity, token, user_id)
-    response = asyncio.run(make_request(request, reader, writer))
+    response = await make_request(request, reader, writer)
     if response["success"]:
         print(response["data"])
     else:
         print(response["success"])
 
 
-def do_view_permissions(identity, token, reader, writer, user_id):
+async def do_view_permissions(identity, token, reader, writer, user_id):
     request = request_view_permissions(identity, token, user_id)
-    response = asyncio.run(make_request(request, reader, writer))
+    response = await make_request(request, reader, writer)
     if response["success"]:
         print(response["data"])
     else:
         print(response["success"])
 
 
-def do_set_permission(identity, token, reader, writer, user_id):
+async def do_set_permission(identity, token, reader, writer, user_id):
     leaderboard_id = input("Enter the leaderboard where the permission will be changed: ")
     permission = input(
         "What is the new permission level for the user?\nPlease enter 'none', 'read', 'write', or 'moderator': ")
     request = request_set_permission(identity, token, leaderboard_id, user_id, permission)
-    response = asyncio.run(make_request(request, reader, writer))
+    response = await make_request(request, reader, writer)
     if response["success"]:
         pass
     else:
         print(response["success"])
 
 
-def user_options(identity, token, reader, writer, user_id):
+async def user_options(identity, token, reader, writer, user_id):
     print(
         "User Commands:\n"
         "[1] View User\n"
@@ -193,69 +193,69 @@ def user_options(identity, token, reader, writer, user_id):
     choose4 = int(choose4)
     if choose4 == 1:
         # view user
-        do_view_user(identity, token, reader, writer, user_id)
+        await do_view_user(identity, token, reader, writer, user_id)
     if choose4 == 2:
         # view permissions
-        do_view_permissions(identity, token, reader, writer, user_id)
+        await do_view_permissions(identity, token, reader, writer, user_id)
     if choose4 == 3:
         # set permissions
-        do_set_permission(identity, token, reader, writer, user_id)
+        await do_set_permission(identity, token, reader, writer, user_id)
     if choose4 == 4:
         # open submission
         entry_id = input("Enter the ID of the entry: ")
-        entry_options(identity, token, reader, writer, entry_id)
+        await entry_options(identity, token, reader, writer, entry_id)
     if choose4 == 5:
         # remove user
         pass
 
 
-def do_get_entry(identity, token, reader, writer, entry_id):
+async def do_get_entry(identity, token, reader, writer, entry_id):
     request = request_get_entry(identity, token, entry_id)
-    response = asyncio.run(make_request(request, reader, writer))
+    response = await make_request(request, reader, writer)
     if response["success"]:
         print(response["data"])
     else:
         print(response["success"])
 
 
-def do_view_comments(identity, token, reader, writer, entry_id):
+async def do_view_comments(identity, token, reader, writer, entry_id):
     request = request_get_entry(identity, token, entry_id)
-    response = asyncio.run(make_request(request, reader, writer))
+    response = await make_request(request, reader, writer)
     if response["success"]:
         print(response["data"])
     else:
         print(response["success"])
 
 
-def do_add_comment(identity, token, reader, writer, entry_id):
+async def do_add_comment(identity, token, reader, writer, entry_id):
     content = input("Enter your comment to the entry: ")
     request = request_add_comment(identity, token, entry_id, content)
-    response = asyncio.run(make_request(request, reader, writer))
+    response = await make_request(request, reader, writer)
     if response["success"]:
         pass
     else:
         print(response["success"])
 
 
-def do_modify_entry_verification(identity, token, reader, writer, entry_id, boolean):
+async def do_modify_entry_verification(identity, token, reader, writer, entry_id, boolean):
     request = request_modify_entry_verification(identity, token, entry_id, boolean)
-    response = asyncio.run(make_request(request, reader, writer))
+    response = await make_request(request, reader, writer)
     if response["success"]:
         pass
     else:
         print(response["success"])
 
 
-def do_remove_entry(identity, token, reader, writer, entry_id):
+async def do_remove_entry(identity, token, reader, writer, entry_id):
     request = request_remove_entry(identity, token, entry_id)
-    response = asyncio.run(make_request(request, reader, writer))
+    response = await make_request(request, reader, writer)
     if response["success"]:
         pass
     else:
         print(response["success"])
 
 
-def entry_options(identity, token, reader, writer, entry_id):
+async def entry_options(identity, token, reader, writer, entry_id):
     # begin entry options
     print(
         "Leaderboard Commands:\n"
@@ -271,7 +271,7 @@ def entry_options(identity, token, reader, writer, entry_id):
     choose3 = int(choose3)
     if choose3 == 1:
         # view entry
-        do_get_entry(identity, token, reader, writer, entry_id)
+        await do_get_entry(identity, token, reader, writer, entry_id)
     if choose3 == 2:
         # add proof
         pass
@@ -280,31 +280,31 @@ def entry_options(identity, token, reader, writer, entry_id):
         pass
     if choose3 == 4:
         # view comments
-        do_view_comments(identity, token, reader, writer, entry_id)
+        await do_view_comments(identity, token, reader, writer, entry_id)
     if choose3 == 5:
         # post comment
-        do_add_comment(identity, token, reader, writer, entry_id)
+        await do_add_comment(identity, token, reader, writer, entry_id)
     if choose3 == 6:
         # verify entry
-        do_modify_entry_verification(identity, token, reader, writer, entry_id, True)
+        await do_modify_entry_verification(identity, token, reader, writer, entry_id, True)
     if choose3 == 7:
         # unverify entry
-        do_modify_entry_verification(identity, token, reader, writer, entry_id, False)
+        await do_modify_entry_verification(identity, token, reader, writer, entry_id, False)
     if choose3 == 8:
         # remove entry
-        do_remove_entry(identity, token, reader, writer, entry_id)
+        await do_remove_entry(identity, token, reader, writer, entry_id)
 
 
-def do_show_leaderboards(identity, token, reader, writer):
+async def do_show_leaderboards(identity, token, reader, writer):
     request = request_show_leaderboards(identity, token)
-    response = asyncio.run(make_request(request, reader, writer))
+    response = await make_request(request, reader, writer)
     if response["success"]:
         print(response["data"])
     else:
         print(response["success"])
 
 
-def do_create_leaderboard(identity, token, reader, writer):
+async def do_create_leaderboard(identity, token, reader, writer):
     leaderboard_name = input("Enter the name for the new leaderboard: ")
     leaderboard_permission = input(
         "What is the default permission level for users?\n"
@@ -316,62 +316,62 @@ def do_create_leaderboard(identity, token, reader, writer):
         leaderboard_ascending = False
     request = request_create_leaderboard(identity, token, leaderboard_name, leaderboard_permission,
                                          leaderboard_ascending)
-    response = asyncio.run(make_request(request, reader, writer))
+    response = await make_request(request, reader, writer)
     if response["success"]:
         print("Leaderboard successfully created. Leaderboard ID is " + response["data"])
     else:
         print(response["success"])
 
 
-def do_list_users(identity, token, reader, writer):
+async def do_list_users(identity, token, reader, writer):
     request = request_list_users(identity, token)
-    response = asyncio.run(make_request(request, reader, writer))
+    response = await make_request(request, reader, writer)
     if response["success"]:
         print(response["data"])
     else:
         print(response["success"])
 
 
-def do_one_leaderboard(identity, token, reader, writer, leaderboard_id):
+async def do_one_leaderboard(identity, token, reader, writer, leaderboard_id):
     request = request_one_leaderboard(identity, token, leaderboard_id)
-    response = asyncio.run(make_request(request, reader, writer))
+    response = await make_request(request, reader, writer)
     if response["success"]:
         print(response["data"])
     else:
         print(response["success"])
 
 
-def do_list_unverified(identity, token, reader, writer, leaderboard_id):
+async def do_list_unverified(identity, token, reader, writer, leaderboard_id):
     request = request_list_unverified(identity, token, leaderboard_id)
-    response = asyncio.run(make_request(request, reader, writer))
+    response = await make_request(request, reader, writer)
     if response["success"]:
         print(response["data"])
     else:
         print(response["success"])
 
 
-def do_add_entry(identity, token, reader, writer, leaderboard_id):
+async def do_add_entry(identity, token, reader, writer, leaderboard_id):
     score = input("Enter your score: ")
     score = float(score)
     comment = input("Enter any comments about your score: ")
     request = request_add_entry(identity, token, leaderboard_id, score, comment)
-    response = asyncio.run(make_request(request, reader, writer))
+    response = await make_request(request, reader, writer)
     if response["success"]:
         print("Entry successfully submitted. Entry ID is " + response["data"])
     else:
         print(response["success"])
 
 
-def do_remove_leaderboard(identity, token, reader, writer, leaderboard_id):
+async def do_remove_leaderboard(identity, token, reader, writer, leaderboard_id):
     request = request_remove_leaderboard(identity, token, leaderboard_id)
-    response = asyncio.run(make_request(request, reader, writer))
+    response = await make_request(request, reader, writer)
     if response["success"]:
         pass
     else:
         print(response["success"])
 
 
-def leaderboard_options(identity, token, reader, writer):
+async def leaderboard_options(identity, token, reader, writer):
     leaderboard_id = input("Enter the leaderboard ID: ")
     leaderboard_id = int(leaderboard_id)
     # begin list options
@@ -387,23 +387,23 @@ def leaderboard_options(identity, token, reader, writer):
     choose2 = int(choose2)
     if choose2 == 1:
         # list entries
-        do_one_leaderboard(identity, token, reader, writer, leaderboard_id)
+        await do_one_leaderboard(identity, token, reader, writer, leaderboard_id)
     if choose2 == 2:
         # open unverified
-        do_list_unverified(identity, token, reader, writer, leaderboard_id)
+        await do_list_unverified(identity, token, reader, writer, leaderboard_id)
     if choose2 == 3:
         # submit entry
-        do_add_entry(identity, token, reader, writer, leaderboard_id)
+        await do_add_entry(identity, token, reader, writer, leaderboard_id)
     if choose2 == 4:
         # open entry
         entry_id = input("Enter the ID of the entry: ")
-        entry_options(identity, token, reader, writer, entry_id)
+        await entry_options(identity, token, reader, writer, entry_id)
     if choose2 == 5:
         # score order
         pass
     if choose2 == 6:
         # remove leaderboard
-        do_remove_leaderboard(identity, token, reader, writer, leaderboard_id)
+        await do_remove_leaderboard(identity, token, reader, writer, leaderboard_id)
 
 
 def clear_screen():
@@ -563,20 +563,20 @@ async def server_loop(res_ip, res_port):
         choose = int(choose)
         if choose == 1:
             # list leaderboards
-            do_show_leaderboards(identity, token, reader, writer)
+            await do_show_leaderboards(identity, token, reader, writer)
         if choose == 2:
             # open leaderboard
-            leaderboard_options(identity, token, reader, writer)
+            await leaderboard_options(identity, token, reader, writer)
         if choose == 3:
             # create leaderboard
-            do_create_leaderboard(identity, token, reader, writer)
+            await do_create_leaderboard(identity, token, reader, writer)
         if choose == 4:
             # list users
-            do_list_users(identity, token, reader, writer)
+            await do_list_users(identity, token, reader, writer)
         if choose == 5 or choose == 6:
             # 5: open user, 6: open self
             user_id = input("Enter the ID of the user: ") if choose == 5 else identity
-            user_options(identity, token, reader, writer, user_id)
+            await user_options(identity, token, reader, writer, user_id)
         if choose == 7:
             # quit
             break
