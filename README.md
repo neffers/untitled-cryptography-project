@@ -208,6 +208,14 @@ Please see the [Phase 2 description](desc/phase_2.pdf) for details.
     - `ascending`: boolean corresponding to if the leaderboard should be set to ascending (false for descending)
   - Resource server response `data`
     - `None`, use `success` alone to determine outcome
+- `AddProof`
+  - adds a proof file associated with an entry. Only the user that submitted the entry can add proof.
+  - Additional client request fields:
+    - `entry_id`: the id of the entry to associate the file with.
+    - `filename`: a filename to associate with the file
+    - `file`: a byte blob of the file
+  - Resource server response `data`
+    - `None`, use `success` alone to determine outcome
 - Further TODOS in enums.py
 
 ### Clientside Commands

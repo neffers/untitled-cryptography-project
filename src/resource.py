@@ -625,6 +625,38 @@ def handle_request(request):
             "data": None
         }
 
+    # Entry: Add Proof
+    if request_type == ResourceRequestType.AddProof:
+        try:
+            entry_id = request["entry_id"]
+            filename = request["filename"]
+            file = request["file"]
+        except KeyError:
+            return return_bad_request("must include entry id, a name for the file, and the file itself")
+
+        get_submitter_command = """
+            select user
+            from leaderboard_entries
+            where id = ?
+        """
+        get_submitter_params = (entry_id,)
+        sql_cur.execute(get_submitter_command, get_submitter_params)
+        (submitter) = sql_cur.fetchone()
+
+        if submitter != request_user_id:
+            return return_bad_request("Can only add proof to your own entries")
+
+        add_file_command = """
+            insert into files (entry, name, submission_date, data) values (?, ?, ?, ?)
+        """
+        add_file_params = (entry_id, filename, int(time.time()), file)
+        sql_cur.execute(add_file_command, add_file_params)
+        db.commit()
+        return {
+            "success": True,
+            "data": None
+        }
+
 
 class Handler(socketserver.StreamRequestHandler):
     def handle(self):
