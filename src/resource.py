@@ -42,14 +42,14 @@ def initialize_database():
         );
         CREATE TABLE permissions (
             user INTEGER REFERENCES users(id),
-            leaderboard INTEGER REFERENCES  leaderboards(id),
+            leaderboard INTEGER REFERENCES  leaderboards(id) ON DELETE CASCADE,
             permission INTEGER,
             change_date INTEGER
         );
         CREATE TABLE leaderboard_entries (
             id INTEGER PRIMARY KEY,
-            user INTEGER REFERENCES users(id),
-            leaderboard INTEGER REFERENCES leaderboards(id),
+            user INTEGER REFERENCES users(id) ON DELETE CASCADE,
+            leaderboard INTEGER REFERENCES leaderboards(id) ON DELETE CASCADE,
             score REAL,
             submission_date INTEGER,
             verified INTEGER,
@@ -58,14 +58,14 @@ def initialize_database():
         );
         CREATE TABLE entry_comments (
             id INTEGER PRIMARY KEY,
-            user INTEGER REFERENCES users(id),
-            entry INTEGER REFERENCES leaderboard_entries(id),
+            user INTEGER REFERENCES users(id) ON DELETE CASCADE,
+            entry INTEGER REFERENCES leaderboard_entries(id) ON DELETE CASCADE,
             date INTEGER,
             content TEXT
         );
         CREATE TABLE files (
             id INTEGER PRIMARY KEY,
-            entry INTEGER REFERENCES leaderboard_entries(id),
+            entry INTEGER REFERENCES leaderboard_entries(id) ON DELETE CASCADE,
             name TEXT,
             submission_date INTEGER,
             data BLOB
