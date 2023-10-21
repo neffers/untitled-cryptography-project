@@ -599,10 +599,13 @@ def handle_request(request):
             END
         """
         set_permission_params = (
-        user_id, ldb_id, p, int(time.time()), user_id, ldb_id, user_id, ldb_id, p, int(time.time()),)
+            user_id, ldb_id, p, int(time.time()), user_id, ldb_id, user_id, ldb_id, p, int(time.time()),)
         sql_cur.execute(set_permission_command, set_permission_params)
         db.commit()
-        return {"success": True, "data": None}
+        return {
+            "success": True,
+            "data": None
+        }
 
 
 class Handler(socketserver.StreamRequestHandler):
@@ -626,7 +629,6 @@ class Handler(socketserver.StreamRequestHandler):
 
 
 if __name__ == "__main__":
-    
     # TODO get this from command line or config file?
     db_filename = "res_db"
 
