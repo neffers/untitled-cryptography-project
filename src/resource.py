@@ -582,6 +582,7 @@ def handle_request(request):
             "data": None
         }
 
+    # User: Remove User
     if request_type == ResourceRequestType.RemoveUser:
         if user_class < UserClass.Administrator:
             return return_bad_request("You do not have permission to do that")

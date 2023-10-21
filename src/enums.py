@@ -24,7 +24,6 @@ class ResourceRequestType(IntEnum):
     # Admin: Score Order
     # Entry: Add Proof
     # Entry: Download Proof
-    # User: Remove User
 
 
 class Permissions(IntEnum):
