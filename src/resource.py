@@ -599,6 +599,27 @@ def handle_request(request):
         delete_user_params = (user_id,)
         sql_cur.execute(delete_user_command, delete_user_params)
         db.commit()
+        return {
+            "success": True,
+            "data": None
+        }
+
+    # Admin: Score Order
+    if request_type == ResourceRequestType.ChangeScoreOrder:
+        try:
+            leaderboard_id = request["leaderboard_id"]
+            ascending = request["ascending"]
+        except KeyError:
+            return return_bad_request("Must include leaderboard id and ascending boolean")
+
+        update_order_command = """
+        """
+        update_order_params = (ascending, leaderboard_id)
+        sql_cur.execute(update_order_command, update_order_params)
+        db.commit()
+        return {
+
+        }
 
 
 class Handler(socketserver.StreamRequestHandler):
