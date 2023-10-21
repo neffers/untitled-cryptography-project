@@ -607,6 +607,23 @@ def handle_request(request):
             "data": None
         }
 
+    if request_type == ResourceRequestType.RemoveUser:
+        if user_class < UserClass.Administrator:
+            return return_bad_request("You do not have permission to do that")
+        try:
+            user_id = request["user_id"]
+        except KeyError:
+            return return_bad_request("Must include a user id")
+
+        delete_user_command = """
+            delete
+            from users
+            where id = ?
+        """
+        delete_user_params = (user_id,)
+        sql_cur.execute(delete_user_command, delete_user_params)
+        db.commit()
+
 
 class Handler(socketserver.StreamRequestHandler):
     def handle(self):

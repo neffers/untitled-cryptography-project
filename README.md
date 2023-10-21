@@ -195,6 +195,12 @@ Please see the [Phase 2 description](desc/phase_2.pdf) for details.
     - `permission`: the new permission for the user
   - Resource server response `data`
     - `None`, use `success` alone to determine outcome
+- `RemoveUser`
+  - Removes a user and associated data from the database.
+  - Additional client request fields:
+    - `user_id`: the id of the user to be removed
+  - Resource server response `data`
+    - `None`, use `success` alone to determine outcome
 - Further TODOS in enums.py
 
 ### Clientside Commands
