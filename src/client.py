@@ -202,9 +202,10 @@ async def do_view_user(identity, token, reader, writer, user_id):
     if "success" not in response or "data" not in response:
         print("Malformed packet: " + str(response))
     if response["success"]:
+        # TODO formatting
         print(response["data"])
     else:
-        print(response["success"])
+        print(response["data"])
 
 
 async def do_view_permissions(identity, token, reader, writer, user_id):
@@ -213,9 +214,10 @@ async def do_view_permissions(identity, token, reader, writer, user_id):
     if "success" not in response or "data" not in response:
         print("Malformed packet: " + str(response))
     if response["success"]:
+        # TODO formatting
         print(response["data"])
     else:
-        print(response["success"])
+        print(response["data"])
 
 
 async def do_set_permission(identity, token, reader, writer, user_id):
@@ -227,9 +229,10 @@ async def do_set_permission(identity, token, reader, writer, user_id):
     if "success" not in response or "data" not in response:
         print("Malformed packet: " + str(response))
     if response["success"]:
-        pass
+        print("Operation successful.")
     else:
         print(response["success"])
+        print(response["data"])
 
 
 async def user_options(identity, token, reader, writer, user_id):
@@ -268,9 +271,11 @@ async def do_get_entry(identity, token, reader, writer, entry_id):
     if "success" not in response or "data" not in response:
         print("Malformed packet: " + str(response))
     if response["success"]:
+        # TODO formatting
         print(response["data"])
     else:
         print(response["success"])
+        print(response["data"])
 
 
 async def do_view_comments(identity, token, reader, writer, entry_id):
@@ -279,9 +284,10 @@ async def do_view_comments(identity, token, reader, writer, entry_id):
     if "success" not in response or "data" not in response:
         print("Malformed packet: " + str(response))
     if response["success"]:
+        # TODO formatting
         print(response["data"])
     else:
-        print(response["success"])
+        print(response["data"])
 
 
 async def do_add_comment(identity, token, reader, writer, entry_id):
@@ -291,9 +297,9 @@ async def do_add_comment(identity, token, reader, writer, entry_id):
     if "success" not in response or "data" not in response:
         print("Malformed packet: " + str(response))
     if response["success"]:
-        pass
+        print("Operation successful.")
     else:
-        print(response["success"])
+        print(response["data"])
 
 
 async def do_modify_entry_verification(identity, token, reader, writer, entry_id, boolean):
@@ -302,9 +308,9 @@ async def do_modify_entry_verification(identity, token, reader, writer, entry_id
     if "success" not in response or "data" not in response:
         print("Malformed packet: " + str(response))
     if response["success"]:
-        pass
+        print("Operation successful.")
     else:
-        print(response["success"])
+        print(response["data"])
 
 
 async def do_remove_entry(identity, token, reader, writer, entry_id):
@@ -313,9 +319,9 @@ async def do_remove_entry(identity, token, reader, writer, entry_id):
     if "success" not in response or "data" not in response:
         print("Malformed packet: " + str(response))
     if response["success"]:
-        pass
+        print("Operation successful.")
     else:
-        print(response["success"])
+        print(response["data"])
 
 
 async def entry_options(identity, token, reader, writer, entry_id):
@@ -362,9 +368,10 @@ async def do_show_leaderboards(identity, token, reader, writer):
     if "success" not in response or "data" not in response:
         print("Malformed packet: " + str(response))
     if response["success"]:
+        # TODO formatting
         print(response["data"])
     else:
-        print(response["success"])
+        print(response["data"])
 
 
 async def do_create_leaderboard(identity, token, reader, writer):
@@ -383,9 +390,10 @@ async def do_create_leaderboard(identity, token, reader, writer):
     if "success" not in response or "data" not in response:
         print("Malformed packet: " + str(response))
     if response["success"]:
-        print("Leaderboard successfully created. Leaderboard ID is " + response["data"])
+        # TODO formatting
+        print(response["data"])
     else:
-        print(response["success"])
+        print(response["data"])
 
 
 async def do_list_users(identity, token, reader, writer):
@@ -394,9 +402,10 @@ async def do_list_users(identity, token, reader, writer):
     if "success" not in response or "data" not in response:
         print("Malformed packet: " + str(response))
     if response["success"]:
+        # TODO formatting
         print(response["data"])
     else:
-        print(response["success"])
+        print(response["data"])
 
 
 async def do_one_leaderboard(identity, token, reader, writer, leaderboard_id):
@@ -405,9 +414,10 @@ async def do_one_leaderboard(identity, token, reader, writer, leaderboard_id):
     if "success" not in response or "data" not in response:
         print("Malformed packet: " + str(response))
     if response["success"]:
+        # TODO formatting
         print(response["data"])
     else:
-        print(response["success"])
+        print(response["data"])
 
 
 async def do_list_unverified(identity, token, reader, writer, leaderboard_id):
@@ -416,9 +426,10 @@ async def do_list_unverified(identity, token, reader, writer, leaderboard_id):
     if "success" not in response or "data" not in response:
         print("Malformed packet: " + str(response))
     if response["success"]:
+        # TODO formatting
         print(response["data"])
     else:
-        print(response["success"])
+        print(response["data"])
 
 
 async def do_add_entry(identity, token, reader, writer, leaderboard_id):
@@ -434,9 +445,11 @@ async def do_add_entry(identity, token, reader, writer, leaderboard_id):
     if "success" not in response or "data" not in response:
         print("Malformed packet: " + str(response))
     if response["success"]:
-        print("Entry successfully submitted. Entry ID is " + response["data"])
+        # TODO formatting
+        print(response["data"])
     else:
         print(response["success"])
+        print(response["data"])
 
 
 async def do_remove_leaderboard(identity, token, reader, writer, leaderboard_id):
@@ -445,9 +458,9 @@ async def do_remove_leaderboard(identity, token, reader, writer, leaderboard_id)
     if "success" not in response or "data" not in response:
         print("Malformed packet: " + str(response))
     if response["success"]:
-        pass
+        print("Operation successful.")
     else:
-        print(response["success"])
+        print(response["data"])
 
 
 async def leaderboard_options(identity, token, reader, writer, leaderboard_id):
