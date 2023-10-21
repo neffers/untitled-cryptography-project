@@ -514,24 +514,7 @@ def handle_request(request):
         remove_lbd = """
             delete from leaderboards where id = ?
         """
-        remove_entry_comments = """
-            delete from entry_comments where 
-                entry in (select id from leaderboard_entries 
-                    where leaderboard_entries.leaderboard = ?)
-        """
-        remove_files = """
-            delete from files where 
-                entry in (select id from leaderboard_entries 
-                    where leaderboard_entries.leaderboard = ?)
-        """
-        remove_entries = """
-            delete from leaderboard_entries where 
-                leaderboard_id = ?
-        """
         sql_cur.execute(remove_lbd, (ldb_id,))
-        sql_cur.execute(remove_entry_comments, (ldb_id,))
-        sql_cur.execute(remove_files, (ldb_id,))
-        sql_cur.execute(remove_entries, (ldb_id,))
         db.commit()
         return {
             "success": True,
@@ -547,17 +530,9 @@ def handle_request(request):
         except KeyError:
             return return_bad_request("expected entry_id")
 
-        remove_comments = """
-            delete from entry_comments where entry = ?
-        """
-        remove_files = """
-            delete from files where entry = ?
-        """
         remove_entry = """
-            delete fron leaderboard_entries where id = ?
+            delete from leaderboard_entries where id = ?
         """
-        sql_cur.execute(remove_comments, (entry_id,))
-        sql_cur.execute(remove_files, (entry_id,))
         sql_cur.execute(remove_entry, (entry_id,))
         db.commit()
         return {
