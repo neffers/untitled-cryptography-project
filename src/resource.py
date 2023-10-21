@@ -3,34 +3,25 @@ import json
 import sqlite3
 import time
 from os import path
-from enum import IntEnum, auto
-from enums import ResourceRequestType
-
-
-class Permissions(IntEnum):
-    # we want these to have a specific hierarchy
-    NoAccess = 0
-    Read = 1
-    Write = 2
-    Moderate = 3
-
-
-class UserClass(IntEnum):
-    User = Permissions.NoAccess
-    Administrator = Permissions.Moderate
+from enums import ResourceRequestType, Permissions, UserClass
 
 
 def initialize_database():
     # Initialize DB either from file or with defaults
     if path.exists(db_filename):
         print("Found existing database. Loading from there.")
-        return sqlite3.connect(db_filename)
+        sqldb = sqlite3.connect(db_filename)
+        dbcursor = sqldb.cursor()
+
+        enable_foreign_keys = "PRAGMA foreign_keys = 1"
+        dbcursor.execute(enable_foreign_keys)
+        return sqldb
     else:
         print("Did not find a database. Initializing new database from schema...")
         sqldb = sqlite3.connect(db_filename)
         dbcursor = sqldb.cursor()
 
-        enable_foreign_keys = "PRAGMA foreign_keys = ON;"
+        enable_foreign_keys = "PRAGMA foreign_keys = 1"
         dbcursor.execute(enable_foreign_keys)
 
         # The base database schema
@@ -51,14 +42,14 @@ def initialize_database():
         );
         CREATE TABLE permissions (
             user INTEGER REFERENCES users(id),
-            leaderboard INTEGER REFERENCES  leaderboards(id),
+            leaderboard INTEGER REFERENCES  leaderboards(id) ON DELETE CASCADE,
             permission INTEGER,
             change_date INTEGER
         );
         CREATE TABLE leaderboard_entries (
             id INTEGER PRIMARY KEY,
-            user INTEGER REFERENCES users(id),
-            leaderboard INTEGER REFERENCES leaderboards(id),
+            user INTEGER REFERENCES users(id) ON DELETE CASCADE,
+            leaderboard INTEGER REFERENCES leaderboards(id) ON DELETE CASCADE,
             score REAL,
             submission_date INTEGER,
             verified INTEGER,
@@ -67,14 +58,14 @@ def initialize_database():
         );
         CREATE TABLE entry_comments (
             id INTEGER PRIMARY KEY,
-            user INTEGER REFERENCES users(id),
-            entry INTEGER REFERENCES leaderboard_entries(id),
+            user INTEGER REFERENCES users(id) ON DELETE CASCADE,
+            entry INTEGER REFERENCES leaderboard_entries(id) ON DELETE CASCADE,
             date INTEGER,
             content TEXT
         );
         CREATE TABLE files (
             id INTEGER PRIMARY KEY,
-            entry INTEGER REFERENCES leaderboard_entries(id),
+            entry INTEGER REFERENCES leaderboard_entries(id) ON DELETE CASCADE,
             name TEXT,
             submission_date INTEGER,
             data BLOB
@@ -88,7 +79,6 @@ def initialize_database():
 # Generally used as (lb_id, lb_name, lb_perm, lb_asc) = get_leaderboard_info()
 def get_leaderboard_info(userid, leaderboard_id):
     cur = db.cursor()
-    # TODO ugly, make it so we don't need to duplicate userid in params?
     get_leaderboard_info_command = """
         select l.id, l.name, max(l.default_permission, coalesce(p.permission, 0), class) as perm, l.ascending
         from leaderboards l
@@ -141,6 +131,7 @@ def handle_request(request):
     else:
         # Register user automatically
         print("User not previously registered! Registering...")
+        # TODO: Eventually, this should make request to authentication server to verify token?
         insert_user_command = "INSERT INTO users(identity, token, class, registration_date) VALUES(?,?,?,?)"
         insert_user_params = (request_identity, token, UserClass.User, int(time.time()))
         sql_cur.execute(insert_user_command, insert_user_params)
@@ -150,7 +141,6 @@ def handle_request(request):
 
     # Basic: List Leaderboards
     if request_type == ResourceRequestType.ListLeaderboards:
-        # TODO can this be simplified?
         get_leaderboards_command = """
             select l.id, l.name, max(l.default_permission, coalesce(p.permission, 0), class) as perm
             from leaderboards l
@@ -178,19 +168,31 @@ def handle_request(request):
         # make sure leaderboard should be visible by user
         (leaderboard_id, leaderboard_name, permission, ascending) = (
             get_leaderboard_info(request_user_id, leaderboard_id))
-        if permission < 1:
+        if permission < Permissions.Read:
             return return_bad_request("You don't have permission to view that.")
+        # If moderator, return all entries
+        if permission >= Permissions.Moderate:
+            get_entries_command = """
+                select e.id, user, u.identity, score, submission_date, verified
+                    from leaderboard_entries e
+                    join main.leaderboards l on e.leaderboard = l.id
+                    join main.users u on e.user = u.id
+                where l.id = ?
+                order by score desc
+            """
+            get_entries_params = (leaderboard_id,)
+        else:
+            # Non-mods get visible entries and those that they submitted
+            get_entries_command = """
+                select e.id, user, u.identity, score, submission_date, verified
+                    from leaderboard_entries e
+                    join main.leaderboards l on e.leaderboard = l.id
+                    join main.users u on e.user = u.id
+                where (verified or user = ?) and l.id = ?
+                order by score desc
+            """
+            get_entries_params = (request_user_id, leaderboard_id)
 
-        # TODO this doesn't list all entries for moderators
-        get_entries_command = """
-            select e.id, user, u.identity, score, submission_date
-                from leaderboard_entries e
-                join main.leaderboards l on e.leaderboard = l.id
-                join main.users u on e.user = u.id
-            where (verified or user = ?) and l.id = ?
-            order by score desc
-        """
-        get_entries_params = (request_user_id, leaderboard_id)
         sql_cur.execute(get_entries_command, get_entries_params)
         entries = sql_cur.fetchall()
         if ascending:
@@ -203,7 +205,7 @@ def handle_request(request):
         return {
             "success": True,
             "data": data_to_return,
-        }  
+        }
 
     # Basic: Add Leaderboard
     if request_type == ResourceRequestType.CreateLeaderboard:
@@ -248,7 +250,10 @@ def handle_request(request):
             values(?,?,?,?,?)
         """
         create_entry_params = (request_user_id, leaderboard_id, entry_score, int(time.time()), 0)
-        sql_cur.execute(create_entry_command, create_entry_params)
+        try:
+            sql_cur.execute(create_entry_command, create_entry_params)
+        except sqlite3.IntegrityError:
+            return return_bad_request("Leaderboard does not exist")
         entry_id = sql_cur.lastrowid
         create_comment_command = """
             insert into entry_comments(user, entry, date, content)
@@ -264,7 +269,6 @@ def handle_request(request):
         }
 
     # Basic: List Users
-    # TODO: Does this fulfill Basic: Open user and Basic: open self?
     if request_type == ResourceRequestType.ListUsers:
         get_users_command = """
             select id, identity
@@ -318,7 +322,20 @@ def handle_request(request):
             entry_id = request["entry_id"]
         except KeyError:
             return return_bad_request("Must include an entry ID.")
-        # TODO check permission
+
+        # Check permissions by first getting leaderboard id and then getting requesting user's perms for it
+        get_leaderboard_id_command = """
+            select leaderboard, verified
+            from leaderboard_entries
+            where id = ?
+        """
+        get_leaderboard_id_params = (entry_id,)
+        sql_cur.execute(get_leaderboard_id_command, get_leaderboard_id_params)
+        (leaderboard_id, verified) = sql_cur.fetchone()
+        (lb_id, lb_name, lb_perm, lb_asc) = get_leaderboard_info(request_user_id, leaderboard_id)
+        if lb_perm < Permissions.Read or (not verified and lb_perm < Permissions.Moderate):
+            return return_bad_request("You do not have permission to view that.")
+
         get_entry_command = """
             select e.id, user, u.identity, score, submission_date, verified, verifier, v.identity
             from leaderboard_entries e
@@ -335,6 +352,7 @@ def handle_request(request):
             from entry_comments c
             left join main.users u on u.id = c.user
             where c.entry = ?
+            order by date
         """
         get_comments_params = (entry_id,)
         sql_cur.execute(get_comments_command, get_comments_params)
@@ -358,18 +376,16 @@ def handle_request(request):
             "success": True,
             "data": data_to_return,
         }
-    
+
     # User: View User (get visible entries)
+    # Basic: Open user
+    # Basic: open self
     if request_type == ResourceRequestType.ViewUser:
-        #TODO: Reject access if permission is NoAccess
-        # From Jordan: As it stands, there's no way for this to be rejected.
-        # There's no permission gate on viewing the user, but the *entries* should be filtered
-        # based on what should be visible to the requesting user
         try:
             user_id = request["user_id"]
         except KeyError:
             return return_bad_request("Must include a user ID.")
-        
+
         get_user_command = """
             select identity, registration_date
                 from users
@@ -456,17 +472,30 @@ def handle_request(request):
             entry_id = request["entry_id"]
             content = request["content"]
         except KeyError:
-            return return_bad_request("fields entry and content"
-                                      "required")
+            return return_bad_request("fields entry and content required")
 
-        #TODO validate permissions
-        sql_cmd = """
+        # Check permissions by first getting leaderboard id and then getting requesting user's perms for it
+        get_leaderboard_id_command = """
+            select leaderboard, verified
+            from leaderboard_entries
+            where id = ?
+        """
+        get_leaderboard_id_params = (entry_id,)
+        sql_cur.execute(get_leaderboard_id_command, get_leaderboard_id_params)
+        (leaderboard_id, verified) = sql_cur.fetchone()
+        (lb_id, lb_name, lb_perm, lb_asc) = get_leaderboard_info(request_user_id, leaderboard_id)
+        if lb_perm < Permissions.Read or (not verified and lb_perm < Permissions.Moderate):
+            return return_bad_request("You do not have permission to view that.")
+
+        add_comment_command = """
         insert into entry_comments(user, entry, date, content)
             values (?,?,?,?)
         """
-        cur_time = int(time.time())
-        sql_cur.execute(sql_cmd, (user_id, entry_id, cur_time,
-                        content))
+        add_comment_params = (request_user_id, entry_id, int(time.time()), content)
+        try:
+            sql_cur.execute(add_comment_command, add_comment_params)
+        except sqlite3.IntegrityError:
+            return return_bad_request("Entry does not exist")
         db.commit()
         return {
             "success": True,
@@ -481,30 +510,16 @@ def handle_request(request):
             ldb_id = request["leaderboard_id"]
         except KeyError:
             return return_bad_request()
-        
+
         remove_lbd = """
             delete from leaderboards where id = ?
         """
-        remove_entry_comments = """
-            delete from entry_comments where 
-                entry in (select id from leaderboard_entries 
-                    where leaderboard_entries.leaderboard = ?)
-        """
-        remove_files = """
-            delete from files where 
-                entry in (select id from leaderboard_entries 
-                    where leaderboard_entries.leaderboard = ?)
-        """
-        remove_entries = """
-            delete from leaderboard_entries where 
-                leaderboard_id = ?
-        """
-        sql_cur.execute(remove_lbd, (ldb_id, ))
-        sql_cur.execute(remove_entry_comments, (ldb_id, ))
-        sql_cur.execute(remove_files, (ldb_id, ))
-        sql_cur.execute(remove_entries, (ldb_id, ))
+        sql_cur.execute(remove_lbd, (ldb_id,))
         db.commit()
-        return {"success":True, "data":None}
+        return {
+            "success": True,
+            "data": None
+        }
 
     # Entry: Remove Entry
     if request_type == ResourceRequestType.RemoveEntry:
@@ -515,20 +530,15 @@ def handle_request(request):
         except KeyError:
             return return_bad_request("expected entry_id")
 
-        remove_comments = """
-            delete from entry_comments where entry = ?
-        """
-        remove_files = """
-            delete from files where entry = ?
-        """
         remove_entry = """
-            delete fron leaderboard_entries where id = ?
-        """ 
-        sql_cur.execute(remove_comments, (entry_id, ))
-        sql_cur.execute(remove_files, (entry_id, ))
-        sql_cur.execute(remove_entry, (entry_id, ))
+            delete from leaderboard_entries where id = ?
+        """
+        sql_cur.execute(remove_entry, (entry_id,))
         db.commit()
-        return {"success":True, "data":None}
+        return {
+            "success": True,
+            "data": None
+        }
 
     # User: View Permissions
     if request_type == ResourceRequestType.ViewPermissions:
@@ -545,7 +555,7 @@ def handle_request(request):
             "success": True,
             "data": permissions,
         }
-    
+
     # User: Set Permission
     if request_type == ResourceRequestType.SetPermission:
         if user_class < UserClass.Administrator:
@@ -563,10 +573,127 @@ def handle_request(request):
                 ELSE (INSERT INTO permissions (user, leaderboard, permission, change_date) VALUES (?, ?, ?, ?))
             END
         """
-        set_permission_params = (user_id, ldb_id, p, int(time.time()), user_id, ldb_id, user_id, ldb_id, p, int(time.time()),)
+        set_permission_params = (
+            user_id, ldb_id, p, int(time.time()), user_id, ldb_id, user_id, ldb_id, p, int(time.time()),)
         sql_cur.execute(set_permission_command, set_permission_params)
         db.commit()
-        return {"success": True, "data": None}
+        return {
+            "success": True,
+            "data": None
+        }
+
+    # User: Remove User
+    if request_type == ResourceRequestType.RemoveUser:
+        if user_class < UserClass.Administrator:
+            return return_bad_request("You do not have permission to do that")
+        try:
+            user_id = request["user_id"]
+        except KeyError:
+            return return_bad_request("Must include a user id")
+
+        delete_user_command = """
+            delete
+            from users
+            where id = ?
+        """
+        delete_user_params = (user_id,)
+        sql_cur.execute(delete_user_command, delete_user_params)
+        db.commit()
+        return {
+            "success": True,
+            "data": None
+        }
+
+    # Admin: Score Order
+    if request_type == ResourceRequestType.ChangeScoreOrder:
+        try:
+            leaderboard_id = request["leaderboard_id"]
+            ascending = request["ascending"]
+        except KeyError:
+            return return_bad_request("Must include leaderboard id and ascending boolean")
+
+        update_order_command = """
+            update leaderboards
+            set ascending = ?
+            where id = ?
+        """
+        update_order_params = (ascending, leaderboard_id)
+        sql_cur.execute(update_order_command, update_order_params)
+        db.commit()
+        return {
+            "success": True,
+            "data": None
+        }
+
+    # Entry: Add Proof
+    if request_type == ResourceRequestType.AddProof:
+        try:
+            entry_id = request["entry_id"]
+            filename = request["filename"]
+            file = request["file"]
+        except KeyError:
+            return return_bad_request("must include entry id, a name for the file, and the file itself")
+
+        get_submitter_command = """
+            select user
+            from leaderboard_entries
+            where id = ?
+        """
+        get_submitter_params = (entry_id,)
+        sql_cur.execute(get_submitter_command, get_submitter_params)
+        (submitter) = sql_cur.fetchone()
+
+        if submitter != request_user_id:
+            return return_bad_request("Can only add proof to your own entries")
+
+        add_file_command = """
+            insert into files (entry, name, submission_date, data) values (?, ?, ?, ?)
+        """
+        add_file_params = (entry_id, filename, int(time.time()), file)
+        sql_cur.execute(add_file_command, add_file_params)
+        db.commit()
+        return {
+            "success": True,
+            "data": None
+        }
+
+    # Entry: Download Proof
+    if request_type == ResourceRequestType.DownloadProof:
+        try:
+            file_id = request["file_id"]
+        except KeyError:
+            return return_bad_request("Must include a file id")
+
+        # make sure the user should be able to see the associated entry
+        get_leaderboard_command = """
+            select e.user, e.verified, e.leaderboard
+            from leaderboard_entries e
+            where e.id in (select entry
+                         from files
+                         where id = ?)
+        """
+        get_leaderboard_params = (file_id,)
+        sql_cur.execute(get_leaderboard_command, get_leaderboard_params)
+        (submitter, verified, leaderboard_id) = sql_cur.fetchone()
+        (lb_id, lb_name, lb_perm, lb_asc) = get_leaderboard_info(request_user_id, leaderboard_id)
+        if submitter == request_user_id or lb_perm >= Permissions.Moderate or (verified and lb_perm >= Permissions.Read):
+            pass
+        else:
+            return return_bad_request("You do not have permission to do that")
+
+        get_file_command = """
+            select data
+            from files
+            where id = ?
+        """
+        get_file_params = (file_id,)
+        sql_cur.execute(get_file_command, get_file_params)
+        (file) = sql_cur.fetchone()
+        return {
+            "success": True,
+            "data": file
+        }
+
 
 class Handler(socketserver.StreamRequestHandler):
     def handle(self):
@@ -589,7 +716,6 @@ class Handler(socketserver.StreamRequestHandler):
 
 
 if __name__ == "__main__":
-    
     # TODO get this from command line or config file?
     db_filename = "res_db"
 

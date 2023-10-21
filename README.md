@@ -88,6 +88,7 @@ Please see the [Phase 2 description](desc/phase_2.pdf) for details.
         - the identity (name) of the submitting user
         - the submitter's score
         - the submission date as an int
+        - the submission's verified status
 - `CreateLeaderboard`
   - Additional client request fields:
     - `leaderboard_name`: the name for the new leaderboard
@@ -194,7 +195,33 @@ Please see the [Phase 2 description](desc/phase_2.pdf) for details.
     - `permission`: the new permission for the user
   - Resource server response `data`
     - `None`, use `success` alone to determine outcome
-- Further TODOS in enums.py
+- `RemoveUser`
+  - Removes a user and associated data from the database.
+  - Additional client request fields:
+    - `user_id`: the id of the user to be removed
+  - Resource server response `data`
+    - `None`, use `success` alone to determine outcome
+- `ChangeScoreOrder`
+  - Sets a leaderboard's scoring order
+  - Additional client request fields:
+    - `leaderboard_id`: the id of the leaderboard to be modified
+    - `ascending`: boolean corresponding to if the leaderboard should be set to ascending (false for descending)
+  - Resource server response `data`
+    - `None`, use `success` alone to determine outcome
+- `AddProof`
+  - adds a proof file associated with an entry. Only the user that submitted the entry can add proof.
+  - Additional client request fields:
+    - `entry_id`: the id of the entry to associate the file with.
+    - `filename`: a filename to associate with the file
+    - `file`: a byte blob of the file
+  - Resource server response `data`
+    - `None`, use `success` alone to determine outcome
+- `DownloadProof`
+  - Download a proof file from the server
+  - Additional client request fields:
+    - `file_id`: the id of the file to download
+  - Resource server response `data`
+    - the requested file as a byte blob
 
 ### Clientside Commands
 #### Basic Commands
