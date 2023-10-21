@@ -238,7 +238,10 @@ def handle_request(request):
             values(?,?,?,?,?)
         """
         create_entry_params = (request_user_id, leaderboard_id, entry_score, int(time.time()), 0)
-        sql_cur.execute(create_entry_command, create_entry_params)
+        try:
+            sql_cur.execute(create_entry_command, create_entry_params)
+        except sqlite3.IntegrityError:
+            return return_bad_request("Leaderboard does not exist")
         entry_id = sql_cur.lastrowid
         create_comment_command = """
             insert into entry_comments(user, entry, date, content)
@@ -443,17 +446,18 @@ def handle_request(request):
             entry_id = request["entry_id"]
             content = request["content"]
         except KeyError:
-            return return_bad_request("fields entry and content"
-                                      "required")
+            return return_bad_request("fields entry and content required")
 
         #TODO validate permissions
-        sql_cmd = """
+        add_comment_command = """
         insert into entry_comments(user, entry, date, content)
             values (?,?,?,?)
         """
-        cur_time = int(time.time())
-        sql_cur.execute(sql_cmd, (request_user_id, entry_id, cur_time,
-                        content))
+        add_comment_params = (request_user_id, entry_id, int(time.time()), content)
+        try:
+            sql_cur.execute(add_comment_command, add_comment_params)
+        except sqlite3.IntegrityError:
+            return return_bad_request("Entry does not exist")
         db.commit()
         return {
             "success": True,
