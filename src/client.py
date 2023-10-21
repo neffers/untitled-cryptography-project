@@ -223,7 +223,8 @@ async def do_view_permissions(identity, token, reader, writer, user_id):
 async def do_set_permission(identity, token, reader, writer, user_id):
     leaderboard_id = input("Enter the leaderboard where the permission will be changed: ")
     permission = input(
-        "What is the new permission level for the user?\nPlease enter 'none', 'read', 'write', or 'moderator': ")
+        "What is the new permission level for the user?\n"
+        "Please enter 'none', 'read', 'write', or 'moderator': ")
     request = request_set_permission(identity, token, leaderboard_id, user_id, permission)
     response = await make_request(request, reader, writer)
     if "success" not in response or "data" not in response:
@@ -232,6 +233,7 @@ async def do_set_permission(identity, token, reader, writer, user_id):
         print("Operation successful.")
     else:
         print(response["success"])
+        print(response["data"])
         print(response["data"])
 
 
@@ -274,8 +276,50 @@ async def do_get_entry(identity, token, reader, writer, entry_id):
         # TODO formatting
         print(response["data"])
     else:
-        print(response["success"])
         print(response["data"])
+
+
+async def do_add_proof(identity, token, reader, writer, entry_id):
+    filename = input("Enter name of local file to upload: ")
+    try:
+        with open(filename, 'rb') as file:
+            blob = file.read()
+            request = request_add_proof(identity, token, entry_id, filename, blob)
+            response = await make_request(request, reader, writer)
+            if "success" not in response or "data" not in response:
+                print("Malformed packet: " + str(response))
+            if response["success"]:
+                print("Operation successful.")
+            else:
+                print(response["data"])
+    except FileNotFoundError:
+        print("File not found!")
+    except IOError:
+        print("IO error occurred!")
+
+
+async def do_get_proof(identity, token, reader, writer, entry_id):
+    remote_filename = input("Enter name of remote file to download: ")
+    local_filename = input("Enter name of local file to save it to: ")
+    try:
+        with open(local_filename, 'wb') as file:
+            request = request_get_proof(identity, token, entry_id, remote_filename)
+            response = await make_request(request, reader, writer)
+            if "success" not in response or "data" not in response:
+                print("Malformed packet: " + str(response))
+            if response["success"]:
+                data = response["data"]
+                if "file" not in data:
+                    print("File not sent back from server! packet: " + str(response))
+                else:
+                    file.write(data["file"])
+                    print("Operation successful.")
+            else:
+                print(response["data"])
+    except FileNotFoundError:
+        print("File not found!")
+    except IOError:
+        print("IO error occurred!")
 
 
 async def do_view_comments(identity, token, reader, writer, entry_id):
@@ -379,11 +423,7 @@ async def do_create_leaderboard(identity, token, reader, writer):
     leaderboard_permission = input(
         "What is the default permission level for users?\n"
         "Please enter 'none', 'read', 'write', or 'moderator': ")
-    leaderboard_ascending = input("Do you want your leaderboard to score ascending [1] or descending [2] ? ")
-    if leaderboard_ascending == 1:
-        leaderboard_ascending = True
-    else:
-        leaderboard_ascending = False
+    leaderboard_ascending = input("Score ascending [1] or descending [2]: ") == 1
     request = request_create_leaderboard(identity, token, leaderboard_name, leaderboard_permission,
                                          leaderboard_ascending)
     response = await make_request(request, reader, writer)
@@ -686,9 +726,6 @@ async def server_loop(res_ip, res_port):
             # 5: open user, 6: open self
             user_id = input("Enter the ID of the user: ") if choice == 5 else identity
             await user_options(identity, token, reader, writer, user_id)
-        if choose == 7:
-            # quit
-            break
 
     writer.close()
     await writer.wait_closed()
