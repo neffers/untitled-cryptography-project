@@ -118,8 +118,8 @@ def handle_request(request):
     admins = sql_cur.fetchall()
     if len(admins) == 0:
         print("No admin found, adding newly connected user to admin list")
-        create_admin_command = "INSERT INTO users(identity, token, class) VALUES(?, ?, ?)"
-        admin_params = (request_identity, token, UserClass.Administrator)
+        create_admin_command = "INSERT INTO users(identity, token, class, registration_date) VALUES(?, ?, ?, ?)"
+        admin_params = (request_identity, token, UserClass.Administrator, int(time.time()))
         sql_cur.execute(create_admin_command, admin_params)
         db.commit()
 
