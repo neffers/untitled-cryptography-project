@@ -445,7 +445,6 @@ def handle_request(request):
         user_id = sql_cur.fetchone()
         if user_id is None:
             return bad_request_json("That user doesn't exist.")
-        db.commit()
         return {
             "success": True,
             "data": user_id,
