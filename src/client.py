@@ -124,22 +124,20 @@ def request_add_proof(entry_id, filename, blob):
     }
 
 
-def request_get_proof(entry_id, file_id):
+def request_get_proof(file_id):
     return {
         "type": ResourceRequestType.DownloadProof,
         "identity": identity,
         "token": token,
-        "entry_id": entry_id,
         "file_id": file_id,
     }
 
 
-def request_remove_proof(entry_id, file_id):
+def request_remove_proof(file_id):
     return {
         "type": ResourceRequestType.RemoveProof,
         "identity": identity,
         "token": token,
-        "entry_id": entry_id,
         "file_id": file_id,
     }
 
@@ -411,7 +409,7 @@ def do_get_proof(entry_id):
     local_filename = input("Enter name of local file to save it to: ")
     try:
         with open(local_filename, 'wb') as file:
-            request = request_get_proof(entry_id, remote_fileid)
+            request = request_get_proof(remote_fileid)
             response = make_request(request)
             if "success" not in response or "data" not in response:
                 print("Malformed packet: " + str(response))
@@ -434,7 +432,7 @@ def do_remove_proof(entry_id):
         print("Invalid input, please enter an integer")
         return
     remote_fileid = int(remote_fileid)
-    request = request_remove_proof(entry_id, remote_fileid)
+    request = request_remove_proof(remote_fileid)
     response = make_request(request)
     if "success" not in response or "data" not in response:
         print("Malformed packet: " + str(response))
