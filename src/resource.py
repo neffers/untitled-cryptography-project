@@ -338,7 +338,7 @@ def handle_request(request):
             return bad_request_json("You do not have permission to view that.")
 
         get_entry_command = """
-            select e.id, user, u.identity, score, submission_date, verified, verifier, v.identity
+            select e.id, user, u.identity, score, submission_date, verified, verifier, v.identity, verification_date
             from leaderboard_entries e
             left join main.users u on e.user = u.id
             left join main.users v on e.verifier = v.id
