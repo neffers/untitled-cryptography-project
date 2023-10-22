@@ -395,8 +395,6 @@ def handle_request(request):
         get_user_params = (user_id,)
         sql_cur.execute(get_user_command, get_user_params)
         user_data = sql_cur.fetchone()
-        if user_data is None:
-            return return_bad_request("That user doesn't exist.")
 
         get_entries_command = """
             select e.id, e.leaderboard, e.score, e.verified, e.submission_date
@@ -424,24 +422,6 @@ def handle_request(request):
         return {
             "success": True,
             "data": data_to_return,
-        }
-    
-    if request_type == ResourceRequestType.GetIdFromIdentity:
-        try:
-            identity = request["identity"]
-        except KeyError:
-            return return_bad_request("Must include an identity.")
-        
-        get_user_command = "SELECT id FROM users WHERE identity = ?"
-        get_user_params = (identity,)
-        sql_cur.execute(get_user_command, get_user_params)
-        user_id = sql_cur.fetchone()
-        if user_id is None:
-            return return_bad_request("That user doesn't exist.")
-        
-        return {
-            "success": True,
-            "data": user_id,
         }
 
     # Entry: Verify Entry

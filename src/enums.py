@@ -23,7 +23,6 @@ class ResourceRequestType(IntEnum):
     ChangeScoreOrder = auto()
     AddProof = auto()
     DownloadProof = auto()
-    GetIdFromIdentity = auto()
 
 
 class Permissions(IntEnum):
