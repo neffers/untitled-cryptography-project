@@ -166,6 +166,9 @@ def handle_request(request):
         except KeyError:
             return bad_request_json("Didn't include leaderboard id")
 
+        if type(leaderboard_id) is not int:
+            return bad_request_json("leaderboard_id must be an int.")
+
         # make sure leaderboard should be visible by user
         (leaderboard_id, leaderboard_name, permission, ascending) = (
             get_leaderboard_info(request_user_id, leaderboard_id))
@@ -214,10 +217,18 @@ def handle_request(request):
             return bad_request_json("You do not have permission to do that.")
         try:
             new_lb_name = request["leaderboard_name"]
+            if type(request["leaderboard_permission"]) is not int:
+                return bad_request_json("leaderboard_permission must be an int.")
             new_lb_perm = max(min(request["leaderboard_permission"], Permissions.Moderate), Permissions.NoAccess)
             new_lb_asc = request["leaderboard_ascending"]
         except KeyError:
             return bad_request_json("Didn't include new leaderboard name, default permission, or ascending bool")
+
+        if type(new_lb_name) is not str:
+            return bad_request_json("leaderboard_name must be a string.")
+        if type(new_lb_asc) is not bool:
+            return bad_request_json("leaderboard_ascending must be a bool.")
+
         new_lb_command = """
             insert into leaderboards(name, creation_date, default_permission, ascending) values(?,?,?,?)
         """
@@ -238,6 +249,14 @@ def handle_request(request):
             comment = request["comment"]
         except KeyError:
             return bad_request_json("Request must include leaderboard id, score, and comment.")
+
+        if type(leaderboard_id) is not int:
+            return bad_request_json("leaderboard_id must be an int.")
+        if type(entry_score) is not int or float:
+            return bad_request_json("score must be a number.")
+        if type(comment) is not str:
+            return bad_request_json("comment must be a string.")
+
         # error if leaderboard id doesn't exist
         try:
             (lb_id, lb_name, lb_perm, lb_asc) = get_leaderboard_info(request_user_id, leaderboard_id)
@@ -290,6 +309,9 @@ def handle_request(request):
         except KeyError:
             return bad_request_json("Must include a leaderboard id.")
 
+        if type(leaderboard_id) is not int:
+            return bad_request_json("leaderboard_id must be an int.")
+
         list_unverified_command = """
             select e.id, user, identity, score, submission_date
             from leaderboard_entries e
@@ -323,6 +345,9 @@ def handle_request(request):
             entry_id = request["entry_id"]
         except KeyError:
             return bad_request_json("Must include an entry ID.")
+
+        if type(entry_id) is not int:
+            return bad_request_json("entry_id must be an int.")
 
         # Check permissions by first getting leaderboard id and then getting requesting user's perms for it
         get_leaderboard_id_command = """
@@ -390,6 +415,9 @@ def handle_request(request):
         except KeyError:
             return bad_request_json("Must include a user ID.")
 
+        if type(user_id) is not int:
+            return bad_request_json("user_id must be an int.")
+
         get_user_command = """
             select identity, registration_date
                 from users
@@ -438,6 +466,12 @@ def handle_request(request):
             verified = request["verified"]
         except KeyError:
             return bad_request_json("Must include entry_id and verification bool.")
+
+        if type(entry_id) is not int:
+            return bad_request_json("entry_id must be an int.")
+        if type(verified) is not bool:
+            return bad_request_json("verified must be a bool.")
+
         get_entry_command = """
             select leaderboard, verified
             from leaderboard_entries
@@ -481,6 +515,11 @@ def handle_request(request):
         except KeyError:
             return bad_request_json("Must include entry id and comment content.")
 
+        if type(entry_id) is not int:
+            return bad_request_json("entry_id must be an int.")
+        if type(content) is not str:
+            return bad_request_json("content must be a string.")
+
         # Check permissions by first getting leaderboard id and then getting requesting user's perms for it
         get_leaderboard_id_command = """
             select user, leaderboard, verified
@@ -519,7 +558,10 @@ def handle_request(request):
         try:
             ldb_id = request["leaderboard_id"]
         except KeyError:
-            return bad_request_json()
+            return bad_request_json("Must include leaderboard id.")
+
+        if type(ldb_id) is not int:
+            return bad_request_json("leaderboard_id must be an int.")
 
         remove_lbd = """
             delete from leaderboards where id = ?
@@ -540,6 +582,9 @@ def handle_request(request):
         except KeyError:
             return bad_request_json("Must include entry id.")
 
+        if type(entry_id) is not int:
+            return bad_request_json("entry_id must be an int.")
+
         remove_entry = """
             delete from leaderboard_entries where id = ?
         """
@@ -558,6 +603,10 @@ def handle_request(request):
             user_id = request["user_id"]
         except KeyError:
             return bad_request_json("Must include user id.")
+
+        if type(user_id) is not int:
+            return bad_request_json("user_id must be an int.")
+
         view_permissions_command = "SELECT leaderboard, permission FROM permissions WHERE user = ?"
         sql_cur.execute(view_permissions_command, (user_id,))
         permissions = sql_cur.fetchall()
@@ -575,7 +624,16 @@ def handle_request(request):
             ldb_id = request["leaderboard_id"]
             p = request["permission"]
         except KeyError:
-            return bad_request_json("Must include user id.")
+            return bad_request_json("Must include user id, leaderboard id, and permission.")
+
+        if type(user_id) is not int:
+            return bad_request_json("user_id must be an int.")
+        if type(ldb_id) is not int:
+            return bad_request_json("leaderboard_id must be an int.")
+        if type(p) is not int or p < Permissions.NoAccess or p > Permissions.Moderate:
+            return bad_request_json("leaderboard_id must be an int and between {} and {}.".format(
+                Permissions.NoAccess, Permissions.Moderate))
+
         set_permission_command = """
             CASE
                 WHEN exists (SELECT permission FROM permissions WHERE (user = ?) AND (leaderboard = ?))
@@ -601,6 +659,9 @@ def handle_request(request):
         except KeyError:
             return bad_request_json("Must include a user id.")
 
+        if type(user_id) is not int:
+            return bad_request_json("user_id must be an int.")
+
         delete_user_command = """
             delete
             from users
@@ -621,6 +682,11 @@ def handle_request(request):
             ascending = request["ascending"]
         except KeyError:
             return bad_request_json("Must include leaderboard id and ascending boolean.")
+
+        if type(leaderboard_id) is not int:
+            return bad_request_json("leaderboard_id must be an int.")
+        if type(ascending) is not bool:
+            return bad_request_json("ascending must be a bool.")
 
         update_order_command = """
             update leaderboards
@@ -643,6 +709,11 @@ def handle_request(request):
             file = request["file"]
         except KeyError:
             return bad_request_json("Must include entry id, a name for the file, and the file itself.")
+
+        if type(entry_id) is not int:
+            return bad_request_json("entry_id must be an int.")
+        if type(filename) is not str:
+            return bad_request_json("filename must be a string.")
 
         get_submitter_command = """
             select user
@@ -676,6 +747,9 @@ def handle_request(request):
             file_id = request["file_id"]
         except KeyError:
             return bad_request_json("Must include a file id.")
+
+        if type(file_id) is not int:
+            return bad_request_json("file_id must be an int.")
 
         # make sure the user should be able to see the associated entry
         get_leaderboard_command = """
