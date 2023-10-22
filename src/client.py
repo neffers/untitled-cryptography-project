@@ -253,7 +253,11 @@ def do_view_permissions(user_id):
 
 
 def do_set_permission(user_id):
-    leaderboard_id = input("Enter the leaderboard where the permission will be changed: ")
+    leaderboard_id = input("Enter the leaderboard id where the permission will be changed: ")
+    if not leaderboard_id.isdigit():
+        print("Invalid input, please enter an integer")
+        return
+    leaderboard_id = int(leaderboard_id)
     permission = input(
         "[0] None\n"
         "[1] Read\n"
@@ -376,6 +380,10 @@ def do_add_proof(entry_id):
 
 def do_get_proof(entry_id):
     remote_fileid = input("Enter id of remote file to download: ")
+    if not remote_fileid.isdigit():
+        print("Invalid input, please enter an integer")
+        return
+    remote_fileid = int(remote_fileid)
     local_filename = input("Enter name of local file to save it to: ")
     try:
         with open(local_filename, 'wb') as file:
@@ -628,6 +636,7 @@ def do_remove_leaderboard(leaderboard_id):
     else:
         print(response["data"])
 
+
 def do_get_user_from_identity(identity):
     request = request_get_id_from_identity(identity)
     response = make_request(request)
@@ -635,6 +644,7 @@ def do_get_user_from_identity(identity):
         print("Malformed packet: " + str(response))
         return
     return response["data"][0]
+
 
 def leaderboard_options(leaderboard_id):
     while True:
