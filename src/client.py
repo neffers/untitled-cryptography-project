@@ -4,8 +4,7 @@ import struct
 import socket
 import base64
 from datetime import datetime
-from enums import ResourceRequestType
-
+from enums import ResourceRequestType, Permissions
 
 identity: str = ""
 token: str = ""
@@ -249,8 +248,23 @@ def do_view_permissions(user_id):
 def do_set_permission(user_id):
     leaderboard_id = input("Enter the leaderboard where the permission will be changed: ")
     permission = input(
-        "What is the new permission level for the user?\n"
-        "Please enter 'none', 'read', 'write', or 'moderator': ")
+        "[0] None\n"
+        "[1] Read\n"
+        "[2] Write\n"
+        "[3] Moderator\n"
+        "Select new permission level: ")
+    if not permission.isdigit() or int(permission) > 3:
+        print("Invalid input, please enter an integer listed above")
+        return
+    permission = int(permission)
+    if permission == 0:
+        permission = Permissions.NoAccess
+    elif permission == 1:
+        permission = Permissions.Read
+    elif permission == 2:
+        permission = Permissions.Write
+    elif permission == 3:
+        permission = Permissions.Moderate
     request = request_set_permission(leaderboard_id, user_id, permission)
     response = make_request(request)
     if "success" not in response or "data" not in response:
@@ -482,15 +496,30 @@ def do_show_leaderboards():
 
 def do_create_leaderboard():
     leaderboard_name = input("Enter the name for the new leaderboard: ")
-    leaderboard_permission = int(input(
+    leaderboard_permission = input(
         "[0] None\n"
         "[1] Read\n"
         "[2] Write\n"
         "[3] Moderator\n"
-        "Enter default permissions for leaderboard: "))
-    # TODO ideally leaderboard_permission is of Permission enum type
-    leaderboard_ascending = input("Score ascending [1] or descending [2]: ") == "1"
-    # TODO error handling for both numeric inputs
+        "Enter default permissions for leaderboard: ")
+    if not leaderboard_permission.isdigit() or int(leaderboard_permission) > 3:
+        print("Invalid input, please enter an integer listed above")
+        return
+    leaderboard_permission = int(leaderboard_permission)
+    if leaderboard_permission == 0:
+        leaderboard_permission = Permissions.NoAccess
+    elif leaderboard_permission == 1:
+        leaderboard_permission = Permissions.Read
+    elif leaderboard_permission == 2:
+        leaderboard_permission = Permissions.Write
+    elif leaderboard_permission == 3:
+        leaderboard_permission = Permissions.Moderate
+    leaderboard_ascending = input("Score ascending [1] or descending [2]: ")
+    if not leaderboard_ascending.isdigit() or int(leaderboard_ascending) > 2\
+            or int(leaderboard_ascending) < 1:
+        print("Invalid input, please enter an integer listed")
+        return
+    leaderboard_ascending = int(leaderboard_ascending) == 1
     request = request_create_leaderboard(leaderboard_name, leaderboard_permission,
                                          leaderboard_ascending)
     response = make_request(request)
