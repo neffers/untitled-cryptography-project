@@ -2,6 +2,7 @@ import socketserver
 import json
 import sqlite3
 import time
+import struct
 from os import path
 from enums import ResourceRequestType, Permissions, UserClass
 
@@ -676,7 +677,8 @@ def handle_request(request):
         sql_cur.execute(get_leaderboard_command, get_leaderboard_params)
         (submitter, verified, leaderboard_id) = sql_cur.fetchone()
         (lb_id, lb_name, lb_perm, lb_asc) = get_leaderboard_info(request_user_id, leaderboard_id)
-        if submitter == request_user_id or lb_perm >= Permissions.Moderate or (verified and lb_perm >= Permissions.Read):
+        if submitter == request_user_id or lb_perm >= Permissions.Moderate or (
+                verified and lb_perm >= Permissions.Read):
             pass
         else:
             return return_bad_request("You do not have permission to do that")
@@ -695,24 +697,27 @@ def handle_request(request):
         }
 
 
-class Handler(socketserver.StreamRequestHandler):
+class Handler(socketserver.BaseRequestHandler):
     def handle(self):
-        print("handling packet")
-        self.data = self.rfile.readline().strip()
-        print("data received")
-        print("received {} from {}".format(self.data, self.client_address[0]))
-        try:
-            request = json.loads(self.data)
-        except json.decoder.JSONDecodeError:
-            print("Could not interpret packet!")
-            response = return_bad_request("Could not interpret packet.")
-            print("sending {}".format(response))
-            self.wfile.write(json.dumps(response).encode() + b"\n")
-            return
+        while True:
+            self.data = self.request.recv(4).strip()
+            if not self.data: break
+            buffer_len = struct.unpack("!I", self.data)[0]
+            self.data = self.request.recv(buffer_len).strip()
+            if not self.data: break
+            print("received {} from {}".format(self.data, self.client_address[0]))
+            try:
+                request = json.loads(self.data)
+                response = handle_request(request)
+            except json.decoder.JSONDecodeError:
+                print("Could not interpret packet!")
+                response = return_bad_request("Could not interpret packet.")
 
-        response = handle_request(request)
-        print("sending {}".format(response))
-        self.wfile.write(json.dumps(response).encode() + b"\n")
+            print("sending {} to {}".format(response, self.client_address[0]))
+            response = json.dumps(response).encode()
+            buffer = struct.pack("!I", len(response))
+            buffer += bytes(response)
+            self.request.sendall(buffer)
 
 
 if __name__ == "__main__":
@@ -721,5 +726,8 @@ if __name__ == "__main__":
 
     db = initialize_database()
     HOST, PORT = "localhost", 8086
-    with socketserver.TCPServer((HOST, PORT), Handler) as server:
+    try:
+        server = socketserver.TCPServer((HOST, PORT), Handler)
         server.serve_forever()
+    except OSError:
+        print("can't bind to " + HOST + ":" + str(PORT))
