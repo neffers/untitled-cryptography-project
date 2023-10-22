@@ -642,7 +642,7 @@ def handle_request(request):
         """
         get_submitter_params = (entry_id,)
         sql_cur.execute(get_submitter_command, get_submitter_params)
-        (submitter) = sql_cur.fetchone()
+        (submitter,) = sql_cur.fetchone()
 
         if submitter != request_user_id:
             return bad_request_json("Can only add proof to your own entries.")
