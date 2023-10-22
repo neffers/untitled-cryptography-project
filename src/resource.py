@@ -652,7 +652,7 @@ def handle_request(request):
         if type(ldb_id) is not int:
             return bad_request_json("leaderboard_id must be an int.")
         if type(p) is not int or p < Permissions.NoAccess or p > Permissions.Moderate:
-            return bad_request_json("leaderboard_id must be an int and between {} and {}.".format(
+            return bad_request_json("permission must be an int and between {} and {}.".format(
                 Permissions.NoAccess, Permissions.Moderate))
 
         delete_old_permissions_command = """
