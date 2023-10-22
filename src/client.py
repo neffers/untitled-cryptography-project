@@ -2,12 +2,15 @@ import json
 import os
 import struct
 import socket
+from datetime import datetime
 from enums import ResourceRequestType
 
 
 identity: str = ""
 token: str = ""
 sock: socket.socket = socket.socket()
+perms = ["No Access", "Read Access", "Write Access", "Mod", "Admin"]
+bools = ["False", "True"]
 
 
 def make_request(request: dict) -> dict:
@@ -214,10 +217,14 @@ def do_view_user(user_id):
     if response["success"]:
         user_data = response["data"]["user_data"]
         entries = response["data"]["entries"]
-        print("Name: {} Registration Date: {}".format(user_data[0], user_data[1]))
-        print("{:<15}{:<13}{:<15}{:<10}{:<17}".format("ID:", "Leaderboard:", "Score:", "Verified:", "Submission Date:"))
+        date = datetime.fromtimestamp(user_data[1])
+        print("Name: {} Registration Date: {}".format(user_data[0], date))
+        print("{:<4}{:<21.21}{:<15.15}{:<9}{:<20}"
+              .format("ID", "Leaderboard", "Score", "Verified", "Registration Date"))
         for entry in entries:
-            print("{:<15}{:<13}{:<15}{:<10}{:<17}".format(entry[0], entry[1], entry[2], entry[3], entry[4]))
+            date = datetime.fromtimestamp(entry[4])
+            print("{:<4}{:<21.21}{:<15.15}{:<9}{:<20}"
+                  .format(entry[0], entry[1], entry[2], bools[entry[3]], date))
     else:
         print(response["data"])
 
@@ -229,9 +236,9 @@ def do_view_permissions(user_id):
         print("Malformed packet: " + str(response))
         return
     if response["success"]:
-        print("{:<13}{:<12}".format("Leaderboard:", "Permission:"))
+        print("{:<21.21}{:<12}".format("Leaderboard", "Permission"))
         for permission in response["data"]:
-            print("{:<13}{:<12}".format(permission[0], permission[1]))
+            print("{:<21.21}{:<12}".format(permission[0], perms[permission[1]]))
     else:
         print(response["data"])
 
@@ -302,8 +309,11 @@ def do_get_entry(entry_id):
         return
     if response["success"]:
         entry = response["data"]["entry"]
-        print("{:<15}{:<15}{:<21}{:<15}{:<17}{:<10}{:<15}{:<21}".format("Entry ID:", "User ID:", "Username:", "Score:", "Submission Date:", "Verified:", "Verifier ID:", "Verifier:"))
-        print("Entry ID: {} User ID: {} Username: {} Score: {} Submission Date: {} Verified: {} Verifier ID: {} Verifier: {}".format(entry[0], entry[1], entry[2], entry[3], entry[4], entry[5], entry[6], entry[7]))
+        print("{:<9}{:<8}{:<21.21}{:<15.15}{:<20}{:<9}{:<6}{:<21.21}"
+              .format("Entry ID", "User ID", "Username", "Score", "Date", "Verified", "Mod ID", "Mod Name"))
+        date = datetime.fromtimestamp(entry[4])
+        print("{:<9}{:<8}{:<21.21}{:<15.15}{:<20}{:<9}{:<6}{:<21.21}"
+              .format(entry[0], entry[1], entry[2], entry[3], date, bools[entry[5]], entry[6], entry[7]))
     else:
         print(response["data"])
 
@@ -362,9 +372,10 @@ def do_view_comments(entry_id):
         return
     if response["success"]:
         comments = response["data"]["comments"]
-        print("{:<21}{:<11}{}".format("Commenter:", "Date:", "Comment:"))
+        print("{:<21.21}{:<20}{}".format("Commenter", "Date", "Comment"))
         for comment in comments:
-            print("{:<21}{:<11}{}".format(comment[0], comment[1], comment[2]))
+            date = datetime.fromtimestamp(comment[1])
+            print("{:<21.21}{:<20}{}".format(comment[0], date, comment[2]))
     else:
         print(response["data"])
 
@@ -451,9 +462,9 @@ def do_show_leaderboards():
         print("Malformed packet: " + str(response))
         return
     if response["success"]:
-        print("{:<16}{:<18}{:<12}".format("Leaderboard ID:", "Leaderboard Name:", "Permission:"))
+        print("{:<4}{:<21.21}{:<6}".format("ID", "Leaderboard Name", "Permission"))
         for ldb in response["data"]:
-            print("{:<16}{:<18}{:<12}".format(ldb[0], ldb[1], ldb[2]))
+            print("{:<4}{:<21.21}{:<6}".format(ldb[0], ldb[1], perms[ldb[2]]))
     else:
         print(response["data"])
 
@@ -488,9 +499,9 @@ def do_list_users():
         print("Malformed packet: " + str(response))
         return
     if response["success"]:
-        print("{:<15}{:<21}".format("User ID:", "Username:"))
+        print("{:<4}{:<21.21}".format("ID", "Username"))
         for user in response["data"]:
-            print("{:<15}{:<21}".format(user[0], user[1]))
+            print("{:<4}{:<21.21}".format(user[0], user[1]))
     else:
         print(response["data"])
 
@@ -503,9 +514,12 @@ def do_one_leaderboard(leaderboard_id):
         return
     if response["success"]:
         print("Leaderboard ID: {} Leaderboard Name: {}".format(response["data"]["id"], response["data"]["name"]))
-        print("{:<15}{:<15}{:<21}{:<15}{:<17}{:<10}".format("Entry ID:", "User ID", "Username:", "Score:", "Submission Date:", "Verified:"))
+        print("{:<9}{:<8}{:<21.21}{:<15}{:<20}{:<6}"
+              .format("Entry ID", "User ID", "Username", "Score", "Date", "Verified"))
         for entry in response["data"]["entries"]:
-            print("{:<15}{:<15}{:<21}{:<15}{:<17}{:<10}".format(entry[0], entry[1], entry[2], entry[3], entry[4], entry[5]))
+            date = datetime.fromtimestamp(entry[4])
+            print("{:<9}{:<8}{:<21.21}{:<15}{:<20}{:<6}"
+                  .format(entry[0], entry[1], entry[2], entry[3], date, bools[entry[5]]))
     else:
         print(response["data"])
 
@@ -517,9 +531,10 @@ def do_list_unverified(leaderboard_id):
         print("Malformed packet: " + str(response))
         return
     if response["success"]:
-        print("{:<15}{:<15}{:<21}{:<15}{:<17}".format("Entry ID:", "User ID", "Username:", "Score:", "Submission Date:"))
+        print("{:<9}{:<8}{:<21.21}{:<15}{:<20}".format("Entry ID", "User ID", "Username", "Score", "Date"))
         for entry in response["data"]:
-            print("{:<15}{:<15}{:<21}{:<15}{:<17}".format(entry[0], entry[1], entry[2], entry[3], entry[4]))
+            date = datetime.fromtimestamp(entry[4])
+            print("{:<9}{:<8}{:<21.21}{:<15}{:<20}".format(entry[0], entry[1], entry[2], entry[3], date))
     else:
         print(response["data"])
 
@@ -612,14 +627,14 @@ def display():
     clear_screen()
 
     print("Authentication Server")
-    print("{:<21}{:<16}{:<6}".format("Name:", "IP:", "Port:"))
+    print("{:<21.21}{:<16}{:<6}".format("Name", "IP", "Port"))
     auth_server = db["auth_server"]
-    print("{:<21}{:<16}{:<6}".format(auth_server["name"], auth_server["ip"], auth_server["port"]))
+    print("{:<21.21}{:<16}{:<6}".format(auth_server["name"], auth_server["ip"], auth_server["port"]))
     print("Resource Servers")
-    print("{:<4}{:<21}{:<16}{:<6}".format("#", "Name:", "IP:", "Port:"))
+    print("{:<4}{:<21.21}{:<16}{:<6}".format("#", "Name", "IP", "Port"))
     server_count = 1
     for server in db["resource_servers"]:
-        print("{:<4}{:<21}{:<16}{:<6}".format(server_count, server["name"], server["ip"], server["port"]))
+        print("{:<4}{:<21.21}{:<16}{:<6}".format(server_count, server["name"], server["ip"], server["port"]))
         server_count += 1
 
 
