@@ -613,7 +613,13 @@ def do_add_entry(leaderboard_id):
         print(response["data"])
 
 
-def do_set_score_order(leaderboard_id, ascending):
+def do_set_score_order(leaderboard_id):
+    ascending = input("Set to ascending [1] or descending [2]: ")
+    if not ascending.isdigit() or int(ascending) > 2 \
+            or int(ascending) < 1:
+        print("Invalid input, please enter an integer listed")
+        return
+    ascending = int(ascending) == 1
     request = request_set_score_order(leaderboard_id, ascending)
     response = make_request(request)
     if "success" not in response or "data" not in response:
@@ -674,8 +680,7 @@ def leaderboard_options(leaderboard_id):
             entry_id = input("Enter the ID of the entry: ")
             entry_options(entry_id)
         elif choice == 5:
-            ascending = input("Set to ascending [1] or descending [2]: ")
-            do_set_score_order(leaderboard_id, ascending)
+            do_set_score_order(leaderboard_id)
         elif choice == 6:
             do_remove_leaderboard(leaderboard_id)
 
