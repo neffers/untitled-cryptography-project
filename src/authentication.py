@@ -29,6 +29,6 @@ class Handler(socketserver.BaseRequestHandler):
 
 
 if __name__ == "__main__":
-    HOST, PORT = "localhost", 8085
+    HOST, PORT = "0.0.0.0", 8085
     with socketserver.TCPServer((HOST, PORT), Handler) as server:
         server.serve_forever()

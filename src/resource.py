@@ -725,7 +725,7 @@ if __name__ == "__main__":
     db_filename = "res_db"
 
     db = initialize_database()
-    HOST, PORT = "localhost", 8086
+    HOST, PORT = "0.0.0.0", 8086
     try:
         server = socketserver.TCPServer((HOST, PORT), Handler)
         server.serve_forever()
