@@ -325,7 +325,11 @@ def user_options(user_id):
             do_set_permission(user_id)
         elif choice == 4:
             entry_id = input("Enter the ID of the entry: ")
-            entry_options(entry_id)
+            try:
+                entry_options(int(entry_id))
+            except ValueError:
+                print("Invalid entry ID")
+                continue
         elif choice == 5:
             do_remove_user(user_id)
 
@@ -644,7 +648,7 @@ def do_remove_leaderboard(leaderboard_id):
         print(response["data"])
 
 
-def do_get_user_from_identity(identity):
+def do_get_user_from_identity():
     request = request_get_id_from_identity(identity)
     response = make_request(request)
     if "success" not in response or "data" not in response:
@@ -679,7 +683,11 @@ def leaderboard_options(leaderboard_id):
             do_add_entry(leaderboard_id)
         elif choice == 4:
             entry_id = input("Enter the ID of the entry: ")
-            entry_options(entry_id)
+            try:
+                entry_options(int(entry_id))
+            except ValueError:
+                print("Invalid entry ID")
+                continue
         elif choice == 5:
             do_set_score_order(leaderboard_id)
         elif choice == 6:
@@ -859,11 +867,10 @@ def server_loop(res_ip, res_port):
         elif choice == 2:
             leaderboard_id = input("Enter the ID of the leaderboard: ")
             try:
-                leaderboard_id = int(leaderboard_id)
+                leaderboard_options(int(leaderboard_id))
             except ValueError:
                 print("ID must be a number")
                 continue
-            leaderboard_options(leaderboard_id)
         elif choice == 3:
             do_create_leaderboard()
         elif choice == 4:
@@ -871,7 +878,11 @@ def server_loop(res_ip, res_port):
         elif choice == 5 or choice == 6:
             # 5: open user, 6: open self
             user_id = input("Enter the ID of the user: ") if choice == 5 else do_get_user_from_identity(identity)
-            user_options(user_id)
+            try:
+                user_options(int(user_id))
+            except ValueError:
+                print("Invalid user id")
+                continue
 
     sock.close()
 
