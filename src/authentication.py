@@ -1,20 +1,31 @@
 import socketserver
 import json
+import struct
 
 
 def response_token(token):
     return {"type": token, "token": token}
 
 
-class Handler(socketserver.StreamRequestHandler):
+class Handler(socketserver.BaseRequestHandler):
     def handle(self):
         print("handling packet")
-        self.data = self.rfile.readline().strip()
+        self.data = self.request.recv(4)
+        buffer_len = struct.unpack("!I", self.data)[0]
+        self.data = self.request.recv(buffer_len)
         print("data received")
-        request = json.loads(self.data)
         print("received {} from {}".format(self.data, self.client_address[0]))
-        response = response_token(request["identity"])
-        self.wfile.write(json.dumps(response).encode() + b"\n")
+        try:
+            request = json.loads(self.data)
+            response = response_token(request["identity"])
+            print("sending {}".format(response))
+            response = json.dumps(response).encode()
+            buffer = struct.pack("!I", len(response))
+            buffer += bytes(response)
+            self.request.send(buffer)
+        except json.decoder.JSONDecodeError:
+            print("Could not interpret packet!")
+            # response = return_bad_request("Could not interpret packet.")
 
 
 if __name__ == "__main__":

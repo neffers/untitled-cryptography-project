@@ -1,13 +1,22 @@
 import json
 import os
-import asyncio
+import struct
+import socket
 from enums import ResourceRequestType
 
 
-async def make_request(request: dict, reader, writer) -> dict:
-    writer.write(bytes(json.dumps(request) + "\n", "utf-8"))
-    await writer.drain()
-    response_data = await reader.read()
+identity: str = ""
+token: str = ""
+sock: socket.socket = socket.socket()
+
+
+def make_request(request: dict) -> dict:
+    request = bytes(json.dumps(request), "utf-8")
+    buffer = struct.pack("!I", len(request))
+    buffer += request
+    sock.send(buffer)
+    buffer_len = struct.unpack("!I", sock.recv(4))[0]
+    response_data = sock.recv(buffer_len)
     try:
         response = json.loads(response_data.decode())
         return response
@@ -17,14 +26,14 @@ async def make_request(request: dict, reader, writer) -> dict:
 
 
 # currently the only auth server request, so not using enum types
-def request_token(identity):
+def request_token():
     return {
         "type": "token",
         "identity": identity,
     }
 
 
-def request_show_leaderboards(identity, token):
+def request_show_leaderboards():
     return {
         "type": ResourceRequestType.ListLeaderboards,
         "identity": identity,
@@ -32,7 +41,7 @@ def request_show_leaderboards(identity, token):
     }
 
 
-def request_create_leaderboard(identity, token, leaderboard_name, leaderboard_permission, leaderboard_ascending):
+def request_create_leaderboard(leaderboard_name, leaderboard_permission, leaderboard_ascending):
     return {
         "type": ResourceRequestType.CreateLeaderboard,
         "identity": identity,
@@ -43,7 +52,7 @@ def request_create_leaderboard(identity, token, leaderboard_name, leaderboard_pe
     }
 
 
-def request_add_entry(identity, token, leaderboard_id, score, comment):
+def request_add_entry(leaderboard_id, score, comment):
     return {
         "type": ResourceRequestType.AddEntry,
         "identity": identity,
@@ -54,7 +63,7 @@ def request_add_entry(identity, token, leaderboard_id, score, comment):
     }
 
 
-def request_set_score_order(identity, token, leaderboard_id, ascending):
+def request_set_score_order(leaderboard_id, ascending):
     return {
         "type": ResourceRequestType.ChangeScoreOrder,
         "identity": identity,
@@ -64,7 +73,7 @@ def request_set_score_order(identity, token, leaderboard_id, ascending):
     }
 
 
-def request_list_users(identity, token):
+def request_list_users():
     return {
         "type": ResourceRequestType.ListUsers,
         "identity": identity,
@@ -72,7 +81,7 @@ def request_list_users(identity, token):
     }
 
 
-def request_list_unverified(identity, token, leaderboard_id):
+def request_list_unverified(leaderboard_id):
     return {
         "type": ResourceRequestType.ListUnverified,
         "identity": identity,
@@ -81,7 +90,7 @@ def request_list_unverified(identity, token, leaderboard_id):
     }
 
 
-def request_get_entry(identity, token, entry_id):
+def request_get_entry(entry_id):
     return {
         "type": ResourceRequestType.GetEntry,
         "identity": identity,
@@ -90,7 +99,7 @@ def request_get_entry(identity, token, entry_id):
     }
 
 
-def request_add_proof(identity, token, entry_id, filename, blob):
+def request_add_proof(entry_id, filename, blob):
     return {
         "type": ResourceRequestType.AddProof,
         "identity": identity,
@@ -101,7 +110,7 @@ def request_add_proof(identity, token, entry_id, filename, blob):
     }
 
 
-def request_get_proof(identity, token, entry_id, filename):
+def request_get_proof(entry_id, filename):
     return {
         "type": ResourceRequestType.DownloadProof,
         "identity": identity,
@@ -111,7 +120,7 @@ def request_get_proof(identity, token, entry_id, filename):
     }
 
 
-def request_view_user(identity, token, user_id):
+def request_view_user(user_id):
     return {
         "type": ResourceRequestType.ViewUser,
         "identity": identity,
@@ -120,7 +129,7 @@ def request_view_user(identity, token, user_id):
     }
 
 
-def request_one_leaderboard(identity, token, leaderboard_id):
+def request_one_leaderboard(leaderboard_id):
     return {
         "type": ResourceRequestType.ShowOneLeaderboard,
         "identity": identity,
@@ -129,7 +138,7 @@ def request_one_leaderboard(identity, token, leaderboard_id):
     }
 
 
-def request_view_permissions(identity, token, user_id):
+def request_view_permissions(user_id):
     return {
         "type": ResourceRequestType.ViewPermissions,
         "identity": identity,
@@ -138,7 +147,7 @@ def request_view_permissions(identity, token, user_id):
     }
 
 
-def request_modify_entry_verification(identity, token, entry_id, verified):
+def request_modify_entry_verification(entry_id, verified):
     return {
         "type": ResourceRequestType.ModifyEntryVerification,
         "identity": identity,
@@ -148,7 +157,7 @@ def request_modify_entry_verification(identity, token, entry_id, verified):
     }
 
 
-def request_remove_leaderboard(identity, token, leaderboard_id):
+def request_remove_leaderboard(leaderboard_id):
     return {
         "type": ResourceRequestType.RemoveLeaderboard,
         "identity": identity,
@@ -157,7 +166,7 @@ def request_remove_leaderboard(identity, token, leaderboard_id):
     }
 
 
-def request_add_comment(identity, token, entry_id, content):
+def request_add_comment(entry_id, content):
     return {
         "type": ResourceRequestType.AddComment,
         "identity": identity,
@@ -167,7 +176,7 @@ def request_add_comment(identity, token, entry_id, content):
     }
 
 
-def request_remove_entry(identity, token, entry_id):
+def request_remove_entry(entry_id):
     return {
         "type": ResourceRequestType.RemoveEntry,
         "identity": identity,
@@ -176,7 +185,7 @@ def request_remove_entry(identity, token, entry_id):
     }
 
 
-def request_set_permission(identity, token, user_id, leaderboard_id, permission):
+def request_set_permission(user_id, leaderboard_id, permission):
     return {
         "type": ResourceRequestType.SetPermission,
         "identity": identity,
@@ -187,7 +196,7 @@ def request_set_permission(identity, token, user_id, leaderboard_id, permission)
     }
 
 
-def request_remove_user(identity, token, user_id):
+def request_remove_user(user_id):
     return {
         "type": ResourceRequestType.RemoveUser,
         "identity": identity,
@@ -196,9 +205,9 @@ def request_remove_user(identity, token, user_id):
     }
 
 
-async def do_view_user(identity, token, reader, writer, user_id):
-    request = request_view_user(identity, token, user_id)
-    response = await make_request(request, reader, writer)
+def do_view_user(user_id):
+    request = request_view_user(user_id)
+    response = make_request(request)
     if "success" not in response or "data" not in response:
         print("Malformed packet: " + str(response))
         return
@@ -209,9 +218,9 @@ async def do_view_user(identity, token, reader, writer, user_id):
         print(response["data"])
 
 
-async def do_view_permissions(identity, token, reader, writer, user_id):
-    request = request_view_permissions(identity, token, user_id)
-    response = await make_request(request, reader, writer)
+def do_view_permissions(user_id):
+    request = request_view_permissions(user_id)
+    response = make_request(request)
     if "success" not in response or "data" not in response:
         print("Malformed packet: " + str(response))
         return
@@ -222,13 +231,13 @@ async def do_view_permissions(identity, token, reader, writer, user_id):
         print(response["data"])
 
 
-async def do_set_permission(identity, token, reader, writer, user_id):
+def do_set_permission(user_id):
     leaderboard_id = input("Enter the leaderboard where the permission will be changed: ")
     permission = input(
         "What is the new permission level for the user?\n"
         "Please enter 'none', 'read', 'write', or 'moderator': ")
-    request = request_set_permission(identity, token, leaderboard_id, user_id, permission)
-    response = await make_request(request, reader, writer)
+    request = request_set_permission(leaderboard_id, user_id, permission)
+    response = make_request(request)
     if "success" not in response or "data" not in response:
         print("Malformed packet: " + str(response))
         return
@@ -238,9 +247,9 @@ async def do_set_permission(identity, token, reader, writer, user_id):
         print(response["data"])
 
 
-async def do_remove_user(identity, token, reader, writer, user_id):
-    request = request_remove_user(identity, token, user_id)
-    response = await make_request(request, reader, writer)
+def do_remove_user(user_id):
+    request = request_remove_user(user_id)
+    response = make_request(request)
     if "success" not in response or "data" not in response:
         print("Malformed packet: " + str(response))
         return
@@ -250,7 +259,7 @@ async def do_remove_user(identity, token, reader, writer, user_id):
         print(response["data"])
 
 
-async def user_options(identity, token, reader, writer, user_id):
+def user_options(user_id):
     while True:
         print(
             "User Commands:\n"
@@ -268,21 +277,21 @@ async def user_options(identity, token, reader, writer, user_id):
         if choice == 0:
             break
         elif choice == 1:
-            await do_view_user(identity, token, reader, writer, user_id)
+            do_view_user(user_id)
         elif choice == 2:
-            await do_view_permissions(identity, token, reader, writer, user_id)
+            do_view_permissions(user_id)
         elif choice == 3:
-            await do_set_permission(identity, token, reader, writer, user_id)
+            do_set_permission(user_id)
         elif choice == 4:
             entry_id = input("Enter the ID of the entry: ")
-            await entry_options(identity, token, reader, writer, entry_id)
+            entry_options(entry_id)
         elif choice == 5:
-            await do_remove_user(identity, token, reader, writer, user_id)
+            do_remove_user(user_id)
 
 
-async def do_get_entry(identity, token, reader, writer, entry_id):
-    request = request_get_entry(identity, token, entry_id)
-    response = await make_request(request, reader, writer)
+def do_get_entry(entry_id):
+    request = request_get_entry(entry_id)
+    response = make_request(request)
     if "success" not in response or "data" not in response:
         print("Malformed packet: " + str(response))
         return
@@ -293,13 +302,13 @@ async def do_get_entry(identity, token, reader, writer, entry_id):
         print(response["data"])
 
 
-async def do_add_proof(identity, token, reader, writer, entry_id):
+def do_add_proof(entry_id):
     filename = input("Enter name of local file to upload: ")
     try:
         with open(filename, 'rb') as file:
             blob = file.read()
-            request = request_add_proof(identity, token, entry_id, filename, blob)
-            response = await make_request(request, reader, writer)
+            request = request_add_proof(entry_id, filename, blob)
+            response = make_request(request)
             if "success" not in response or "data" not in response:
                 print("Malformed packet: " + str(response))
                 return
@@ -313,13 +322,13 @@ async def do_add_proof(identity, token, reader, writer, entry_id):
         print("IO error occurred!")
 
 
-async def do_get_proof(identity, token, reader, writer, entry_id):
+def do_get_proof(entry_id):
     remote_filename = input("Enter name of remote file to download: ")
     local_filename = input("Enter name of local file to save it to: ")
     try:
         with open(local_filename, 'wb') as file:
-            request = request_get_proof(identity, token, entry_id, remote_filename)
-            response = await make_request(request, reader, writer)
+            request = request_get_proof(entry_id, remote_filename)
+            response = make_request(request)
             if "success" not in response or "data" not in response:
                 print("Malformed packet: " + str(response))
                 return
@@ -339,9 +348,9 @@ async def do_get_proof(identity, token, reader, writer, entry_id):
         print("IO error occurred!")
 
 
-async def do_view_comments(identity, token, reader, writer, entry_id):
-    request = request_get_entry(identity, token, entry_id)
-    response = await make_request(request, reader, writer)
+def do_view_comments(entry_id):
+    request = request_get_entry(entry_id)
+    response = make_request(request)
     if "success" not in response or "data" not in response:
         print("Malformed packet: " + str(response))
         return
@@ -352,10 +361,10 @@ async def do_view_comments(identity, token, reader, writer, entry_id):
         print(response["data"])
 
 
-async def do_add_comment(identity, token, reader, writer, entry_id):
+def do_add_comment(entry_id):
     content = input("Enter your comment to the entry: ")
-    request = request_add_comment(identity, token, entry_id, content)
-    response = await make_request(request, reader, writer)
+    request = request_add_comment(entry_id, content)
+    response = make_request(request)
     if "success" not in response or "data" not in response:
         print("Malformed packet: " + str(response))
         return
@@ -365,9 +374,9 @@ async def do_add_comment(identity, token, reader, writer, entry_id):
         print(response["data"])
 
 
-async def do_modify_entry_verification(identity, token, reader, writer, entry_id, boolean):
-    request = request_modify_entry_verification(identity, token, entry_id, boolean)
-    response = await make_request(request, reader, writer)
+def do_modify_entry_verification(entry_id, verify):
+    request = request_modify_entry_verification(entry_id, verify)
+    response = make_request(request)
     if "success" not in response or "data" not in response:
         print("Malformed packet: " + str(response))
         return
@@ -377,9 +386,9 @@ async def do_modify_entry_verification(identity, token, reader, writer, entry_id
         print(response["data"])
 
 
-async def do_remove_entry(identity, token, reader, writer, entry_id):
-    request = request_remove_entry(identity, token, entry_id)
-    response = await make_request(request, reader, writer)
+def do_remove_entry(entry_id):
+    request = request_remove_entry(entry_id)
+    response = make_request(request)
     if "success" not in response or "data" not in response:
         print("Malformed packet: " + str(response))
         return
@@ -389,7 +398,7 @@ async def do_remove_entry(identity, token, reader, writer, entry_id):
         print(response["data"])
 
 
-async def entry_options(identity, token, reader, writer, entry_id):
+def entry_options(entry_id):
     while True:
         print(
             "Leaderboard Commands:\n"
@@ -410,26 +419,26 @@ async def entry_options(identity, token, reader, writer, entry_id):
         if choice == 0:
             break
         if choice == 1:
-            await do_get_entry(identity, token, reader, writer, entry_id)
+            do_get_entry(entry_id)
         elif choice == 2:
-            await do_add_proof(identity, token, reader, writer, entry_id)
+            do_add_proof(entry_id)
         elif choice == 3:
-            await do_get_proof(identity, token, reader, writer, entry_id)
+            do_get_proof(entry_id)
         elif choice == 4:
-            await do_view_comments(identity, token, reader, writer, entry_id)
+            do_view_comments(entry_id)
         elif choice == 5:
-            await do_add_comment(identity, token, reader, writer, entry_id)
+            do_add_comment(entry_id)
         elif choice == 6:
-            await do_modify_entry_verification(identity, token, reader, writer, entry_id, True)
+            do_modify_entry_verification(entry_id, True)
         elif choice == 7:
-            await do_modify_entry_verification(identity, token, reader, writer, entry_id, False)
+            do_modify_entry_verification(entry_id, False)
         elif choice == 8:
-            await do_remove_entry(identity, token, reader, writer, entry_id)
+            do_remove_entry(entry_id)
 
 
-async def do_show_leaderboards(identity, token, reader, writer):
-    request = request_show_leaderboards(identity, token)
-    response = await make_request(request, reader, writer)
+def do_show_leaderboards():
+    request = request_show_leaderboards()
+    response = make_request(request)
     if "success" not in response or "data" not in response:
         print("Malformed packet: " + str(response))
         return
@@ -440,7 +449,7 @@ async def do_show_leaderboards(identity, token, reader, writer):
         print(response["data"])
 
 
-async def do_create_leaderboard(identity, token, reader, writer):
+def do_create_leaderboard():
     leaderboard_name = input("Enter the name for the new leaderboard: ")
     leaderboard_permission = int(input(
         "[0] None\n"
@@ -451,9 +460,9 @@ async def do_create_leaderboard(identity, token, reader, writer):
     # TODO ideally leaderboard_permission is of Permission enum type
     leaderboard_ascending = input("Score ascending [1] or descending [2]: ") == 1
     # TODO error handling for both numeric inputs
-    request = request_create_leaderboard(identity, token, leaderboard_name, leaderboard_permission,
+    request = request_create_leaderboard(leaderboard_name, leaderboard_permission,
                                          leaderboard_ascending)
-    response = await make_request(request, reader, writer)
+    response = make_request(request)
     if "success" not in response or "data" not in response:
         print("Malformed packet: " + str(response))
         return
@@ -464,9 +473,9 @@ async def do_create_leaderboard(identity, token, reader, writer):
         print(response["data"])
 
 
-async def do_list_users(identity, token, reader, writer):
-    request = request_list_users(identity, token)
-    response = await make_request(request, reader, writer)
+def do_list_users():
+    request = request_list_users()
+    response = make_request(request)
     if "success" not in response or "data" not in response:
         print("Malformed packet: " + str(response))
         return
@@ -477,9 +486,9 @@ async def do_list_users(identity, token, reader, writer):
         print(response["data"])
 
 
-async def do_one_leaderboard(identity, token, reader, writer, leaderboard_id):
-    request = request_one_leaderboard(identity, token, leaderboard_id)
-    response = await make_request(request, reader, writer)
+def do_one_leaderboard(leaderboard_id):
+    request = request_one_leaderboard(leaderboard_id)
+    response = make_request(request)
     if "success" not in response or "data" not in response:
         print("Malformed packet: " + str(response))
         return
@@ -490,9 +499,9 @@ async def do_one_leaderboard(identity, token, reader, writer, leaderboard_id):
         print(response["data"])
 
 
-async def do_list_unverified(identity, token, reader, writer, leaderboard_id):
-    request = request_list_unverified(identity, token, leaderboard_id)
-    response = await make_request(request, reader, writer)
+def do_list_unverified(leaderboard_id):
+    request = request_list_unverified(leaderboard_id)
+    response = make_request(request)
     if "success" not in response or "data" not in response:
         print("Malformed packet: " + str(response))
         return
@@ -503,7 +512,7 @@ async def do_list_unverified(identity, token, reader, writer, leaderboard_id):
         print(response["data"])
 
 
-async def do_add_entry(identity, token, reader, writer, leaderboard_id):
+def do_add_entry(leaderboard_id):
     score = input("Enter your score: ")
     try:
         score = float(score)
@@ -511,8 +520,8 @@ async def do_add_entry(identity, token, reader, writer, leaderboard_id):
         print("Must enter a number")
         return
     comment = input("Enter any comments about your score: ")
-    request = request_add_entry(identity, token, leaderboard_id, score, comment)
-    response = await make_request(request, reader, writer)
+    request = request_add_entry(leaderboard_id, score, comment)
+    response = make_request(request)
     if "success" not in response or "data" not in response:
         print("Malformed packet: " + str(response))
         return
@@ -523,9 +532,9 @@ async def do_add_entry(identity, token, reader, writer, leaderboard_id):
         print(response["data"])
 
 
-async def do_set_score_order(identity, token, reader, writer, leaderboard_id, ascending):
-    request = request_set_score_order(identity, token, leaderboard_id, ascending)
-    response = await make_request(request, reader, writer)
+def do_set_score_order(leaderboard_id, ascending):
+    request = request_set_score_order(leaderboard_id, ascending)
+    response = make_request(request)
     if "success" not in response or "data" not in response:
         print("Malformed packet: " + str(response))
         return
@@ -535,9 +544,9 @@ async def do_set_score_order(identity, token, reader, writer, leaderboard_id, as
         print(response["data"])
 
 
-async def do_remove_leaderboard(identity, token, reader, writer, leaderboard_id):
-    request = request_remove_leaderboard(identity, token, leaderboard_id)
-    response = await make_request(request, reader, writer)
+def do_remove_leaderboard(leaderboard_id):
+    request = request_remove_leaderboard(leaderboard_id)
+    response = make_request(request)
     if "success" not in response or "data" not in response:
         print("Malformed packet: " + str(response))
         return
@@ -547,7 +556,7 @@ async def do_remove_leaderboard(identity, token, reader, writer, leaderboard_id)
         print(response["data"])
 
 
-async def leaderboard_options(identity, token, reader, writer, leaderboard_id):
+def leaderboard_options(leaderboard_id):
     while True:
         print(
             "Leaderboard Commands:\n"
@@ -566,19 +575,19 @@ async def leaderboard_options(identity, token, reader, writer, leaderboard_id):
         if choice == 0:
             break
         elif choice == 1:
-            await do_one_leaderboard(identity, token, reader, writer, leaderboard_id)
+            do_one_leaderboard(leaderboard_id)
         elif choice == 2:
-            await do_list_unverified(identity, token, reader, writer, leaderboard_id)
+            do_list_unverified(leaderboard_id)
         elif choice == 3:
-            await do_add_entry(identity, token, reader, writer, leaderboard_id)
+            do_add_entry(leaderboard_id)
         elif choice == 4:
             entry_id = input("Enter the ID of the entry: ")
-            await entry_options(identity, token, reader, writer, entry_id)
+            entry_options(entry_id)
         elif choice == 5:
             ascending = input("Set to ascending [1] or descending [2]: ")
-            await do_set_score_order(identity, token, reader, writer, leaderboard_id, ascending)
+            do_set_score_order(leaderboard_id, ascending)
         elif choice == 6:
-            await do_remove_leaderboard(identity, token, reader, writer, leaderboard_id)
+            do_remove_leaderboard(leaderboard_id)
 
 
 def clear_screen():
@@ -653,7 +662,7 @@ def main():
             except KeyError:
                 print("Invalid server selection")
                 continue
-            asyncio.run(server_loop(server["ip"], server["port"]))
+            server_loop(server["ip"], server["port"])
 
         elif choice == 'a':  # add resource server to list
             name = input("Name the server: ")[:20]
@@ -704,31 +713,27 @@ def main():
             break
 
 
-async def server_loop(res_ip, res_port):
+def server_loop(res_ip, res_port):
+    global identity, token, sock
     clear_screen()
 
     auth_server = db["auth_server"]
     print("Trying to connect to {}:{}".format(auth_server["ip"], auth_server["port"]))
     try:
-        reader, writer = await asyncio.open_connection(auth_server["ip"], int(auth_server["port"]))
+        sock.connect((auth_server["ip"], int(auth_server["port"])))
     except OSError as e:
         print("Connection to authentication server failed! error: " + str(e))
         return
     print("Connection successful.")
     identity = input("Enter identity: ")
-    request = request_token(identity)
-    writer.write(bytes(json.dumps(request) + "\n", "utf-8"))
-    await writer.drain()
-    response_data = await reader.read()
-    try:
-        response = json.loads(response_data.decode())
-    except json.JSONDecodeError:
-        print("Can't decode packet! packet: " + str(response_data))
-        return
+    request = request_token()
+    response = make_request(request)
     token = response["token"]
+    sock.close()
+    sock = socket.socket()
 
     try:
-        reader, writer = await asyncio.open_connection(res_ip, int(res_port))
+        sock.connect((res_ip, int(res_port)))
     except OSError as e:
         print("Connection to resource server failed! error: " + str(e))
         return
@@ -752,7 +757,7 @@ async def server_loop(res_ip, res_port):
         if choice == 0:
             break
         elif choice == 1:
-            await do_show_leaderboards(identity, token, reader, writer)
+            do_show_leaderboards()
         elif choice == 2:
             leaderboard_id = input("Enter the ID of the leaderboard: ")
             try:
@@ -760,18 +765,17 @@ async def server_loop(res_ip, res_port):
             except ValueError:
                 print("ID must be a number")
                 continue
-            await leaderboard_options(identity, token, reader, writer, leaderboard_id)
+            leaderboard_options(leaderboard_id)
         elif choice == 3:
-            await do_create_leaderboard(identity, token, reader, writer)
+            do_create_leaderboard()
         elif choice == 4:
-            await do_list_users(identity, token, reader, writer)
+            do_list_users()
         elif choice == 5 or choice == 6:
             # 5: open user, 6: open self
             user_id = input("Enter the ID of the user: ") if choice == 5 else identity
-            await user_options(identity, token, reader, writer, user_id)
+            user_options(user_id)
 
-    writer.close()
-    await writer.wait_closed()
+    sock.close()
 
 
 if __name__ == "__main__":
