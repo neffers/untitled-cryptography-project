@@ -118,8 +118,8 @@ def handle_request(request):
     admins = sql_cur.fetchall()
     if len(admins) == 0:
         print("No admin found, adding newly connected user to admin list")
-        create_admin_command = "INSERT INTO users(identity, token, class) VALUES(?, ?, ?)"
-        admin_params = (request_identity, token, UserClass.Administrator)
+        create_admin_command = "INSERT INTO users(identity, token, class, registration_date) VALUES(?, ?, ?, ?)"
+        admin_params = (request_identity, token, UserClass.Administrator, int(time.time()))
         sql_cur.execute(create_admin_command, admin_params)
         db.commit()
 
@@ -477,15 +477,15 @@ def handle_request(request):
 
         # Check permissions by first getting leaderboard id and then getting requesting user's perms for it
         get_leaderboard_id_command = """
-            select leaderboard, verified
+            select user, leaderboard, verified
             from leaderboard_entries
             where id = ?
         """
         get_leaderboard_id_params = (entry_id,)
         sql_cur.execute(get_leaderboard_id_command, get_leaderboard_id_params)
-        (leaderboard_id, verified) = sql_cur.fetchone()
+        (submitter, leaderboard_id, verified) = sql_cur.fetchone()
         (lb_id, lb_name, lb_perm, lb_asc) = get_leaderboard_info(request_user_id, leaderboard_id)
-        if lb_perm < Permissions.Read or (not verified and lb_perm < Permissions.Moderate):
+        if request_user_id != submitter or lb_perm < Permissions.Moderate:
             return return_bad_request("You do not have permission to view that.")
 
         add_comment_command = """
