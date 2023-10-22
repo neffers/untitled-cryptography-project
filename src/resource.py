@@ -333,13 +333,16 @@ def handle_request(request):
         """
         get_leaderboard_id_params = (entry_id,)
         sql_cur.execute(get_leaderboard_id_command, get_leaderboard_id_params)
-        (leaderboard_id, verified) = sql_cur.fetchone()
+        try:
+            (leaderboard_id, verified) = sql_cur.fetchone()
+        except TypeError:
+            return bad_request_json("That entry does not exist.")
         (lb_id, lb_name, lb_perm, lb_asc) = get_leaderboard_info(request_user_id, leaderboard_id)
         if lb_perm < Permissions.Read or (not verified and lb_perm < Permissions.Moderate):
             return bad_request_json("You do not have permission to view that.")
 
         get_entry_command = """
-            select e.id, user, u.identity, score, submission_date, verified, verifier, v.identity
+            select e.id, user, u.identity, score, submission_date, verified, verifier, v.identity, verification_date
             from leaderboard_entries e
             left join main.users u on e.user = u.id
             left join main.users v on e.verifier = v.id
@@ -395,7 +398,10 @@ def handle_request(request):
         """
         get_user_params = (user_id,)
         sql_cur.execute(get_user_command, get_user_params)
-        user_data = sql_cur.fetchone()
+        try:
+            user_data = sql_cur.fetchone()
+        except TypeError:
+            return bad_request_json("That user does not exist.")
 
         get_entries_command = """
             select e.id, e.leaderboard, e.score, e.verified, e.submission_date
@@ -484,7 +490,10 @@ def handle_request(request):
         """
         get_leaderboard_id_params = (entry_id,)
         sql_cur.execute(get_leaderboard_id_command, get_leaderboard_id_params)
-        (submitter, leaderboard_id, verified) = sql_cur.fetchone()
+        try:
+            (submitter, leaderboard_id, verified) = sql_cur.fetchone()
+        except TypeError:
+            return bad_request_json("That entry does not exist.")
         (lb_id, lb_name, lb_perm, lb_asc) = get_leaderboard_info(request_user_id, leaderboard_id)
         if request_user_id != submitter or lb_perm < Permissions.Moderate:
             return bad_request_json("You do not have permission to do that.")
@@ -643,7 +652,10 @@ def handle_request(request):
         """
         get_submitter_params = (entry_id,)
         sql_cur.execute(get_submitter_command, get_submitter_params)
-        (submitter,) = sql_cur.fetchone()
+        try:
+            (submitter,) = sql_cur.fetchone()
+        except TypeError:
+            return bad_request_json("That entry does not exist.")
 
         if submitter != request_user_id:
             return bad_request_json("Can only add proof to your own entries.")
@@ -676,7 +688,10 @@ def handle_request(request):
         """
         get_leaderboard_params = (file_id,)
         sql_cur.execute(get_leaderboard_command, get_leaderboard_params)
-        (submitter, verified, leaderboard_id) = sql_cur.fetchone()
+        try:
+            (submitter, verified, leaderboard_id) = sql_cur.fetchone()
+        except TypeError:
+            return bad_request_json("That entry does not exist.")
         (lb_id, lb_name, lb_perm, lb_asc) = get_leaderboard_info(request_user_id, leaderboard_id)
         if submitter == request_user_id or lb_perm >= Permissions.Moderate or (
                 verified and lb_perm >= Permissions.Read):
@@ -691,7 +706,10 @@ def handle_request(request):
         """
         get_file_params = (file_id,)
         sql_cur.execute(get_file_command, get_file_params)
-        (file,) = sql_cur.fetchone()
+        try:
+            (file,) = sql_cur.fetchone()
+        except TypeError:
+            return bad_request_json("That file does not exist.")
         return {
             "success": True,
             "data": base64.b64encode(file).decode()
@@ -726,7 +744,7 @@ if __name__ == "__main__":
     db_filename = "res_db"
 
     db = initialize_database()
-    HOST, PORT = "localhost", 8086
+    HOST, PORT = "0.0.0.0", 8086
     try:
         server = socketserver.TCPServer((HOST, PORT), Handler)
         server.serve_forever()
