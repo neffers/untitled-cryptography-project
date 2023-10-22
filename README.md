@@ -134,6 +134,7 @@ Please see the [Phase 2 description](desc/phase_2.pdf) for details.
         - verified state
         - verifying user's id
         - verifying user's identity
+        - verification date
       - `comments`: a `list` of tuples, each with the following items:
         - posting user's identity
         - posting date

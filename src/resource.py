@@ -136,6 +136,7 @@ def handle_request(request):
         insert_user_command = "INSERT INTO users(identity, token, class, registration_date) VALUES(?,?,?,?)"
         insert_user_params = (request_identity, token, UserClass.User, int(time.time()))
         sql_cur.execute(insert_user_command, insert_user_params)
+        db.commit()
         requesting_user = sql_cur.execute(get_user_command, (request_identity,)).fetchone()
     # Can be used throughout the request handling
     (request_user_id, request_identity, token, user_class, user_reg_date) = requesting_user
@@ -165,6 +166,9 @@ def handle_request(request):
             leaderboard_id = request["leaderboard_id"]
         except KeyError:
             return bad_request_json("Didn't include leaderboard id")
+
+        if type(leaderboard_id) is not int:
+            return bad_request_json("leaderboard_id must be an int.")
 
         # make sure leaderboard should be visible by user
         (leaderboard_id, leaderboard_name, permission, ascending) = (
@@ -214,10 +218,18 @@ def handle_request(request):
             return bad_request_json("You do not have permission to do that.")
         try:
             new_lb_name = request["leaderboard_name"]
+            if type(request["leaderboard_permission"]) is not int:
+                return bad_request_json("leaderboard_permission must be an int.")
             new_lb_perm = max(min(request["leaderboard_permission"], Permissions.Moderate), Permissions.NoAccess)
             new_lb_asc = request["leaderboard_ascending"]
         except KeyError:
             return bad_request_json("Didn't include new leaderboard name, default permission, or ascending bool")
+
+        if type(new_lb_name) is not str:
+            return bad_request_json("leaderboard_name must be a string.")
+        if type(new_lb_asc) is not bool:
+            return bad_request_json("leaderboard_ascending must be a bool.")
+
         new_lb_command = """
             insert into leaderboards(name, creation_date, default_permission, ascending) values(?,?,?,?)
         """
@@ -238,6 +250,14 @@ def handle_request(request):
             comment = request["comment"]
         except KeyError:
             return bad_request_json("Request must include leaderboard id, score, and comment.")
+
+        if type(leaderboard_id) is not int:
+            return bad_request_json("leaderboard_id must be an int.")
+        if type(entry_score) is not int or float:
+            return bad_request_json("score must be a number.")
+        if type(comment) is not str:
+            return bad_request_json("comment must be a string.")
+
         # error if leaderboard id doesn't exist
         try:
             (lb_id, lb_name, lb_perm, lb_asc) = get_leaderboard_info(request_user_id, leaderboard_id)
@@ -290,6 +310,9 @@ def handle_request(request):
         except KeyError:
             return bad_request_json("Must include a leaderboard id.")
 
+        if type(leaderboard_id) is not int:
+            return bad_request_json("leaderboard_id must be an int.")
+
         list_unverified_command = """
             select e.id, user, identity, score, submission_date
             from leaderboard_entries e
@@ -324,6 +347,9 @@ def handle_request(request):
         except KeyError:
             return bad_request_json("Must include an entry ID.")
 
+        if type(entry_id) is not int:
+            return bad_request_json("entry_id must be an int.")
+
         # Check permissions by first getting leaderboard id and then getting requesting user's perms for it
         get_leaderboard_id_command = """
             select leaderboard, verified
@@ -332,13 +358,16 @@ def handle_request(request):
         """
         get_leaderboard_id_params = (entry_id,)
         sql_cur.execute(get_leaderboard_id_command, get_leaderboard_id_params)
-        (leaderboard_id, verified) = sql_cur.fetchone()
+        try:
+            (leaderboard_id, verified) = sql_cur.fetchone()
+        except TypeError:
+            return bad_request_json("That entry does not exist.")
         (lb_id, lb_name, lb_perm, lb_asc) = get_leaderboard_info(request_user_id, leaderboard_id)
         if lb_perm < Permissions.Read or (not verified and lb_perm < Permissions.Moderate):
             return bad_request_json("You do not have permission to view that.")
 
         get_entry_command = """
-            select e.id, user, u.identity, score, submission_date, verified, verifier, v.identity
+            select e.id, user, u.identity, score, submission_date, verified, verifier, v.identity, verification_date
             from leaderboard_entries e
             left join main.users u on e.user = u.id
             left join main.users v on e.verifier = v.id
@@ -387,6 +416,9 @@ def handle_request(request):
         except KeyError:
             return bad_request_json("Must include a user ID.")
 
+        if type(user_id) is not int:
+            return bad_request_json("user_id must be an int.")
+
         get_user_command = """
             select identity, registration_date
                 from users
@@ -396,7 +428,7 @@ def handle_request(request):
         sql_cur.execute(get_user_command, get_user_params)
         user_data = sql_cur.fetchone()
         if user_data is None:
-            return return_bad_request("That user doesn't exist.")
+            return bad_request_json("That user doesn't exist.")
 
         get_entries_command = """
             select e.id, e.leaderboard, e.score, e.verified, e.submission_date
@@ -425,20 +457,23 @@ def handle_request(request):
             "success": True,
             "data": data_to_return,
         }
-    
+
     if request_type == ResourceRequestType.GetIdFromIdentity:
         try:
             identity = request["identity"]
         except KeyError:
-            return return_bad_request("Must include an identity.")
-        
+            return bad_request_json("Must include an identity.")
+
+        if type(identity) is not str:
+            return bad_request_json("identity must be a string.")
+
         get_user_command = "SELECT id FROM users WHERE identity = ?"
         get_user_params = (identity,)
         sql_cur.execute(get_user_command, get_user_params)
         user_id = sql_cur.fetchone()
         if user_id is None:
-            return return_bad_request("That user doesn't exist.")
-        
+            return bad_request_json("That user doesn't exist.")
+
         return {
             "success": True,
             "data": user_id,
@@ -452,6 +487,12 @@ def handle_request(request):
             verified = request["verified"]
         except KeyError:
             return bad_request_json("Must include entry_id and verification bool.")
+
+        if type(entry_id) is not int:
+            return bad_request_json("entry_id must be an int.")
+        if type(verified) is not bool:
+            return bad_request_json("verified must be a bool.")
+
         get_entry_command = """
             select leaderboard, verified
             from leaderboard_entries
@@ -495,6 +536,11 @@ def handle_request(request):
         except KeyError:
             return bad_request_json("Must include entry id and comment content.")
 
+        if type(entry_id) is not int:
+            return bad_request_json("entry_id must be an int.")
+        if type(content) is not str:
+            return bad_request_json("content must be a string.")
+
         # Check permissions by first getting leaderboard id and then getting requesting user's perms for it
         get_leaderboard_id_command = """
             select user, leaderboard, verified
@@ -503,7 +549,10 @@ def handle_request(request):
         """
         get_leaderboard_id_params = (entry_id,)
         sql_cur.execute(get_leaderboard_id_command, get_leaderboard_id_params)
-        (submitter, leaderboard_id, verified) = sql_cur.fetchone()
+        try:
+            (submitter, leaderboard_id, verified) = sql_cur.fetchone()
+        except TypeError:
+            return bad_request_json("That entry does not exist.")
         (lb_id, lb_name, lb_perm, lb_asc) = get_leaderboard_info(request_user_id, leaderboard_id)
         if request_user_id != submitter or lb_perm < Permissions.Moderate:
             return bad_request_json("You do not have permission to do that.")
@@ -530,7 +579,10 @@ def handle_request(request):
         try:
             ldb_id = request["leaderboard_id"]
         except KeyError:
-            return bad_request_json()
+            return bad_request_json("Must include leaderboard id.")
+
+        if type(ldb_id) is not int:
+            return bad_request_json("leaderboard_id must be an int.")
 
         remove_lbd = """
             delete from leaderboards where id = ?
@@ -551,6 +603,9 @@ def handle_request(request):
         except KeyError:
             return bad_request_json("Must include entry id.")
 
+        if type(entry_id) is not int:
+            return bad_request_json("entry_id must be an int.")
+
         remove_entry = """
             delete from leaderboard_entries where id = ?
         """
@@ -569,6 +624,10 @@ def handle_request(request):
             user_id = request["user_id"]
         except KeyError:
             return bad_request_json("Must include user id.")
+
+        if type(user_id) is not int:
+            return bad_request_json("user_id must be an int.")
+
         view_permissions_command = "SELECT leaderboard, permission FROM permissions WHERE user = ?"
         sql_cur.execute(view_permissions_command, (user_id,))
         permissions = sql_cur.fetchall()
@@ -586,16 +645,30 @@ def handle_request(request):
             ldb_id = request["leaderboard_id"]
             p = request["permission"]
         except KeyError:
-            return bad_request_json("Must include user id.")
-        set_permission_command = """
-            CASE
-                WHEN exists (SELECT permission FROM permissions WHERE (user = ?) AND (leaderboard = ?))
-                THEN (UPDATE permissions SET (permission = ?, change_date = ?) WHERE (user = ?) AND (leaderboard = ?))
-                ELSE (INSERT INTO permissions (user, leaderboard, permission, change_date) VALUES (?, ?, ?, ?))
-            END
+            return bad_request_json("Must include user id, leaderboard id, and permission.")
+
+        if type(user_id) is not int:
+            return bad_request_json("user_id must be an int.")
+        if type(ldb_id) is not int:
+            return bad_request_json("leaderboard_id must be an int.")
+        if type(p) is not int or p < Permissions.NoAccess or p > Permissions.Moderate:
+            return bad_request_json("permission must be an int and between {} and {}.".format(
+                Permissions.NoAccess, Permissions.Moderate))
+
+        delete_old_permissions_command = """
+            delete
+            from permissions
+            where user = ? and leaderboard = ?
         """
-        set_permission_params = (
-            user_id, ldb_id, p, int(time.time()), user_id, ldb_id, user_id, ldb_id, p, int(time.time()),)
+        delete_old_permissions_params = (user_id, ldb_id)
+        sql_cur.execute(delete_old_permissions_command, delete_old_permissions_params)
+
+        set_permission_command = """
+            insert
+            into permissions (user, leaderboard, permission, change_date)
+            values (?,?,?,?)
+        """
+        set_permission_params = (user_id, ldb_id, p, int(time.time()))
         sql_cur.execute(set_permission_command, set_permission_params)
         db.commit()
         return {
@@ -611,6 +684,9 @@ def handle_request(request):
             user_id = request["user_id"]
         except KeyError:
             return bad_request_json("Must include a user id.")
+
+        if type(user_id) is not int:
+            return bad_request_json("user_id must be an int.")
 
         delete_user_command = """
             delete
@@ -632,6 +708,11 @@ def handle_request(request):
             ascending = request["ascending"]
         except KeyError:
             return bad_request_json("Must include leaderboard id and ascending boolean.")
+
+        if type(leaderboard_id) is not int:
+            return bad_request_json("leaderboard_id must be an int.")
+        if type(ascending) is not bool:
+            return bad_request_json("ascending must be a bool.")
 
         update_order_command = """
             update leaderboards
@@ -655,6 +736,11 @@ def handle_request(request):
         except KeyError:
             return bad_request_json("Must include entry id, a name for the file, and the file itself.")
 
+        if type(entry_id) is not int:
+            return bad_request_json("entry_id must be an int.")
+        if type(filename) is not str:
+            return bad_request_json("filename must be a string.")
+
         get_submitter_command = """
             select user
             from leaderboard_entries
@@ -662,7 +748,10 @@ def handle_request(request):
         """
         get_submitter_params = (entry_id,)
         sql_cur.execute(get_submitter_command, get_submitter_params)
-        (submitter,) = sql_cur.fetchone()
+        try:
+            (submitter,) = sql_cur.fetchone()
+        except TypeError:
+            return bad_request_json("That entry does not exist.")
 
         if submitter != request_user_id:
             return bad_request_json("Can only add proof to your own entries.")
@@ -685,6 +774,9 @@ def handle_request(request):
         except KeyError:
             return bad_request_json("Must include a file id.")
 
+        if type(file_id) is not int:
+            return bad_request_json("file_id must be an int.")
+
         # make sure the user should be able to see the associated entry
         get_leaderboard_command = """
             select e.user, e.verified, e.leaderboard
@@ -695,7 +787,10 @@ def handle_request(request):
         """
         get_leaderboard_params = (file_id,)
         sql_cur.execute(get_leaderboard_command, get_leaderboard_params)
-        (submitter, verified, leaderboard_id) = sql_cur.fetchone()
+        try:
+            (submitter, verified, leaderboard_id) = sql_cur.fetchone()
+        except TypeError:
+            return bad_request_json("That entry does not exist.")
         (lb_id, lb_name, lb_perm, lb_asc) = get_leaderboard_info(request_user_id, leaderboard_id)
         if submitter == request_user_id or lb_perm >= Permissions.Moderate or (
                 verified and lb_perm >= Permissions.Read):
@@ -710,7 +805,10 @@ def handle_request(request):
         """
         get_file_params = (file_id,)
         sql_cur.execute(get_file_command, get_file_params)
-        (file) = sql_cur.fetchone()
+        try:
+            (file,) = sql_cur.fetchone()
+        except TypeError:
+            return bad_request_json("That file does not exist.")
         return {
             "success": True,
             "data": file
