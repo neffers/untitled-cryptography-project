@@ -476,15 +476,15 @@ def handle_request(request):
 
         # Check permissions by first getting leaderboard id and then getting requesting user's perms for it
         get_leaderboard_id_command = """
-            select leaderboard, verified
+            select user, leaderboard, verified
             from leaderboard_entries
             where id = ?
         """
         get_leaderboard_id_params = (entry_id,)
         sql_cur.execute(get_leaderboard_id_command, get_leaderboard_id_params)
-        (leaderboard_id, verified) = sql_cur.fetchone()
+        (submitter, leaderboard_id, verified) = sql_cur.fetchone()
         (lb_id, lb_name, lb_perm, lb_asc) = get_leaderboard_info(request_user_id, leaderboard_id)
-        if lb_perm < Permissions.Read or (not verified and lb_perm < Permissions.Moderate):
+        if request_user_id != submitter or lb_perm < Permissions.Moderate:
             return return_bad_request("You do not have permission to view that.")
 
         add_comment_command = """
