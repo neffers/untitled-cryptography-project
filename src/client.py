@@ -218,13 +218,13 @@ def do_view_user(user_id):
         user_data = response["data"]["user_data"]
         entries = response["data"]["entries"]
         date = datetime.fromtimestamp(user_data[1])
-        print("Name: {} Registration Date: {}".format(user_data[0], date))
+        print("Name: {} Registration Date: {}".format(user_data[0], str(date)))
         print("{:<4}{:<21.21}{:<15.15}{:<9}{:<20}"
               .format("ID", "Leaderboard", "Score", "Verified", "Registration Date"))
         for entry in entries:
             date = datetime.fromtimestamp(entry[4])
             print("{:<4}{:<21.21}{:<15.15}{:<9}{:<20}"
-                  .format(entry[0], entry[1], entry[2], bools[entry[3]], date))
+                  .format(entry[0], entry[1], entry[2], bools[entry[3]], str(date)))
     else:
         print(response["data"])
 
@@ -313,7 +313,7 @@ def do_get_entry(entry_id):
               .format("Entry ID", "User ID", "Username", "Score", "Date", "Verified", "Mod ID", "Mod Name"))
         date = datetime.fromtimestamp(entry[4])
         print("{:<9}{:<8}{:<21.21}{:<15.15}{:<20}{:<9}{:<6}{:<21.21}"
-              .format(entry[0], entry[1], entry[2], entry[3], date, bools[entry[5]], entry[6], entry[7]))
+              .format(entry[0], entry[1], entry[2], entry[3], str(date), bools[entry[5]], entry[6], entry[7]))
     else:
         print(response["data"])
 
@@ -375,7 +375,7 @@ def do_view_comments(entry_id):
         print("{:<21.21}{:<20}{}".format("Commenter", "Date", "Comment"))
         for comment in comments:
             date = datetime.fromtimestamp(comment[1])
-            print("{:<21.21}{:<20}{}".format(comment[0], date, comment[2]))
+            print("{:<21.21}{:<20}{}".format(comment[0], str(date), comment[2]))
     else:
         print(response["data"])
 
@@ -519,7 +519,7 @@ def do_one_leaderboard(leaderboard_id):
         for entry in response["data"]["entries"]:
             date = datetime.fromtimestamp(entry[4])
             print("{:<9}{:<8}{:<21.21}{:<15}{:<20}{:<6}"
-                  .format(entry[0], entry[1], entry[2], entry[3], date, bools[entry[5]]))
+                  .format(entry[0], entry[1], entry[2], entry[3], str(date), bools[entry[5]]))
     else:
         print(response["data"])
 
@@ -534,7 +534,7 @@ def do_list_unverified(leaderboard_id):
         print("{:<9}{:<8}{:<21.21}{:<15}{:<20}".format("Entry ID", "User ID", "Username", "Score", "Date"))
         for entry in response["data"]:
             date = datetime.fromtimestamp(entry[4])
-            print("{:<9}{:<8}{:<21.21}{:<15}{:<20}".format(entry[0], entry[1], entry[2], entry[3], date))
+            print("{:<9}{:<8}{:<21.21}{:<15}{:<20}".format(entry[0], entry[1], entry[2], entry[3], str(date)))
     else:
         print(response["data"])
 
