@@ -214,8 +214,7 @@ def do_view_user(user_id):
     if response["success"]:
         user_data = response["data"]["user_data"]
         entries = response["data"]["entries"]
-        print("{:<21}{:<17}".format("Name:", "Registration Date"))
-        print("{:<21}{:<17}".format(user_data[0], user_data[1]))
+        print("Name: {} Registration Date: {}".format(user_data[0], user_data[1]))
         print("{:<15}{:<13}{:<15}{:<10}{:<17}".format("ID:", "Leaderboard:", "Score:", "Verified:", "Submission Date:"))
         for entry in entries:
             print("{:<15}{:<13}{:<15}{:<10}{:<17}".format(entry[0], entry[1], entry[2], entry[3], entry[4]))
@@ -303,8 +302,8 @@ def do_get_entry(entry_id):
         return
     if response["success"]:
         entry = response["data"]["entry"]
-        print("{:<15}{:<15}{:<21}{:<15}{:<17}{:<10}{:<15}{:<21}".format("Entry ID:", "User ID", "Username:", "Score:", "Submission Date:", "Verified:", "Verifier ID:", "Verifier:"))
-        print("{:<15}{:<15}{:<21}{:<15}{:<17}{:<10}{:<15}{:<21}".format(entry[0], entry[1], entry[2], entry[3], entry[4], entry[5], entry[6], entry[7]))
+        print("{:<15}{:<15}{:<21}{:<15}{:<17}{:<10}{:<15}{:<21}".format("Entry ID:", "User ID:", "Username:", "Score:", "Submission Date:", "Verified:", "Verifier ID:", "Verifier:"))
+        print("Entry ID: {} User ID: {} Username: {} Score: {} Submission Date: {} Verified: {} Verifier ID: {} Verifier: {}".format(entry[0], entry[1], entry[2], entry[3], entry[4], entry[5], entry[6], entry[7]))
     else:
         print(response["data"])
 
@@ -452,8 +451,9 @@ def do_show_leaderboards():
         print("Malformed packet: " + str(response))
         return
     if response["success"]:
-        # TODO formatting
-        print(response["data"])
+        print("{:<16}{:<18}{:<12}".format("Leaderboard ID:", "Leaderboard Name:", "Permission:"))
+        for ldb in response["data"]:
+            print("{:<16}{:<18}{:<12}".format(ldb[0], ldb[1], ldb[2]))
     else:
         print(response["data"])
 
@@ -502,8 +502,7 @@ def do_one_leaderboard(leaderboard_id):
         print("Malformed packet: " + str(response))
         return
     if response["success"]:
-        print("{:<16}{:<18}".format("Leaderboard ID:", "Leaderboard Name:"))
-        print("{:<16}{:<18}".format(response["data"]["id"], response["data"]["name"]))
+        print("Leaderboard ID: {} Leaderboard Name: {}".format(response["data"]["id"], response["data"]["name"]))
         print("{:<15}{:<15}{:<21}{:<15}{:<17}{:<10}".format("Entry ID:", "User ID", "Username:", "Score:", "Submission Date:", "Verified:"))
         for entry in response["data"]["entries"]:
             print("{:<15}{:<15}{:<21}{:<15}{:<17}{:<10}".format(entry[0], entry[1], entry[2], entry[3], entry[4], entry[5]))
