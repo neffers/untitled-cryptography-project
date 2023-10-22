@@ -207,6 +207,13 @@ def request_remove_user(user_id):
         "user_id": user_id,
     }
 
+def request_get_id_from_identity(identity):
+    return {
+        "type": ResourceRequestType.GetIdFromIdentity,
+        "identity": identity,
+        "token": token,
+    }
+
 
 def do_view_user(user_id):
     request = request_view_user(user_id)
@@ -583,6 +590,13 @@ def do_remove_leaderboard(leaderboard_id):
     else:
         print(response["data"])
 
+def do_get_user_from_identity(identity):
+    request = request_get_id_from_identity(identity)
+    response = make_request(request)
+    if "success" not in response or "data" not in response:
+        print("Malformed packet: " + str(response))
+        return
+    return response["data"][0]
 
 def leaderboard_options(leaderboard_id):
     while True:
@@ -802,7 +816,7 @@ def server_loop(res_ip, res_port):
             do_list_users()
         elif choice == 5 or choice == 6:
             # 5: open user, 6: open self
-            user_id = input("Enter the ID of the user: ") if choice == 5 else identity
+            user_id = input("Enter the ID of the user: ") if choice == 5 else do_get_user_from_identity(identity)
             user_options(user_id)
 
     sock.close()
