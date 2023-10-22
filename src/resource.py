@@ -4,6 +4,8 @@ import sqlite3
 import time
 import struct
 import base64
+import signal
+import sys
 from os import path
 from enums import ResourceRequestType, Permissions, UserClass
 
@@ -128,8 +130,7 @@ def handle_request(request):
     requesting_user = sql_cur.execute(get_user_command, (request_identity,)).fetchone()
 
     if requesting_user is not None:
-        print("Found user:")
-        print(requesting_user)
+        print("Found user:", requesting_user)
     else:
         # Register user automatically
         print("User not previously registered! Registering...")
@@ -910,12 +911,20 @@ class Handler(socketserver.BaseRequestHandler):
             self.request.sendall(buffer)
 
 
+def signal_handler(sig, frame):
+    print("\nshutting down...")
+    db.commit()
+    server.server_close()
+    sys.exit(0)
+
+
 if __name__ == "__main__":
     # TODO get this from command line or config file?
     db_filename = "res_db"
 
     db = initialize_database()
     HOST, PORT = "0.0.0.0", 8086
+    signal.signal(signal.SIGINT, signal_handler)
     try:
         server = socketserver.TCPServer((HOST, PORT), Handler)
         print("socket bound successfully")

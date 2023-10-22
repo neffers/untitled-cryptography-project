@@ -11,6 +11,7 @@ class ResourceRequestType(IntEnum):
     AddEntry = auto()
     ListUsers = auto()
     ListUnverified = auto()
+    ListAccessGroups = auto()
     GetEntry = auto()
     ViewUser = auto()
     ViewPermissions = auto()
@@ -23,6 +24,7 @@ class ResourceRequestType(IntEnum):
     ChangeScoreOrder = auto()
     AddProof = auto()
     DownloadProof = auto()
+    RemoveProof = auto()
     GetIdFromIdentity = auto()
     ListAccess = auto()
 
