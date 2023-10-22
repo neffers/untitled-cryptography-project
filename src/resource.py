@@ -817,7 +817,7 @@ def handle_request(request):
             "data": base64.b64encode(file).decode()
         }
 
-    if request_type == ResourceRequestType.ListAccess:
+    if request_type == ResourceRequestType.ListAccessGroups:
         try:
             leaderboard_id = request["leaderboard_id"]
             (lb_id, lb_name, lb_perm, lb_asc) = get_leaderboard_info(request_user_id, leaderboard_id)

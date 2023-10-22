@@ -26,7 +26,6 @@ class ResourceRequestType(IntEnum):
     DownloadProof = auto()
     RemoveProof = auto()
     GetIdFromIdentity = auto()
-    ListAccess = auto()
 
 
 class Permissions(IntEnum):
