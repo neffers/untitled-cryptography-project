@@ -9,6 +9,8 @@ from enums import ResourceRequestType
 identity: str = ""
 token: str = ""
 sock: socket.socket = socket.socket()
+
+# formatting lookup tables
 perms = ["No Access", "Read Access", "Write Access", "Mod", "Admin"]
 bools = ["False", "True"]
 
@@ -316,6 +318,16 @@ def do_get_entry(entry_id):
         mod_name = entry[7] if entry[7] else "N/A"
         print("{:<9}{:<8}{:<21.21}{:<15.15}{:<20}{:<9}{:<7}{:<21.21}"
               .format(entry[0], entry[1], entry[2], entry[3], str(date), bools[entry[5]], mod_id, mod_name))
+        comments = response["data"]["comments"]
+        print("{} Comments".format(len(comments)))
+        files = response["data"]["files"]
+        print("{:<4}{:<21.21}{:<20}"
+              .format("ID", "Filename", "Date"))
+        for file in files:
+            date = datetime.fromtimestamp(file[2])
+            print("{:<4}{:<21.21}{:<20}"
+                  .format(file[0], file[1], str(date)))
+
     else:
         print(response["data"])
 
