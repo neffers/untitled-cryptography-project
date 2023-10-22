@@ -808,6 +808,7 @@ def main():
             choice = int(choice) - 1
             if choice == -1:
                 print("Can't remove Authorization server, edit it instead")
+                continue
             elif choice >= len(db["resource_servers"]) or choice < 0:
                 print("Invalid server selection")
                 continue
