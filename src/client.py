@@ -783,6 +783,8 @@ def server_loop(res_ip, res_port):
             continue
         choice = int(choice)
         if choice == 0:
+            sock.close()
+            sock = socket.socket()
             break
         elif choice == 1:
             do_show_leaderboards()
