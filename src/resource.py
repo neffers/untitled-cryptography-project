@@ -432,6 +432,7 @@ def handle_request(request):
             "data": data_to_return,
         }
 
+    # Internal
     if request_type == ResourceRequestType.GetIdFromIdentity:
         try:
             identity = request["identity"]
@@ -444,7 +445,7 @@ def handle_request(request):
         user_id = sql_cur.fetchone()
         if user_id is None:
             return bad_request_json("That user doesn't exist.")
-
+        db.commit()
         return {
             "success": True,
             "data": user_id,
