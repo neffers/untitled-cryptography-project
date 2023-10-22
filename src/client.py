@@ -877,7 +877,7 @@ def server_loop(res_ip, res_port):
             do_list_users()
         elif choice == 5 or choice == 6:
             # 5: open user, 6: open self
-            user_id = input("Enter the ID of the user: ") if choice == 5 else do_get_user_from_identity(identity)
+            user_id = input("Enter the ID of the user: ") if choice == 5 else do_get_user_from_identity()
             try:
                 user_options(int(user_id))
             except ValueError:
