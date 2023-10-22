@@ -210,7 +210,7 @@ def request_remove_user(user_id):
     }
 
 
-def request_get_id_from_identity(identity):
+def request_get_id_from_identity():
     return {
         "type": ResourceRequestType.GetIdFromIdentity,
         "identity": identity,
@@ -649,7 +649,7 @@ def do_remove_leaderboard(leaderboard_id):
 
 
 def do_get_user_from_identity():
-    request = request_get_id_from_identity(identity)
+    request = request_get_id_from_identity()
     response = make_request(request)
     if "success" not in response or "data" not in response:
         print("Malformed packet: " + str(response))
@@ -877,7 +877,7 @@ def server_loop(res_ip, res_port):
             do_list_users()
         elif choice == 5 or choice == 6:
             # 5: open user, 6: open self
-            user_id = input("Enter the ID of the user: ") if choice == 5 else do_get_user_from_identity(identity)
+            user_id = input("Enter the ID of the user: ") if choice == 5 else do_get_user_from_identity()
             try:
                 user_options(int(user_id))
             except ValueError:
