@@ -561,8 +561,8 @@ def handle_request(request):
             return bad_request_json("You do not have permission to do that.")
 
         add_comment_command = """
-        insert into entry_comments(user, entry, date, content)
-            values (?,?,?,?)
+            insert into entry_comments(user, entry, date, content)
+                values (?,?,?,?)
         """
         add_comment_params = (request_user_id, entry_id, int(time.time()), content)
         try:
