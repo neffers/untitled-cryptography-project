@@ -29,47 +29,47 @@ def initialize_database():
         database_initialization_command = """
         CREATE TABLE users (
             id INTEGER PRIMARY KEY,
-            identity TEXT UNIQUE,
-            token TEXT,
-            class INTEGER,
-            registration_date INTEGER
+            identity TEXT UNIQUE NOT NULL,
+            token TEXT NOT NULL,
+            class INTEGER NOT NULL,
+            registration_date INTEGER NOT NULL
         );
         CREATE TABLE leaderboards (
             id INTEGER PRIMARY KEY,
-            name TEXT,
-            creation_date INTEGER,
-            default_permission INTEGER,
-            ascending INTEGER
+            name TEXT NOT NULL,
+            creation_date INTEGER NOT NULL,
+            default_permission INTEGER NOT NULL,
+            ascending BOOLEAN NOT NULL
         );
         CREATE TABLE permissions (
-            user INTEGER REFERENCES users(id),
-            leaderboard INTEGER REFERENCES  leaderboards(id) ON DELETE CASCADE,
-            permission INTEGER,
-            change_date INTEGER
+            user INTEGER NOT NULL REFERENCES users(id),
+            leaderboard INTEGER NOT NULL REFERENCES  leaderboards(id) ON DELETE CASCADE,
+            permission INTEGER NOT NULL,
+            change_date INTEGER NOT NULL
         );
         CREATE TABLE leaderboard_entries (
             id INTEGER PRIMARY KEY,
-            user INTEGER REFERENCES users(id) ON DELETE CASCADE,
-            leaderboard INTEGER REFERENCES leaderboards(id) ON DELETE CASCADE,
-            score REAL,
-            submission_date INTEGER,
-            verified INTEGER,
+            user INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            leaderboard INTEGER NOT NULL REFERENCES leaderboards(id) ON DELETE CASCADE,
+            score REAL NOT NULL,
+            submission_date INTEGER NOT NULL,
+            verified INTEGER NOT NULL,
             verification_date INTEGER,
             verifier INTEGER REFERENCES users(id)
         );
         CREATE TABLE entry_comments (
             id INTEGER PRIMARY KEY,
-            user INTEGER REFERENCES users(id) ON DELETE CASCADE,
-            entry INTEGER REFERENCES leaderboard_entries(id) ON DELETE CASCADE,
-            date INTEGER,
-            content TEXT
+            user INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            entry INTEGER NOT NULL REFERENCES leaderboard_entries(id) ON DELETE CASCADE,
+            date INTEGER NOT NULL,
+            content TEXT NOT NULL
         );
         CREATE TABLE files (
             id INTEGER PRIMARY KEY,
-            entry INTEGER REFERENCES leaderboard_entries(id) ON DELETE CASCADE,
-            name TEXT,
-            submission_date INTEGER,
-            data BLOB
+            entry INTEGER NOT NULL REFERENCES leaderboard_entries(id) ON DELETE CASCADE,
+            name TEXT NOT NULL,
+            submission_date INTEGER NOT NULL,
+            data BLOB NOT NULL
         );
         """
         dbcursor.executescript(database_initialization_command)
