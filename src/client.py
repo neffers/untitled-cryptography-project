@@ -458,7 +458,7 @@ def do_create_leaderboard():
         "[3] Moderator\n"
         "Enter default permissions for leaderboard: "))
     # TODO ideally leaderboard_permission is of Permission enum type
-    leaderboard_ascending = input("Score ascending [1] or descending [2]: ") == 1
+    leaderboard_ascending = input("Score ascending [1] or descending [2]: ") == "1"
     # TODO error handling for both numeric inputs
     request = request_create_leaderboard(leaderboard_name, leaderboard_permission,
                                          leaderboard_ascending)
