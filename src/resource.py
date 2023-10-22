@@ -747,6 +747,7 @@ if __name__ == "__main__":
     HOST, PORT = "0.0.0.0", 8086
     try:
         server = socketserver.TCPServer((HOST, PORT), Handler)
+        print("socket bound successfully")
         server.serve_forever()
     except OSError:
         print("can't bind to " + HOST + ":" + str(PORT))
