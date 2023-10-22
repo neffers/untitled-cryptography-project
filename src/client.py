@@ -2,6 +2,7 @@ import json
 import os
 import struct
 import socket
+import base64
 from datetime import datetime
 from enums import ResourceRequestType
 
@@ -111,17 +112,17 @@ def request_add_proof(entry_id, filename, blob):
         "token": token,
         "entry_id": entry_id,
         "filename": filename,
-        "file": blob,
+        "file": base64.b64encode(blob).decode(),
     }
 
 
-def request_get_proof(entry_id, filename):
+def request_get_proof(entry_id, file_id):
     return {
         "type": ResourceRequestType.DownloadProof,
         "identity": identity,
         "token": token,
         "entry_id": entry_id,
-        "filename": filename,
+        "file_id": file_id,
     }
 
 
@@ -353,23 +354,19 @@ def do_add_proof(entry_id):
 
 
 def do_get_proof(entry_id):
-    remote_filename = input("Enter name of remote file to download: ")
+    remote_fileid = input("Enter id of remote file to download: ")
     local_filename = input("Enter name of local file to save it to: ")
     try:
         with open(local_filename, 'wb') as file:
-            request = request_get_proof(entry_id, remote_filename)
+            request = request_get_proof(entry_id, remote_fileid)
             response = make_request(request)
             if "success" not in response or "data" not in response:
                 print("Malformed packet: " + str(response))
                 return
             if response["success"]:
                 data = response["data"]
-                if "file" not in data:
-                    print("File not sent back from server! packet: " + str(response))
-                    return
-                else:
-                    file.write(data["file"])
-                    print("Operation successful.")
+                file.write(base64.b64decode(data))
+                print("Operation successful.")
             else:
                 print(response["data"])
     except FileNotFoundError:

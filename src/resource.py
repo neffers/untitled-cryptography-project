@@ -3,6 +3,7 @@ import json
 import sqlite3
 import time
 import struct
+import base64
 from os import path
 from enums import ResourceRequestType, Permissions, UserClass
 
@@ -631,7 +632,7 @@ def handle_request(request):
         try:
             entry_id = request["entry_id"]
             filename = request["filename"]
-            file = request["file"]
+            file = base64.b64decode(request["file"])
         except KeyError:
             return bad_request_json("Must include entry id, a name for the file, and the file itself.")
 
@@ -690,10 +691,10 @@ def handle_request(request):
         """
         get_file_params = (file_id,)
         sql_cur.execute(get_file_command, get_file_params)
-        (file) = sql_cur.fetchone()
+        (file,) = sql_cur.fetchone()
         return {
             "success": True,
-            "data": file
+            "data": base64.b64encode(file).decode()
         }
 
 
