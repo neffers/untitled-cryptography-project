@@ -309,11 +309,13 @@ def do_get_entry(entry_id):
         return
     if response["success"]:
         entry = response["data"]["entry"]
-        print("{:<9}{:<8}{:<21.21}{:<15.15}{:<20}{:<9}{:<6}{:<21.21}"
+        print("{:<9}{:<8}{:<21.21}{:<15.15}{:<20}{:<9}{:<7}{:<21.21}"
               .format("Entry ID", "User ID", "Username", "Score", "Date", "Verified", "Mod ID", "Mod Name"))
         date = datetime.fromtimestamp(entry[4])
-        print("{:<9}{:<8}{:<21.21}{:<15.15}{:<20}{:<9}{:<6}{:<21.21}"
-              .format(entry[0], entry[1], entry[2], entry[3], str(date), bools[entry[5]], entry[6], entry[7]))
+        mod_id = entry[6] if entry[6] else "N/A"
+        mod_name = entry[7] if entry[7] else "N/A"
+        print("{:<9}{:<8}{:<21.21}{:<15.15}{:<20}{:<9}{:<7}{:<21.21}"
+              .format(entry[0], entry[1], entry[2], entry[3], str(date), bools[entry[5]], mod_id, mod_name))
     else:
         print(response["data"])
 
