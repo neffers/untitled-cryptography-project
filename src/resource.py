@@ -94,10 +94,10 @@ def get_leaderboard_info(userid, leaderboard_id):
     return ret_tuple
 
 
-def return_bad_request(further_info=""):
+def bad_request_json(further_info=""):
     return {
         "success": False,
-        "data": "Malformed request. " + further_info,
+        "data": "Bad request. " + further_info,
     }
 
 
@@ -108,7 +108,7 @@ def handle_request(request):
         request_identity = request["identity"]
         token = request["token"]
     except KeyError:
-        return return_bad_request("Didn't include request type, identity, or token")
+        return bad_request_json("Didn't include request type, identity, or token")
 
     sql_cur = db.cursor()
 
@@ -164,13 +164,13 @@ def handle_request(request):
         try:
             leaderboard_id = request["leaderboard_id"]
         except KeyError:
-            return return_bad_request("Didn't include leaderboard id")
+            return bad_request_json("Didn't include leaderboard id")
 
         # make sure leaderboard should be visible by user
         (leaderboard_id, leaderboard_name, permission, ascending) = (
             get_leaderboard_info(request_user_id, leaderboard_id))
         if permission < Permissions.Read:
-            return return_bad_request("You don't have permission to view that.")
+            return bad_request_json("You don't have permission to view that.")
         # If moderator, return all entries
         if permission >= Permissions.Moderate:
             get_entries_command = """
@@ -211,13 +211,13 @@ def handle_request(request):
     # Basic: Add Leaderboard
     if request_type == ResourceRequestType.CreateLeaderboard:
         if user_class != UserClass.Administrator:
-            return return_bad_request("You do not have permission to do that.")
+            return bad_request_json("You do not have permission to do that.")
         try:
             new_lb_name = request["leaderboard_name"]
             new_lb_perm = max(min(request["leaderboard_permission"], Permissions.Moderate), Permissions.NoAccess)
             new_lb_asc = request["leaderboard_ascending"]
         except KeyError:
-            return return_bad_request("Didn't include new leaderboard name, default permission, or ascending bool")
+            return bad_request_json("Didn't include new leaderboard name, default permission, or ascending bool")
         new_lb_command = """
             insert into leaderboards(name, creation_date, default_permission, ascending) values(?,?,?,?)
         """
@@ -237,24 +237,24 @@ def handle_request(request):
             entry_score = request["score"]
             comment = request["comment"]
         except KeyError:
-            return return_bad_request("request must include leaderboard id, score, and comment")
+            return bad_request_json("Request must include leaderboard id, score, and comment.")
         # error if leaderboard id doesn't exist
         try:
             (lb_id, lb_name, lb_perm, lb_asc) = get_leaderboard_info(request_user_id, leaderboard_id)
         except TypeError:
-            return return_bad_request("That leaderboard does not exist")
+            return bad_request_json("That leaderboard does not exist.")
         # error if you don't have permission to write to it
         if lb_perm < Permissions.Write:
-            return return_bad_request("You do not have permission to do that")
+            return bad_request_json("You do not have permission to do that.")
         create_entry_command = """
             insert into leaderboard_entries(user, leaderboard, score, submission_date, verified)
             values(?,?,?,?,?)
         """
-        create_entry_params = (request_user_id, leaderboard_id, entry_score, int(time.time()), 0)
+        create_entry_params = (request_user_id, leaderboard_id, entry_score, int(time.time()), False)
         try:
             sql_cur.execute(create_entry_command, create_entry_params)
         except sqlite3.IntegrityError:
-            return return_bad_request("Leaderboard does not exist")
+            return bad_request_json("Leaderboard does not exist.")
         entry_id = sql_cur.lastrowid
         create_comment_command = """
             insert into entry_comments(user, entry, date, content)
@@ -288,7 +288,7 @@ def handle_request(request):
         try:
             leaderboard_id = request["leaderboard_id"]
         except KeyError:
-            return return_bad_request("Did not include a leaderboard id")
+            return bad_request_json("Must include a leaderboard id.")
 
         list_unverified_command = """
             select e.id, user, identity, score, submission_date
@@ -322,7 +322,7 @@ def handle_request(request):
         try:
             entry_id = request["entry_id"]
         except KeyError:
-            return return_bad_request("Must include an entry ID.")
+            return bad_request_json("Must include an entry ID.")
 
         # Check permissions by first getting leaderboard id and then getting requesting user's perms for it
         get_leaderboard_id_command = """
@@ -335,7 +335,7 @@ def handle_request(request):
         (leaderboard_id, verified) = sql_cur.fetchone()
         (lb_id, lb_name, lb_perm, lb_asc) = get_leaderboard_info(request_user_id, leaderboard_id)
         if lb_perm < Permissions.Read or (not verified and lb_perm < Permissions.Moderate):
-            return return_bad_request("You do not have permission to view that.")
+            return bad_request_json("You do not have permission to view that.")
 
         get_entry_command = """
             select e.id, user, u.identity, score, submission_date, verified, verifier, v.identity
@@ -385,7 +385,7 @@ def handle_request(request):
         try:
             user_id = request["user_id"]
         except KeyError:
-            return return_bad_request("Must include a user ID.")
+            return bad_request_json("Must include a user ID.")
 
         get_user_command = """
             select identity, registration_date
@@ -431,7 +431,7 @@ def handle_request(request):
             entry_id = request["entry_id"]
             verified = request["verified"]
         except KeyError:
-            return return_bad_request("Must include entry_id and verification bool")
+            return bad_request_json("Must include entry_id and verification bool.")
         get_entry_command = """
             select leaderboard, verified
             from leaderboard_entries
@@ -442,17 +442,17 @@ def handle_request(request):
         try:
             (leaderboard_id, entry_verified) = sql_cur.fetchone()
         except TypeError:
-            return return_bad_request("The specified entry does not exist")
+            return bad_request_json("The specified entry does not exist.")
 
         (lb_id, lb_name, lb_perm, lb_asc) = get_leaderboard_info(request_user_id, leaderboard_id)
 
         if lb_perm < Permissions.Moderate:
-            return return_bad_request("You do not have permission to do that")
+            return bad_request_json("You do not have permission to do that.")
 
         if verified and entry_verified:
-            return return_bad_request("That entry has already been verified")
+            return bad_request_json("That entry has already been verified.")
         if not verified and not entry_verified:
-            return return_bad_request("That entry is already not verified")
+            return bad_request_json("That entry is already not verified.")
 
         modify_entry_command = """
             update leaderboard_entries
@@ -473,7 +473,7 @@ def handle_request(request):
             entry_id = request["entry_id"]
             content = request["content"]
         except KeyError:
-            return return_bad_request("fields entry and content required")
+            return bad_request_json("Must include entry id and comment content.")
 
         # Check permissions by first getting leaderboard id and then getting requesting user's perms for it
         get_leaderboard_id_command = """
@@ -486,7 +486,7 @@ def handle_request(request):
         (submitter, leaderboard_id, verified) = sql_cur.fetchone()
         (lb_id, lb_name, lb_perm, lb_asc) = get_leaderboard_info(request_user_id, leaderboard_id)
         if request_user_id != submitter or lb_perm < Permissions.Moderate:
-            return return_bad_request("You do not have permission to view that.")
+            return bad_request_json("You do not have permission to do that.")
 
         add_comment_command = """
         insert into entry_comments(user, entry, date, content)
@@ -496,7 +496,7 @@ def handle_request(request):
         try:
             sql_cur.execute(add_comment_command, add_comment_params)
         except sqlite3.IntegrityError:
-            return return_bad_request("Entry does not exist")
+            return bad_request_json("Entry does not exist.")
         db.commit()
         return {
             "success": True,
@@ -506,11 +506,11 @@ def handle_request(request):
     # Admin: Remove Leaderboard
     if request_type == ResourceRequestType.RemoveLeaderboard:
         if user_class != UserClass.Administrator:
-            return return_bad_request("only admin can do that")
+            return bad_request_json("You do not have permission to do that.")
         try:
             ldb_id = request["leaderboard_id"]
         except KeyError:
-            return return_bad_request()
+            return bad_request_json()
 
         remove_lbd = """
             delete from leaderboards where id = ?
@@ -525,11 +525,11 @@ def handle_request(request):
     # Entry: Remove Entry
     if request_type == ResourceRequestType.RemoveEntry:
         if user_class < UserClass.Administrator:
-            return return_bad_request("insufficient perms")
+            return bad_request_json("You do not have permission to do that.")
         try:
             entry_id = request["entry_id"]
         except KeyError:
-            return return_bad_request("expected entry_id")
+            return bad_request_json("Must include entry id.")
 
         remove_entry = """
             delete from leaderboard_entries where id = ?
@@ -544,11 +544,11 @@ def handle_request(request):
     # User: View Permissions
     if request_type == ResourceRequestType.ViewPermissions:
         if user_class < UserClass.Administrator:
-            return return_bad_request("You don't have permission to do this")
+            return bad_request_json("You don't have permission to do that.")
         try:
             user_id = request["user_id"]
         except KeyError:
-            return return_bad_request("Must include user_id")
+            return bad_request_json("Must include user id.")
         view_permissions_command = "SELECT leaderboard, permission FROM permissions WHERE user = ?"
         sql_cur.execute(view_permissions_command, (user_id,))
         permissions = sql_cur.fetchall()
@@ -560,13 +560,13 @@ def handle_request(request):
     # User: Set Permission
     if request_type == ResourceRequestType.SetPermission:
         if user_class < UserClass.Administrator:
-            return return_bad_request("You don't have permission to do this")
+            return bad_request_json("You don't have permission to do that.")
         try:
             user_id = request["user_id"]
             ldb_id = request["leaderboard_id"]
             p = request["permission"]
         except KeyError:
-            return return_bad_request("Must include user_id")
+            return bad_request_json("Must include user id.")
         set_permission_command = """
             CASE
                 WHEN exists (SELECT permission FROM permissions WHERE (user = ?) AND (leaderboard = ?))
@@ -586,11 +586,11 @@ def handle_request(request):
     # User: Remove User
     if request_type == ResourceRequestType.RemoveUser:
         if user_class < UserClass.Administrator:
-            return return_bad_request("You do not have permission to do that")
+            return bad_request_json("You do not have permission to do that.")
         try:
             user_id = request["user_id"]
         except KeyError:
-            return return_bad_request("Must include a user id")
+            return bad_request_json("Must include a user id.")
 
         delete_user_command = """
             delete
@@ -611,7 +611,7 @@ def handle_request(request):
             leaderboard_id = request["leaderboard_id"]
             ascending = request["ascending"]
         except KeyError:
-            return return_bad_request("Must include leaderboard id and ascending boolean")
+            return bad_request_json("Must include leaderboard id and ascending boolean.")
 
         update_order_command = """
             update leaderboards
@@ -633,7 +633,7 @@ def handle_request(request):
             filename = request["filename"]
             file = request["file"]
         except KeyError:
-            return return_bad_request("must include entry id, a name for the file, and the file itself")
+            return bad_request_json("Must include entry id, a name for the file, and the file itself.")
 
         get_submitter_command = """
             select user
@@ -642,10 +642,10 @@ def handle_request(request):
         """
         get_submitter_params = (entry_id,)
         sql_cur.execute(get_submitter_command, get_submitter_params)
-        (submitter) = sql_cur.fetchone()
+        (submitter,) = sql_cur.fetchone()
 
         if submitter != request_user_id:
-            return return_bad_request("Can only add proof to your own entries")
+            return bad_request_json("Can only add proof to your own entries.")
 
         add_file_command = """
             insert into files (entry, name, submission_date, data) values (?, ?, ?, ?)
@@ -663,7 +663,7 @@ def handle_request(request):
         try:
             file_id = request["file_id"]
         except KeyError:
-            return return_bad_request("Must include a file id")
+            return bad_request_json("Must include a file id.")
 
         # make sure the user should be able to see the associated entry
         get_leaderboard_command = """
@@ -681,7 +681,7 @@ def handle_request(request):
                 verified and lb_perm >= Permissions.Read):
             pass
         else:
-            return return_bad_request("You do not have permission to do that")
+            return bad_request_json("You do not have permission to do that.")
 
         get_file_command = """
             select data
@@ -711,7 +711,7 @@ class Handler(socketserver.BaseRequestHandler):
                 response = handle_request(request)
             except json.decoder.JSONDecodeError:
                 print("Could not interpret packet!")
-                response = return_bad_request("Could not interpret packet.")
+                response = bad_request_json("Could not interpret packet.")
 
             print("sending {} to {}".format(response, self.client_address[0]))
             response = json.dumps(response).encode()
