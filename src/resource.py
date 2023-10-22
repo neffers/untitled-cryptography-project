@@ -136,6 +136,7 @@ def handle_request(request):
         insert_user_command = "INSERT INTO users(identity, token, class, registration_date) VALUES(?,?,?,?)"
         insert_user_params = (request_identity, token, UserClass.User, int(time.time()))
         sql_cur.execute(insert_user_command, insert_user_params)
+        db.commit()
         requesting_user = sql_cur.execute(get_user_command, (request_identity,)).fetchone()
     # Can be used throughout the request handling
     (request_user_id, request_identity, token, user_class, user_reg_date) = requesting_user
