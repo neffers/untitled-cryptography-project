@@ -4,6 +4,8 @@ import sqlite3
 import time
 import struct
 import base64
+import signal
+import sys
 from os import path
 from enums import ResourceRequestType, Permissions, UserClass
 
@@ -839,12 +841,20 @@ class Handler(socketserver.BaseRequestHandler):
             self.request.sendall(buffer)
 
 
+def signal_handler(sig, frame):
+    print("\nshutting down...")
+    db.commit()
+    server.server_close()
+    sys.exit(0)
+
+
 if __name__ == "__main__":
     # TODO get this from command line or config file?
     db_filename = "res_db"
 
     db = initialize_database()
     HOST, PORT = "0.0.0.0", 8086
+    signal.signal(signal.SIGINT, signal_handler)
     try:
         server = socketserver.TCPServer((HOST, PORT), Handler)
         print("socket bound successfully")
