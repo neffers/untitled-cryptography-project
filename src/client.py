@@ -209,6 +209,7 @@ def request_remove_user(user_id):
         "user_id": user_id,
     }
 
+
 def request_get_id_from_identity(identity):
     return {
         "type": ResourceRequestType.GetIdFromIdentity,
@@ -228,11 +229,11 @@ def do_view_user(user_id):
         entries = response["data"]["entries"]
         date = datetime.fromtimestamp(user_data[1])
         print("Name: {} Registration Date: {}".format(user_data[0], str(date)))
-        print("{:<4}{:<21.21}{:<15.15}{:<9}{:<20}"
+        print("{:<4}{:<21.21}{:<15}{:<9}{:<20}"
               .format("ID", "Leaderboard", "Score", "Verified", "Registration Date"))
         for entry in entries:
             date = datetime.fromtimestamp(entry[4])
-            print("{:<4}{:<21.21}{:<15.15}{:<9}{:<20}"
+            print("{:<4}{:<21.21}{:<15}{:<9}{:<20}"
                   .format(entry[0], entry[1], entry[2], bools[entry[3]], str(date)))
     else:
         print(response["data"])
@@ -337,12 +338,12 @@ def do_get_entry(entry_id):
         return
     if response["success"]:
         entry = response["data"]["entry"]
-        print("{:<9}{:<8}{:<21.21}{:<15.15}{:<20}{:<9}{:<7}{:<21.21}"
+        print("{:<9}{:<8}{:<21.21}{:<15}{:<20}{:<9}{:<7}{:<21.21}"
               .format("Entry ID", "User ID", "Username", "Score", "Date", "Verified", "Mod ID", "Mod Name"))
         date = datetime.fromtimestamp(entry[4])
         mod_id = entry[6] if entry[6] else "N/A"
         mod_name = entry[7] if entry[7] else "N/A"
-        print("{:<9}{:<8}{:<21.21}{:<15.15}{:<20}{:<9}{:<7}{:<21.21}"
+        print("{:<9}{:<8}{:<21.21}{:<15}{:<20}{:<9}{:<7}{:<21.21}"
               .format(entry[0], entry[1], entry[2], entry[3], str(date), bools[entry[5]], mod_id, mod_name))
         comments = response["data"]["comments"]
         print("{} Comments".format(len(comments)))
