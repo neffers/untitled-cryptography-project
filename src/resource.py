@@ -758,11 +758,11 @@ def handle_request(request):
         if submitter != request_user_id:
             return bad_request_json("Can only add proof to your own entries.")
 
-        add_file_command = """
+        remove_file_command = """
             insert into files (entry, name, submission_date, data) values (?, ?, ?, ?)
         """
-        add_file_params = (entry_id, filename, int(time.time()), file)
-        sql_cur.execute(add_file_command, add_file_params)
+        remove_file_params = (entry_id, filename, int(time.time()), file)
+        sql_cur.execute(remove_file_command, remove_file_params)
         db.commit()
         return {
             "success": True,
@@ -845,6 +845,46 @@ def handle_request(request):
             "success": True,
             "data": user_list
         }
+
+    if request_type == ResourceRequestType.RemoveProof:
+        try:
+            file_id = request["file_id"]
+        except KeyError:
+            return bad_request_json("Must include file id.")
+
+        if type(file_id) is not int:
+            return bad_request_json("file_id must be an int.")
+
+        get_submitter_command = """
+            select e.user, leaderboard
+            from files f
+                left join leaderboard_entries e on f.entry = e.id
+            where f.id = ?
+        """
+        get_submitter_params = (file_id,)
+        sql_cur.execute(get_submitter_command, get_submitter_params)
+        try:
+            (submitter, leaderboard_id) = sql_cur.fetchone()
+            (lb_id, lb_name, lb_perm, lb_asc) = get_leaderboard_info(request_user_id, leaderboard_id)
+        except TypeError:
+            return bad_request_json("That file does not exist.")
+
+        if submitter != request_user_id or lb_perm < Permissions.Moderate:
+            return bad_request_json("You do not have permission to do that.")
+
+        remove_file_command = """
+            delete
+            from files
+            where id = ?
+        """
+        remove_file_params = (file_id,)
+        sql_cur.execute(remove_file_command, remove_file_params)
+        db.commit()
+        return {
+            "success": True,
+            "data": None
+        }
+
 
 
 class Handler(socketserver.BaseRequestHandler):
