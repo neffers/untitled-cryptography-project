@@ -254,7 +254,7 @@ def handle_request(request):
 
         if type(leaderboard_id) is not int:
             return bad_request_json("leaderboard_id must be an int.")
-        if type(entry_score) is not int or float:
+        if type(entry_score) is not int and type(entry_score) is not float:
             return bad_request_json("score must be a number.")
         if type(comment) is not str:
             return bad_request_json("comment must be a string.")
