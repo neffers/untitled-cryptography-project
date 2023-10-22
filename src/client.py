@@ -2,13 +2,15 @@ import json
 import os
 import struct
 import socket
+import base64
 from datetime import datetime
-from enums import ResourceRequestType
-
+from enums import ResourceRequestType, Permissions
 
 identity: str = ""
 token: str = ""
 sock: socket.socket = socket.socket()
+
+# formatting lookup tables
 perms = ["No Access", "Read Access", "Write Access", "Mod", "Admin"]
 bools = ["False", "True"]
 
@@ -109,17 +111,17 @@ def request_add_proof(entry_id, filename, blob):
         "token": token,
         "entry_id": entry_id,
         "filename": filename,
-        "file": blob,
+        "file": base64.b64encode(blob).decode(),
     }
 
 
-def request_get_proof(entry_id, filename):
+def request_get_proof(entry_id, file_id):
     return {
         "type": ResourceRequestType.DownloadProof,
         "identity": identity,
         "token": token,
         "entry_id": entry_id,
-        "filename": filename,
+        "file_id": file_id,
     }
 
 
@@ -251,10 +253,29 @@ def do_view_permissions(user_id):
 
 
 def do_set_permission(user_id):
-    leaderboard_id = input("Enter the leaderboard where the permission will be changed: ")
+    leaderboard_id = input("Enter the leaderboard id where the permission will be changed: ")
+    if not leaderboard_id.isdigit():
+        print("Invalid input, please enter an integer")
+        return
+    leaderboard_id = int(leaderboard_id)
     permission = input(
-        "What is the new permission level for the user?\n"
-        "Please enter 'none', 'read', 'write', or 'moderator': ")
+        "[0] None\n"
+        "[1] Read\n"
+        "[2] Write\n"
+        "[3] Moderator\n"
+        "Select new permission level: ")
+    if not permission.isdigit() or int(permission) > 3:
+        print("Invalid input, please enter an integer listed above")
+        return
+    permission = int(permission)
+    if permission == 0:
+        permission = Permissions.NoAccess
+    elif permission == 1:
+        permission = Permissions.Read
+    elif permission == 2:
+        permission = Permissions.Write
+    elif permission == 3:
+        permission = Permissions.Moderate
     request = request_set_permission(leaderboard_id, user_id, permission)
     response = make_request(request)
     if "success" not in response or "data" not in response:
@@ -323,6 +344,16 @@ def do_get_entry(entry_id):
         mod_name = entry[7] if entry[7] else "N/A"
         print("{:<9}{:<8}{:<21.21}{:<15.15}{:<20}{:<9}{:<7}{:<21.21}"
               .format(entry[0], entry[1], entry[2], entry[3], str(date), bools[entry[5]], mod_id, mod_name))
+        comments = response["data"]["comments"]
+        print("{} Comments".format(len(comments)))
+        files = response["data"]["files"]
+        print("{:<4}{:<21.21}{:<20}"
+              .format("ID", "Filename", "Date"))
+        for file in files:
+            date = datetime.fromtimestamp(file[2])
+            print("{:<4}{:<21.21}{:<20}"
+                  .format(file[0], file[1], str(date)))
+
     else:
         print(response["data"])
 
@@ -348,23 +379,23 @@ def do_add_proof(entry_id):
 
 
 def do_get_proof(entry_id):
-    remote_filename = input("Enter name of remote file to download: ")
+    remote_fileid = input("Enter id of remote file to download: ")
+    if not remote_fileid.isdigit():
+        print("Invalid input, please enter an integer")
+        return
+    remote_fileid = int(remote_fileid)
     local_filename = input("Enter name of local file to save it to: ")
     try:
         with open(local_filename, 'wb') as file:
-            request = request_get_proof(entry_id, remote_filename)
+            request = request_get_proof(entry_id, remote_fileid)
             response = make_request(request)
             if "success" not in response or "data" not in response:
                 print("Malformed packet: " + str(response))
                 return
             if response["success"]:
                 data = response["data"]
-                if "file" not in data:
-                    print("File not sent back from server! packet: " + str(response))
-                    return
-                else:
-                    file.write(data["file"])
-                    print("Operation successful.")
+                file.write(base64.b64decode(data))
+                print("Operation successful.")
             else:
                 print(response["data"])
     except FileNotFoundError:
@@ -480,15 +511,30 @@ def do_show_leaderboards():
 
 def do_create_leaderboard():
     leaderboard_name = input("Enter the name for the new leaderboard: ")
-    leaderboard_permission = int(input(
+    leaderboard_permission = input(
         "[0] None\n"
         "[1] Read\n"
         "[2] Write\n"
         "[3] Moderator\n"
-        "Enter default permissions for leaderboard: "))
-    # TODO ideally leaderboard_permission is of Permission enum type
-    leaderboard_ascending = input("Score ascending [1] or descending [2]: ") == "1"
-    # TODO error handling for both numeric inputs
+        "Enter default permissions for leaderboard: ")
+    if not leaderboard_permission.isdigit() or int(leaderboard_permission) > 3:
+        print("Invalid input, please enter an integer listed above")
+        return
+    leaderboard_permission = int(leaderboard_permission)
+    if leaderboard_permission == 0:
+        leaderboard_permission = Permissions.NoAccess
+    elif leaderboard_permission == 1:
+        leaderboard_permission = Permissions.Read
+    elif leaderboard_permission == 2:
+        leaderboard_permission = Permissions.Write
+    elif leaderboard_permission == 3:
+        leaderboard_permission = Permissions.Moderate
+    leaderboard_ascending = input("Score ascending [1] or descending [2]: ")
+    if not leaderboard_ascending.isdigit() or int(leaderboard_ascending) > 2\
+            or int(leaderboard_ascending) < 1:
+        print("Invalid input, please enter an integer listed")
+        return
+    leaderboard_ascending = int(leaderboard_ascending) == 1
     request = request_create_leaderboard(leaderboard_name, leaderboard_permission,
                                          leaderboard_ascending)
     response = make_request(request)
@@ -567,7 +613,13 @@ def do_add_entry(leaderboard_id):
         print(response["data"])
 
 
-def do_set_score_order(leaderboard_id, ascending):
+def do_set_score_order(leaderboard_id):
+    ascending = input("Set to ascending [1] or descending [2]: ")
+    if not ascending.isdigit() or int(ascending) > 2 \
+            or int(ascending) < 1:
+        print("Invalid input, please enter an integer listed")
+        return
+    ascending = int(ascending) == 1
     request = request_set_score_order(leaderboard_id, ascending)
     response = make_request(request)
     if "success" not in response or "data" not in response:
@@ -590,6 +642,7 @@ def do_remove_leaderboard(leaderboard_id):
     else:
         print(response["data"])
 
+
 def do_get_user_from_identity(identity):
     request = request_get_id_from_identity(identity)
     response = make_request(request)
@@ -597,6 +650,7 @@ def do_get_user_from_identity(identity):
         print("Malformed packet: " + str(response))
         return
     return response["data"][0]
+
 
 def leaderboard_options(leaderboard_id):
     while True:
@@ -626,8 +680,7 @@ def leaderboard_options(leaderboard_id):
             entry_id = input("Enter the ID of the entry: ")
             entry_options(entry_id)
         elif choice == 5:
-            ascending = input("Set to ascending [1] or descending [2]: ")
-            do_set_score_order(leaderboard_id, ascending)
+            do_set_score_order(leaderboard_id)
         elif choice == 6:
             do_remove_leaderboard(leaderboard_id)
 

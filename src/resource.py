@@ -3,6 +3,7 @@ import json
 import sqlite3
 import time
 import struct
+import base64
 from os import path
 from enums import ResourceRequestType, Permissions, UserClass
 
@@ -458,6 +459,7 @@ def handle_request(request):
             "data": data_to_return,
         }
 
+    # Internal
     if request_type == ResourceRequestType.GetIdFromIdentity:
         try:
             identity = request["identity"]
@@ -732,7 +734,7 @@ def handle_request(request):
         try:
             entry_id = request["entry_id"]
             filename = request["filename"]
-            file = request["file"]
+            file = base64.b64decode(request["file"])
         except KeyError:
             return bad_request_json("Must include entry id, a name for the file, and the file itself.")
 
@@ -811,7 +813,7 @@ def handle_request(request):
             return bad_request_json("That file does not exist.")
         return {
             "success": True,
-            "data": file
+            "data": base64.b64encode(file).decode()
         }
 
 
@@ -846,6 +848,7 @@ if __name__ == "__main__":
     HOST, PORT = "0.0.0.0", 8086
     try:
         server = socketserver.TCPServer((HOST, PORT), Handler)
+        print("socket bound successfully")
         server.serve_forever()
     except OSError:
         print("can't bind to " + HOST + ":" + str(PORT))
