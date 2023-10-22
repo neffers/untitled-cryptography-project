@@ -68,6 +68,15 @@ def request_add_entry(leaderboard_id, score, comment):
     }
 
 
+def request_access_groups(leaderboard_id):
+    return {
+        "type": ResourceRequestType.ListAccessGroups,
+        "identity": identity,
+        "token": token,
+        "leaderboard_id": leaderboard_id,
+    }
+
+
 def request_set_score_order(leaderboard_id, ascending):
     return {
         "type": ResourceRequestType.ChangeScoreOrder,
@@ -118,6 +127,16 @@ def request_add_proof(entry_id, filename, blob):
 def request_get_proof(entry_id, file_id):
     return {
         "type": ResourceRequestType.DownloadProof,
+        "identity": identity,
+        "token": token,
+        "entry_id": entry_id,
+        "file_id": file_id,
+    }
+
+
+def request_remove_proof(entry_id, file_id):
+    return {
+        "type": ResourceRequestType.RemoveProof,
         "identity": identity,
         "token": token,
         "entry_id": entry_id,
@@ -409,6 +428,23 @@ def do_get_proof(entry_id):
         print("IO error occurred!")
 
 
+def do_remove_proof(entry_id):
+    remote_fileid = input("Enter id of remote file to remove: ")
+    if not remote_fileid.isdigit():
+        print("Invalid input, please enter an integer")
+        return
+    remote_fileid = int(remote_fileid)
+    request = request_remove_proof(entry_id, remote_fileid)
+    response = make_request(request)
+    if "success" not in response or "data" not in response:
+        print("Malformed packet: " + str(response))
+        return
+    if response["success"]:
+        print("Operation successful.")
+    else:
+        print(response["data"])
+
+
 def do_view_comments(entry_id):
     request = request_get_entry(entry_id)
     response = make_request(request)
@@ -470,11 +506,12 @@ def entry_options(entry_id):
             "[1] View Entry\n"
             "[2] Add Proof\n"
             "[3] Download Proof\n"
-            "[4] View Comments\n"
-            "[5] Post Comment\n"
-            "[6] Verify Entry\n"
-            "[7] Un-verify Entry\n"
-            "[8] Remove Entry\n")
+            "[4] Remove Proof\n"
+            "[5] View Comments\n"
+            "[6] Post Comment\n"
+            "[7] Verify Entry\n"
+            "[8] Un-verify Entry\n"
+            "[9] Remove Entry\n")
         choice = input("Choose the corresponding number: ")
         if not choice.isdigit() or int(choice) > 8:
             print("Invalid input, please enter an integer listed above")
@@ -489,14 +526,16 @@ def entry_options(entry_id):
         elif choice == 3:
             do_get_proof(entry_id)
         elif choice == 4:
-            do_view_comments(entry_id)
+            do_remove_proof(entry_id)
         elif choice == 5:
-            do_add_comment(entry_id)
+            do_view_comments(entry_id)
         elif choice == 6:
-            do_modify_entry_verification(entry_id, True)
+            do_add_comment(entry_id)
         elif choice == 7:
-            do_modify_entry_verification(entry_id, False)
+            do_modify_entry_verification(entry_id, True)
         elif choice == 8:
+            do_modify_entry_verification(entry_id, False)
+        elif choice == 9:
             do_remove_entry(entry_id)
 
 
@@ -618,6 +657,20 @@ def do_add_entry(leaderboard_id):
         print(response["data"])
 
 
+def do_access_groups(leaderboard_id):
+    request = request_access_groups(leaderboard_id)
+    response = make_request(request)
+    if "success" not in response or "data" not in response:
+        print("Malformed packet: " + str(response))
+        return
+    if response["success"]:
+        print("{:<21.21}{:<4}{:<11}".format("ID", "Name", "Permission"))
+        for user in response["data"]:
+            print("{:<21.21}{:<4}{:<11}".format(user[0], user[1], user[2]))
+    else:
+        print(response["data"])
+
+
 def do_set_score_order(leaderboard_id):
     ascending = input("Set to ascending [1] or descending [2]: ")
     if not ascending.isdigit() or int(ascending) > 2 \
@@ -666,8 +719,9 @@ def leaderboard_options(leaderboard_id):
             "[2] Open Unverified\n"
             "[3] Submit Entry\n"
             "[4] Open Entry\n"
-            "[5] Set Score Order\n"
-            "[6] Remove Leaderboard\n")
+            "[5] View Access Groups\n"
+            "[6] Set Score Order\n"
+            "[7] Remove Leaderboard\n")
         choice = input("Choose the corresponding number: ")
         if not choice.isdigit() or int(choice) > 6:
             print("Invalid input, please enter an integer listed above")
@@ -689,8 +743,10 @@ def leaderboard_options(leaderboard_id):
                 print("Invalid entry ID")
                 continue
         elif choice == 5:
-            do_set_score_order(leaderboard_id)
+            do_access_groups(leaderboard_id)
         elif choice == 6:
+            do_set_score_order(leaderboard_id)
+        elif choice == 7:
             do_remove_leaderboard(leaderboard_id)
 
 
