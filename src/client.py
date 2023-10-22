@@ -748,6 +748,7 @@ def server_loop(res_ip, res_port):
     auth_server = db["auth_server"]
     print("Trying to connect to {}:{}".format(auth_server["ip"], auth_server["port"]))
     try:
+        sock = socket.socket()
         sock.connect((auth_server["ip"], int(auth_server["port"])))
     except OSError as e:
         print("Connection to authentication server failed! error: " + str(e))
@@ -758,9 +759,9 @@ def server_loop(res_ip, res_port):
     response = make_request(request)
     token = response["token"]
     sock.close()
-    sock = socket.socket()
 
     try:
+        sock = socket.socket()
         sock.connect((res_ip, int(res_port)))
     except OSError as e:
         print("Connection to resource server failed! error: " + str(e))
@@ -784,7 +785,6 @@ def server_loop(res_ip, res_port):
         choice = int(choice)
         if choice == 0:
             sock.close()
-            sock = socket.socket()
             break
         elif choice == 1:
             do_show_leaderboards()
