@@ -222,6 +222,12 @@ Please see the [Phase 2 description](desc/phase_2.pdf) for details.
     - `file_id`: the id of the file to download
   - Resource server response `data`
     - the requested file as a byte blob
+- `GetIdFromIdentity`
+  - Get a user's id from their identity
+  - Additional client request fields:
+    - `identity`: the identity of the desired user
+  - Resource server response `data`:
+    - `user_id`: the id of the desired user
 
 ### Clientside Commands
 #### Basic Commands
@@ -240,7 +246,7 @@ Please see the [Phase 2 description](desc/phase_2.pdf) for details.
 - READ: open user [user ID]
   - sets local state variable 'user' to the specified ID
 - READ: open self
-  - sets local state variable 'user' to the logged in user's ID
+  - sets local state variable 'user' to the logged in user's ID found from the request `GetIdFromIdentity`
 #### Commands Associated With a Leaderboard
 - READ: list entries
   - shows all verified entries (ID, place, player name, score, date/time) on the leaderboard
