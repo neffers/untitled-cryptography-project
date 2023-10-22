@@ -634,15 +634,20 @@ def handle_request(request):
             return bad_request_json("leaderboard_id must be an int and between {} and {}.".format(
                 Permissions.NoAccess, Permissions.Moderate))
 
-        set_permission_command = """
-            CASE
-                WHEN exists (SELECT permission FROM permissions WHERE (user = ?) AND (leaderboard = ?))
-                THEN (UPDATE permissions SET (permission = ?, change_date = ?) WHERE (user = ?) AND (leaderboard = ?))
-                ELSE (INSERT INTO permissions (user, leaderboard, permission, change_date) VALUES (?, ?, ?, ?))
-            END
+        delete_old_permissions_command = """
+            delete
+            from permissions
+            where user = ? and leaderboard = ?
         """
-        set_permission_params = (
-            user_id, ldb_id, p, int(time.time()), user_id, ldb_id, user_id, ldb_id, p, int(time.time()),)
+        delete_old_permissions_params = (user_id, ldb_id)
+        sql_cur.execute(delete_old_permissions_command, delete_old_permissions_params)
+
+        set_permission_command = """
+            insert
+            into permissions (user, leaderboard, permission, change_date)
+            values (?,?,?,?)
+        """
+        set_permission_params = (user_id, ldb_id, p, int(time.time()))
         sql_cur.execute(set_permission_command, set_permission_params)
         db.commit()
         return {
