@@ -400,7 +400,8 @@ def handle_request(request):
         sql_cur.execute(get_user_command, get_user_params)
         try:
             user_data = sql_cur.fetchone()
-        except TypeError:
+            if user_data is None: raise IndexError
+        except TypeError or IndexError:
             return bad_request_json("That user does not exist.")
 
         get_entries_command = """
@@ -429,6 +430,24 @@ def handle_request(request):
         return {
             "success": True,
             "data": data_to_return,
+        }
+
+    if request_type == ResourceRequestType.GetIdFromIdentity:
+        try:
+            identity = request["identity"]
+        except KeyError:
+            return bad_request_json("Must include an identity.")
+
+        get_user_command = "SELECT id FROM users WHERE identity = ?"
+        get_user_params = (identity,)
+        sql_cur.execute(get_user_command, get_user_params)
+        user_id = sql_cur.fetchone()
+        if user_id is None:
+            return bad_request_json("That user doesn't exist.")
+
+        return {
+            "success": True,
+            "data": user_id,
         }
 
     # Entry: Verify Entry
