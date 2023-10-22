@@ -1,349 +1,593 @@
 import json
 import os
-import asyncio
+import struct
+import socket
 from enums import ResourceRequestType
-# import time  # was used for sleeping before retrying connection
 
-async def make_request(request: dict, reader, writer) -> dict:
-    writer.write(bytes(json.dumps(request) + "\n", "utf-8"))
-    await writer.drain()
-    response_data = await reader.readline()
-    response = json.loads(response_data.decode())
-    return response
 
-def request_token(identity):
+identity: str = ""
+token: str = ""
+sock: socket.socket = socket.socket()
+
+
+def make_request(request: dict) -> dict:
+    request = bytes(json.dumps(request), "utf-8")
+    buffer = struct.pack("!I", len(request))
+    buffer += request
+    sock.send(buffer)
+    buffer_len = struct.unpack("!I", sock.recv(4))[0]
+    response_data = sock.recv(buffer_len)
+    try:
+        response = json.loads(response_data.decode())
+        return response
+    except json.JSONDecodeError:
+        print("Can't decode packet! packet: " + str(response_data))
+        return dict()
+
+
+# currently the only auth server request, so not using enum types
+def request_token():
     return {
         "type": "token",
-        "identity": identity
+        "identity": identity,
     }
 
-def request_show_leaderboards(identity, token):
+
+def request_show_leaderboards():
     return {
         "type": ResourceRequestType.ListLeaderboards,
         "identity": identity,
-        "token": token
+        "token": token,
     }
 
-def request_create_leaderboard(identity, token, leaderboard_name, leaderboard_permission, leaderboard_ascending):
+
+def request_create_leaderboard(leaderboard_name, leaderboard_permission, leaderboard_ascending):
     return {
         "type": ResourceRequestType.CreateLeaderboard,
         "identity": identity,
         "token": token,
         "leaderboard_name": leaderboard_name,
         "leaderboard_permission": leaderboard_permission,
-        "leaderboard_ascending": leaderboard_ascending
+        "leaderboard_ascending": leaderboard_ascending,
     }
 
-def request_add_entry(identity, token, leaderboard_id, score, comment):
+
+def request_add_entry(leaderboard_id, score, comment):
     return {
         "type": ResourceRequestType.AddEntry,
         "identity": identity,
         "token": token,
         "leaderboard_id": leaderboard_id,
         "score": score,
-        "comment": comment
+        "comment": comment,
     }
 
-def request_list_users(identity, token):
+
+def request_set_score_order(leaderboard_id, ascending):
+    return {
+        "type": ResourceRequestType.ChangeScoreOrder,
+        "identity": identity,
+        "token": token,
+        "leaderboard_id": leaderboard_id,
+        "ascending": ascending,
+    }
+
+
+def request_list_users():
     return {
         "type": ResourceRequestType.ListUsers,
         "identity": identity,
-        "token": token
+        "token": token,
     }
 
-def request_list_unverified(identity, token, leaderboard_id):
+
+def request_list_unverified(leaderboard_id):
     return {
         "type": ResourceRequestType.ListUnverified,
-        "leaderboard_id": leaderboard_id,
         "identity": identity,
-        "token": token
+        "token": token,
+        "leaderboard_id": leaderboard_id,
     }
 
-def request_get_entry(identity, token, entry_id):
+
+def request_get_entry(entry_id):
     return {
         "type": ResourceRequestType.GetEntry,
-        "leaderboard_id": entry_id,
         "identity": identity,
-        "token": token
+        "token": token,
+        "entry_id": entry_id,
     }
 
-def request_view_user(identity, token, user_id):
+
+def request_add_proof(entry_id, filename, blob):
+    return {
+        "type": ResourceRequestType.AddProof,
+        "identity": identity,
+        "token": token,
+        "entry_id": entry_id,
+        "filename": filename,
+        "file": blob,
+    }
+
+
+def request_get_proof(entry_id, filename):
+    return {
+        "type": ResourceRequestType.DownloadProof,
+        "identity": identity,
+        "token": token,
+        "entry_id": entry_id,
+        "filename": filename,
+    }
+
+
+def request_view_user(user_id):
     return {
         "type": ResourceRequestType.ViewUser,
-        "leaderboard_id": user_id,
         "identity": identity,
-        "token": token
+        "token": token,
+        "user_id": user_id,
     }
 
-def request_one_leaderboard(identity, token, leaderboard_id):
+
+def request_one_leaderboard(leaderboard_id):
     return {
         "type": ResourceRequestType.ShowOneLeaderboard,
-        "leaderboard_id": leaderboard_id,
-        "identity": identity,
-        "token": token
-    }
-
-def request_view_permissions(identity, token):
-    return {
-        "type": ResourceRequestType.GetEntry,
-        "identity": identity,
-        "token": token
-    }
-
-def request_modify_entry_verification(identity, token, entry_id, verified):
-    return {
-        "type": ResourceRequestType.GetEntry,
-        "leaderboard_id": entry_id,
         "identity": identity,
         "token": token,
-        "verified": verified
-    }
-
-def request_remove_leaderboard(identity, token, leaderboard_id):
-    return {
-        "type": ResourceRequestType.RemoveLeaderboard,
         "leaderboard_id": leaderboard_id,
-        "identity": identity,
-        "token": token
     }
 
-def request_add_comment(identity, token, entry_id, content):
+
+def request_view_permissions(user_id):
+    return {
+        "type": ResourceRequestType.ViewPermissions,
+        "identity": identity,
+        "token": token,
+        "user_id": user_id,
+    }
+
+
+def request_modify_entry_verification(entry_id, verified):
+    return {
+        "type": ResourceRequestType.ModifyEntryVerification,
+        "identity": identity,
+        "token": token,
+        "entry_id": entry_id,
+        "verified": verified,
+    }
+
+
+def request_remove_leaderboard(leaderboard_id):
     return {
         "type": ResourceRequestType.RemoveLeaderboard,
+        "identity": identity,
+        "token": token,
+        "leaderboard_id": leaderboard_id,
+    }
+
+
+def request_add_comment(entry_id, content):
+    return {
+        "type": ResourceRequestType.AddComment,
+        "identity": identity,
+        "token": token,
         "entry_id": entry_id,
         "content": content,
-        "identity": identity,
-        "token": token
     }
 
-def request_remove_entry(identity, token, entry_id):
-    return {
-        "type": ResourceRequestType.RemoveLeaderboard,
-        "entry_id": entry_id,
-        "identity": identity,
-        "token": token
-    }
 
-def request_set_permission(identity,token, user_id, leaderboard_id, permission):
+def request_remove_entry(entry_id):
     return {
-        "type": ResourceRequestType.RemoveLeaderboard,
-        "user_id": user_id,
-        "permission": permission,
+        "type": ResourceRequestType.RemoveEntry,
         "identity": identity,
         "token": token,
-        "leaderboard_id": leaderboard_id
+        "entry_id": entry_id,
     }
 
-def do_view_user(identity, token, reader, writer, user_id):
-    request = request_view_user(identity, token, user_id)
-    response = asyncio.run_until_complete(make_request(request, reader, writer))
-    if response["success"] == True:
+
+def request_set_permission(user_id, leaderboard_id, permission):
+    return {
+        "type": ResourceRequestType.SetPermission,
+        "identity": identity,
+        "token": token,
+        "user_id": user_id,
+        "permission": permission,
+        "leaderboard_id": leaderboard_id,
+    }
+
+
+def request_remove_user(user_id):
+    return {
+        "type": ResourceRequestType.RemoveUser,
+        "identity": identity,
+        "token": token,
+        "user_id": user_id,
+    }
+
+
+def do_view_user(user_id):
+    request = request_view_user(user_id)
+    response = make_request(request)
+    if "success" not in response or "data" not in response:
+        print("Malformed packet: " + str(response))
+        return
+    if response["success"]:
+        # TODO formatting
         print(response["data"])
     else:
-        print(response["success"])
+        print(response["data"])
 
-def do_view_permissions(identity, token, reader, writer, user_id):
-    request = request_view_permissions(identity, token, user_id)
-    response = asyncio.run_until_complete(make_request(request, reader, writer))
-    if response["success"] == True:
+
+def do_view_permissions(user_id):
+    request = request_view_permissions(user_id)
+    response = make_request(request)
+    if "success" not in response or "data" not in response:
+        print("Malformed packet: " + str(response))
+        return
+    if response["success"]:
+        # TODO formatting
         print(response["data"])
     else:
-        print(response["success"])
+        print(response["data"])
 
-def do_set_permission(identity, token, reader, writer, user_id):
+
+def do_set_permission(user_id):
     leaderboard_id = input("Enter the leaderboard where the permission will be changed: ")
-    permission = input("What is the new permission level for the user?\nPlease enter 'none', 'read', 'write', or 'moderator': ")
-    request = request_set_permission(identity, token, leaderboard_id, user_id, permission)
-    response = asyncio.run_until_complete(make_request(request, reader, writer))
-    if response["success"] == True:
-        pass
+    permission = input(
+        "What is the new permission level for the user?\n"
+        "Please enter 'none', 'read', 'write', or 'moderator': ")
+    request = request_set_permission(leaderboard_id, user_id, permission)
+    response = make_request(request)
+    if "success" not in response or "data" not in response:
+        print("Malformed packet: " + str(response))
+        return
+    if response["success"]:
+        print("Operation successful.")
     else:
-        print(response["success"])
+        print(response["data"])
 
-def user_options(identity, token, reader, writer, user_id):
-    print("User Commands:\n[1] View User\n[2] View Permissions\n[3] Set Permissions\n[4] Open Submission\n[5] Remove User\n")
-    choose4 = input("Choose the corresponding number: ")
-    choose4 = int(choose4)
-    if choose4 == 1:
-        # view user
-        do_view_user(identity, token, reader, writer, user_id)
-    if choose4 == 2:
-        # view permissions
-        do_view_permissions(identity, token, reader, writer, user_id)
-    if choose4 == 3:
-        # set permissions
-        do_set_permission(identity, token, reader, writer, user_id)
-    if choose4 == 4:
-        # open submission
-        entry_id = input("Enter the ID of the entry: ")
-        entry_options(identity, token, reader, writer, entry_id)
-    if choose4 == 5:
-        # remove user
-        pass
 
-def do_get_entry(identity, token, reader, writer, entry_id):
-    request = request_get_entry(identity, token, entry_id)
-    response = asyncio.run_until_complete(make_request(request, reader, writer))
-    if response["success"] == True:
+def do_remove_user(user_id):
+    request = request_remove_user(user_id)
+    response = make_request(request)
+    if "success" not in response or "data" not in response:
+        print("Malformed packet: " + str(response))
+        return
+    if response["success"]:
+        print("Operation Successful.")
+    else:
+        print(response["data"])
+
+
+def user_options(user_id):
+    while True:
+        print(
+            "User Commands:\n"
+            "[0] Go Back\n"
+            "[1] View User\n"
+            "[2] View Permissions\n"
+            "[3] Set Permissions\n"
+            "[4] Open Submission\n"
+            "[5] Remove User\n")
+        choice = input("Choose the corresponding number: ")
+        if not choice.isdigit() or int(choice) > 5:
+            print("Invalid input, please enter an integer listed above")
+            continue
+        choice = int(choice)
+        if choice == 0:
+            break
+        elif choice == 1:
+            do_view_user(user_id)
+        elif choice == 2:
+            do_view_permissions(user_id)
+        elif choice == 3:
+            do_set_permission(user_id)
+        elif choice == 4:
+            entry_id = input("Enter the ID of the entry: ")
+            entry_options(entry_id)
+        elif choice == 5:
+            do_remove_user(user_id)
+
+
+def do_get_entry(entry_id):
+    request = request_get_entry(entry_id)
+    response = make_request(request)
+    if "success" not in response or "data" not in response:
+        print("Malformed packet: " + str(response))
+        return
+    if response["success"]:
+        # TODO formatting
         print(response["data"])
     else:
-        print(response["success"])
+        print(response["data"])
 
-def do_view_comments(identity, token, reader, writer, entry_id):
-    request = request_get_entry(identity, token, entry_id)
-    response = asyncio.run_until_complete(make_request(request, reader, writer))
-    if response["success"] == True:
+
+def do_add_proof(entry_id):
+    filename = input("Enter name of local file to upload: ")
+    try:
+        with open(filename, 'rb') as file:
+            blob = file.read()
+            request = request_add_proof(entry_id, filename, blob)
+            response = make_request(request)
+            if "success" not in response or "data" not in response:
+                print("Malformed packet: " + str(response))
+                return
+            if response["success"]:
+                print("Operation successful.")
+            else:
+                print(response["data"])
+    except FileNotFoundError:
+        print("File not found!")
+    except IOError:
+        print("IO error occurred!")
+
+
+def do_get_proof(entry_id):
+    remote_filename = input("Enter name of remote file to download: ")
+    local_filename = input("Enter name of local file to save it to: ")
+    try:
+        with open(local_filename, 'wb') as file:
+            request = request_get_proof(entry_id, remote_filename)
+            response = make_request(request)
+            if "success" not in response or "data" not in response:
+                print("Malformed packet: " + str(response))
+                return
+            if response["success"]:
+                data = response["data"]
+                if "file" not in data:
+                    print("File not sent back from server! packet: " + str(response))
+                    return
+                else:
+                    file.write(data["file"])
+                    print("Operation successful.")
+            else:
+                print(response["data"])
+    except FileNotFoundError:
+        print("File not found!")
+    except IOError:
+        print("IO error occurred!")
+
+
+def do_view_comments(entry_id):
+    request = request_get_entry(entry_id)
+    response = make_request(request)
+    if "success" not in response or "data" not in response:
+        print("Malformed packet: " + str(response))
+        return
+    if response["success"]:
+        # TODO formatting
         print(response["data"])
     else:
-        print(response["success"])
+        print(response["data"])
 
-def do_add_comment(identity, token, reader, writer, entry_id):
+
+def do_add_comment(entry_id):
     content = input("Enter your comment to the entry: ")
-    request = request_add_comment(identity, token, entry_id, content)
-    response = asyncio.run_until_complete(make_request(request, reader, writer))
-    if response["success"] == True:
-        pass
+    request = request_add_comment(entry_id, content)
+    response = make_request(request)
+    if "success" not in response or "data" not in response:
+        print("Malformed packet: " + str(response))
+        return
+    if response["success"]:
+        print("Operation successful.")
     else:
-        print(response["success"])
+        print(response["data"])
 
-def do_modify_entry_verification(identity, token, reader, writer, entry_id, boolean):
-    request = request_modify_entry_verification(identity, token, entry_id, boolean)
-    response = asyncio.run_until_complete(make_request(request, reader, writer))
-    if response["success"] == True:
-        pass
+
+def do_modify_entry_verification(entry_id, verify):
+    request = request_modify_entry_verification(entry_id, verify)
+    response = make_request(request)
+    if "success" not in response or "data" not in response:
+        print("Malformed packet: " + str(response))
+        return
+    if response["success"]:
+        print("Operation successful.")
     else:
-        print(response["success"])
+        print(response["data"])
 
-def do_remove_entry(identity, token, reader, writer, entry_id):
-    request = request_remove_entry(identity, token, entry_id)
-    response = asyncio.run_until_complete(make_request(request, reader, writer))
-    if response["success"] == True:
-        pass
+
+def do_remove_entry(entry_id):
+    request = request_remove_entry(entry_id)
+    response = make_request(request)
+    if "success" not in response or "data" not in response:
+        print("Malformed packet: " + str(response))
+        return
+    if response["success"]:
+        print("Operation successful.")
     else:
-        print(response["success"])
+        print(response["data"])
 
-def entry_options(identity, token, reader, writer, entry_id):
-    # begin entry options
-    print("Leaderboard Commands:\n[1] View Entry\n[2] Add Proof\n[3] Download Proof\n[4] View Comments\n[5] Post Comment\n[6] Verify Entry\n[7] Unverify Entry\n[8] Remove Entry\n")
-    choose3 = input("Choose the corresponding number: ")
-    choose3 = int(choose3)
-    if choose3 == 1:
-        # view entry
-        do_get_entry(identity, token, reader, writer, entry_id)
-    if choose3 == 2:
-        # add proof
-        pass
-    if choose3 == 3:
-        # download proof
-        pass
-    if choose3 == 4:
-        # view comments
-        do_view_comments(identity, token, reader, writer, entry_id)
-    if choose3 == 5:
-        # post comment
-        do_add_comment(identity, token, reader, writer, entry_id)
-    if choose3 == 6:
-        # verify entry
-        do_modify_entry_verification(identity, token, reader, writer, entry_id, True)
-    if choose3 == 7:
-        # unverify entry
-        do_modify_entry_verification(identity, token, reader, writer, entry_id, False)
-    if choose3 == 8:
-        # remove entry
-        do_remove_entry(identity, token, reader, writer, entry_id)
 
-def do_show_leaderboards(identity, token, reader, writer):
-    request = request_show_leaderboards(identity, token)
-    response = asyncio.run_until_complete(make_request(request, reader, writer))
-    if response["success"] == True:
+def entry_options(entry_id):
+    while True:
+        print(
+            "Leaderboard Commands:\n"
+            "[0] Go Back\n"
+            "[1] View Entry\n"
+            "[2] Add Proof\n"
+            "[3] Download Proof\n"
+            "[4] View Comments\n"
+            "[5] Post Comment\n"
+            "[6] Verify Entry\n"
+            "[7] Un-verify Entry\n"
+            "[8] Remove Entry\n")
+        choice = input("Choose the corresponding number: ")
+        if not choice.isdigit() or int(choice) > 8:
+            print("Invalid input, please enter an integer listed above")
+            continue
+        choice = int(choice)
+        if choice == 0:
+            break
+        if choice == 1:
+            do_get_entry(entry_id)
+        elif choice == 2:
+            do_add_proof(entry_id)
+        elif choice == 3:
+            do_get_proof(entry_id)
+        elif choice == 4:
+            do_view_comments(entry_id)
+        elif choice == 5:
+            do_add_comment(entry_id)
+        elif choice == 6:
+            do_modify_entry_verification(entry_id, True)
+        elif choice == 7:
+            do_modify_entry_verification(entry_id, False)
+        elif choice == 8:
+            do_remove_entry(entry_id)
+
+
+def do_show_leaderboards():
+    request = request_show_leaderboards()
+    response = make_request(request)
+    if "success" not in response or "data" not in response:
+        print("Malformed packet: " + str(response))
+        return
+    if response["success"]:
+        # TODO formatting
         print(response["data"])
     else:
-        print(response["success"])
+        print(response["data"])
 
-def do_create_leaderboard(identity, token, reader, writer):
+
+def do_create_leaderboard():
     leaderboard_name = input("Enter the name for the new leaderboard: ")
-    leaderboard_permission = input("What is the default permission level for users?\nPlease enter 'none', 'read', 'write', or 'moderator': ")
-    leaderboard_ascending = input("Do you want your leaderboard to score ascending [1] or descending [2] ? ")
-    if leaderboard_ascending == 1:
-        leaderboard_ascending = True
-    else:
-        leaderboard_ascending = False
-    request = request_create_leaderboard(identity, token, leaderboard_name, leaderboard_permission, leaderboard_ascending)
-    response = asyncio.run_until_complete(make_request(request, reader, writer))
-    if response["success"] == True:
-        print("Leaderboard successfully created. Leaderboard ID is "+response["data"])
-    else:
-        print(response["success"])
-
-def do_list_users(identity, token, reader, writer):
-    request = request_list_users(identity, token)
-    response = asyncio.run_until_complete(make_request(request, reader, writer))
-    if response["success"] == True:
+    leaderboard_permission = int(input(
+        "[0] None\n"
+        "[1] Read\n"
+        "[2] Write\n"
+        "[3] Moderator\n"
+        "Enter default permissions for leaderboard: "))
+    # TODO ideally leaderboard_permission is of Permission enum type
+    leaderboard_ascending = input("Score ascending [1] or descending [2]: ") == 1
+    # TODO error handling for both numeric inputs
+    request = request_create_leaderboard(leaderboard_name, leaderboard_permission,
+                                         leaderboard_ascending)
+    response = make_request(request)
+    if "success" not in response or "data" not in response:
+        print("Malformed packet: " + str(response))
+        return
+    if response["success"]:
+        # TODO formatting
         print(response["data"])
     else:
-        print(response["success"])
+        print(response["data"])
 
-def do_one_leaderboard(identity, token, reader, writer, leaderboard_id):
-    request = request_one_leaderboard(identity, token, leaderboard_id)
-    response = asyncio.run_until_complete(make_request(request, reader, writer))
-    if response["success"] == True:
+
+def do_list_users():
+    request = request_list_users()
+    response = make_request(request)
+    if "success" not in response or "data" not in response:
+        print("Malformed packet: " + str(response))
+        return
+    if response["success"]:
+        # TODO formatting
         print(response["data"])
     else:
-        print(response["success"])
+        print(response["data"])
 
-def do_list_unverified(identity, token, reader, writer, leaderboard_id):
-    request = request_list_unverified(identity, token, leaderboard_id)
-    response = asyncio.run_until_complete(make_request(request, reader, writer))
-    if response["success"] == True:
+
+def do_one_leaderboard(leaderboard_id):
+    request = request_one_leaderboard(leaderboard_id)
+    response = make_request(request)
+    if "success" not in response or "data" not in response:
+        print("Malformed packet: " + str(response))
+        return
+    if response["success"]:
+        # TODO formatting
         print(response["data"])
     else:
-        print(response["success"])
+        print(response["data"])
 
-def do_add_entry(identity, token, reader, writer, leaderboard_id):
+
+def do_list_unverified(leaderboard_id):
+    request = request_list_unverified(leaderboard_id)
+    response = make_request(request)
+    if "success" not in response or "data" not in response:
+        print("Malformed packet: " + str(response))
+        return
+    if response["success"]:
+        # TODO formatting
+        print(response["data"])
+    else:
+        print(response["data"])
+
+
+def do_add_entry(leaderboard_id):
     score = input("Enter your score: ")
-    score = float(score)
+    try:
+        score = float(score)
+    except ValueError:
+        print("Must enter a number")
+        return
     comment = input("Enter any comments about your score: ")
-    request = request_add_entry(identity, token, leaderboard_id, score, comment)
-    response = asyncio.run_until_complete(make_request(request, reader, writer))
-    if response["success"] == True:
-        print("Entry successfully submitted. Entry ID is "+response["data"])
+    request = request_add_entry(leaderboard_id, score, comment)
+    response = make_request(request)
+    if "success" not in response or "data" not in response:
+        print("Malformed packet: " + str(response))
+        return
+    if response["success"]:
+        # TODO formatting
+        print(response["data"])
     else:
-        print(response["success"])
+        print(response["data"])
 
-def do_remove_leaderboard(identity, token, reader, writer, leaderboard_id):
-    request = request_remove_leaderboard(identity, token, leaderboard_id)
-    response = asyncio.run_until_complete(make_request(request, reader, writer))
-    if response["success"] == True:
-        pass
+
+def do_set_score_order(leaderboard_id, ascending):
+    request = request_set_score_order(leaderboard_id, ascending)
+    response = make_request(request)
+    if "success" not in response or "data" not in response:
+        print("Malformed packet: " + str(response))
+        return
+    if response["success"]:
+        print("Operation successful.")
     else:
-        print(response["success"])
+        print(response["data"])
 
-def leaderboard_options(identity, token, reader, writer):
-    leaderboard_id = input("Enter the leaderboard ID: ")
-    leaderboard_id = int(leaderboard_id)
-    # begin list options
-    print("Leaderboard Commands:\n[1] List Entries\n[2] Open Unverified\n[3] Submit Entry\n[4] Open Entry\n[5] Score Order\n[6] Remove Leaderboard\n")
-    choose2 = input("Choose the corresponding number: ")
-    choose2 = int(choose2)
-    if choose2 == 1:
-        # list entries
-        do_one_leaderboard(identity, token, reader, writer, leaderboard_id)
-    if choose2 == 2:
-        # open unverified
-        do_list_unverified(identity, token, reader, writer, leaderboard_id)
-    if choose2 == 3:
-        # submit entry
-        do_add_entry(identity, token, reader, writer, leaderboard_id)
-    if choose2 == 4:
-        # open entry
-        entry_id = input("Enter the ID of the entry: ")
-        entry_options(identity, token, reader, writer, entry_id)
-    if choose2 == 5:
-        # score order
-        pass
-    if choose2 == 6:
-        # remove leaderboard
-        do_remove_leaderboard(identity, token, reader, writer, leaderboard_id)
+
+def do_remove_leaderboard(leaderboard_id):
+    request = request_remove_leaderboard(leaderboard_id)
+    response = make_request(request)
+    if "success" not in response or "data" not in response:
+        print("Malformed packet: " + str(response))
+        return
+    if response["success"]:
+        print("Operation successful.")
+    else:
+        print(response["data"])
+
+
+def leaderboard_options(leaderboard_id):
+    while True:
+        print(
+            "Leaderboard Commands:\n"
+            "[0] Go Back\n"
+            "[1] List Entries\n"
+            "[2] Open Unverified\n"
+            "[3] Submit Entry\n"
+            "[4] Open Entry\n"
+            "[5] Set Score Order\n"
+            "[6] Remove Leaderboard\n")
+        choice = input("Choose the corresponding number: ")
+        if not choice.isdigit() or int(choice) > 6:
+            print("Invalid input, please enter an integer listed above")
+            continue
+        choice = int(choice)
+        if choice == 0:
+            break
+        elif choice == 1:
+            do_one_leaderboard(leaderboard_id)
+        elif choice == 2:
+            do_list_unverified(leaderboard_id)
+        elif choice == 3:
+            do_add_entry(leaderboard_id)
+        elif choice == 4:
+            entry_id = input("Enter the ID of the entry: ")
+            entry_options(entry_id)
+        elif choice == 5:
+            ascending = input("Set to ascending [1] or descending [2]: ")
+            do_set_score_order(leaderboard_id, ascending)
+        elif choice == 6:
+            do_remove_leaderboard(leaderboard_id)
 
 
 def clear_screen():
@@ -408,13 +652,17 @@ def main():
         choice = input("Input letter of choice: ").lower()
 
         if choice == 'c':  # connect to resource server
-            choice = int(input("Enter server number to connect to: ")) - 1
+            choice = input("Enter server number to connect to: ")
+            if not choice.isdigit():
+                print("Invalid input, please enter an integer")
+                continue
+            choice = int(choice) - 1
             try:
                 server = db["resource_servers"][choice]
             except KeyError:
                 print("Invalid server selection")
                 continue
-            asyncio.run(server_loop(server["ip"], server["port"]))
+            server_loop(server["ip"], server["port"])
 
         elif choice == 'a':  # add resource server to list
             name = input("Name the server: ")[:20]
@@ -424,7 +672,11 @@ def main():
             write_database_to_file()
 
         elif choice == 'e':  # edit resource server
-            choice = int(input("Enter server number to edit (0 for auth. server): ")) - 1
+            choice = input("Enter server number to edit (0 for auth. server): ")
+            if not choice.isdigit():
+                print("Invalid input, please enter an integer")
+                continue
+            choice = int(choice) - 1
             if choice == -1:
                 server = db["auth_server"]
             else:
@@ -445,11 +697,14 @@ def main():
             write_database_to_file()
 
         elif choice == 'r':  # remove a resource server
-            choice = int(input("Enter server number to remove: ")) - 1
-            # this ensures there is a server there but there is likely a faster way
-            try:
-                server = db["resource_servers"][choice]
-            except KeyError:
+            choice = input("Enter server number to remove: ")
+            if not choice.isdigit():
+                print("Invalid input, please enter an integer")
+                continue
+            choice = int(choice) - 1
+            if choice == -1:
+                print("Can't remove Authorization server, edit it instead")
+            elif choice >= len(db["resource_servers"]) or choice < 0:
                 print("Invalid server selection")
                 continue
             db["resource_servers"].pop(choice)
@@ -458,58 +713,69 @@ def main():
             break
 
 
-async def server_loop(res_ip, res_port):
+def server_loop(res_ip, res_port):
+    global identity, token, sock
     clear_screen()
 
     auth_server = db["auth_server"]
     print("Trying to connect to {}:{}".format(auth_server["ip"], auth_server["port"]))
-    reader, writer = await asyncio.open_connection(auth_server["ip"], int(auth_server["port"]))
-    # TODO handle failed connection
+    try:
+        sock.connect((auth_server["ip"], int(auth_server["port"])))
+    except OSError as e:
+        print("Connection to authentication server failed! error: " + str(e))
+        return
     print("Connection successful.")
     identity = input("Enter identity: ")
-    request = request_token(identity)
-    writer.write(bytes(json.dumps(request) + "\n", "utf-8"))
-    await writer.drain()
-    response_data = await reader.read()
-    response = json.loads(response_data.decode())
-    # TODO handle bad packets or error packets
+    request = request_token()
+    response = make_request(request)
     token = response["token"]
+    sock.close()
+    sock = socket.socket()
 
-    reader, writer = await asyncio.open_connection(res_ip, int(res_port))
-    # TODO handle failed connection
+    try:
+        sock.connect((res_ip, int(res_port)))
+    except OSError as e:
+        print("Connection to resource server failed! error: " + str(e))
+        return
+    print("Connected to " + res_ip + ":" + res_port + " as " + identity + "\n")
     while True:
-        #clear_screen()
-        print("Current Server: "+res_ip+":"+res_port)
-        print("Current User: "+identity+"\n")
-        print("Basic Commands:\n[1] List Leaderboards\n[2] Open Leaderboard\n[3] Create Leaderboard\n[4] List Users\n[5] Open User\n[6] Open Self\n[7] Quit\n")
-        choose = input("Choose the corresponding number: ")
-        choose = int(choose)
-        if choose == 1:
-            # list leaderboards
-            do_show_leaderboards(identity, token, reader, writer)
-        if choose == 2:
-            # open leaderboard
-            leaderboard_options(identity, token, reader, writer)
-        if choose == 3:
-            # create leaderboard
-            do_create_leaderboard(identity, token, reader, writer)
-        if choose == 4:
-            # list users
-            do_list_users(identity, token, reader, writer)
-        if choose == 5 or choose == 6:
-            # open user
-            if choose == 5:
-                user_id = input("Enter the ID of the user: ")
-            # open self
-            if choose == 6:
-                user_id = identity
-            user_options(identity, token, reader, writer, user_id)
-        if choose == 7:
-            # quit
+        # clear_screen()
+        print(
+            "Basic Commands:\n"
+            "[0] Quit\n"
+            "[1] List Leaderboards\n"
+            "[2] Open Leaderboard\n"
+            "[3] Create Leaderboard\n"
+            "[4] List Users\n"
+            "[5] Open User\n"
+            "[6] Open Self\n")
+        choice = input("Choose the corresponding number: ")
+        if not choice.isdigit() or int(choice) > 6:
+            print("Invalid input, please enter an integer listed above")
+            continue
+        choice = int(choice)
+        if choice == 0:
             break
+        elif choice == 1:
+            do_show_leaderboards()
+        elif choice == 2:
+            leaderboard_id = input("Enter the ID of the leaderboard: ")
+            try:
+                leaderboard_id = int(leaderboard_id)
+            except ValueError:
+                print("ID must be a number")
+                continue
+            leaderboard_options(leaderboard_id)
+        elif choice == 3:
+            do_create_leaderboard()
+        elif choice == 4:
+            do_list_users()
+        elif choice == 5 or choice == 6:
+            # 5: open user, 6: open self
+            user_id = input("Enter the ID of the user: ") if choice == 5 else identity
+            user_options(user_id)
 
-    writer.close()
-    await writer.wait_closed()
+    sock.close()
 
 
 if __name__ == "__main__":
