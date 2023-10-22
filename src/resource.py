@@ -128,7 +128,7 @@ def handle_request(request):
     requesting_user = sql_cur.execute(get_user_command, (request_identity,)).fetchone()
 
     if requesting_user is not None:
-        print("Found user: " + requesting_user)
+        print("Found user:", requesting_user)
     else:
         # Register user automatically
         print("User not previously registered! Registering...")
