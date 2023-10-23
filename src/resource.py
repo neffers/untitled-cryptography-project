@@ -897,10 +897,12 @@ class Handler(socketserver.BaseRequestHandler):
     def handle(self):
         while True:
             self.data = self.request.recv(4).strip()
-            if not self.data: break
+            if not self.data:
+                break
             buffer_len = struct.unpack("!I", self.data)[0]
             self.data = self.request.recv(buffer_len).strip()
-            if not self.data: break
+            if not self.data:
+                break
             print("received {} from {}".format(self.data, self.client_address[0]))
             try:
                 request = json.loads(self.data)
@@ -931,7 +933,7 @@ if __name__ == "__main__":
     HOST, PORT = "0.0.0.0", 8086
     signal.signal(signal.SIGINT, signal_handler)
     try:
-        server = socketserver.TCPServer((HOST, PORT), Handler)
+        server = socketserver.ForkingTCPServer((HOST, PORT), Handler)
         print("socket bound successfully")
         server.serve_forever()
     except OSError:
