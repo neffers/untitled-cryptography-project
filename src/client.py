@@ -332,6 +332,7 @@ def user_options(user_id):
                 continue
         elif choice == 5:
             do_remove_user(user_id)
+            return
 
 
 def do_get_entry(entry_id):
@@ -498,6 +499,7 @@ def entry_options(entry_id):
             do_modify_entry_verification(entry_id, False)
         elif choice == 8:
             do_remove_entry(entry_id)
+            return
 
 
 def do_show_leaderboards():
@@ -692,17 +694,18 @@ def leaderboard_options(leaderboard_id):
             do_set_score_order(leaderboard_id)
         elif choice == 6:
             do_remove_leaderboard(leaderboard_id)
+            return
 
 
-def clear_screen():
+""" def clear_screen():
     if os.name == 'nt':
         os.system('cls')
     else:
-        os.system('clear')
+        os.system('clear') """
 
 
 def display():
-    clear_screen()
+    # clear_screen()
 
     print("Authentication Server")
     print("{:<21.21}{:<16}{:<6}".format("Name", "IP", "Port"))
@@ -819,7 +822,7 @@ def main():
 
 def server_loop(res_ip, res_port):
     global identity, token, sock
-    clear_screen()
+    # clear_screen()
 
     auth_server = db["auth_server"]
     print("Trying to connect to {}:{}".format(auth_server["ip"], auth_server["port"]))
