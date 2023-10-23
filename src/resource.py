@@ -873,7 +873,7 @@ def handle_request(request):
         except TypeError:
             return bad_request_json("That file does not exist.")
 
-        if submitter != request_user_id or lb_perm < Permissions.Moderate:
+        if submitter != request_user_id and lb_perm < Permissions.Moderate:
             return bad_request_json("You do not have permission to do that.")
 
         remove_file_command = """
