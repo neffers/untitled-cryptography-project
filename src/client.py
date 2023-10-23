@@ -263,9 +263,9 @@ def do_view_permissions(user_id):
         print("Malformed packet: " + str(response))
         return
     if response["success"]:
-        print("{:<21.21}{:<12}".format("Leaderboard", "Permission"))
+        print("{:<21}{:<12}".format("Leaderboard ID", "Permission"))
         for permission in response["data"]:
-            print("{:<21.21}{:<12}".format(permission[0], perms[permission[1]]))
+            print("{:<21}{:<12}".format(permission[0], perms[permission[1]]))
     else:
         print(response["data"])
 
