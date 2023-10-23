@@ -167,7 +167,7 @@ def handle_request(request):
         try:
             leaderboard_id = request["leaderboard_id"]
         except KeyError:
-            return bad_request_json("Didn't include leaderboard id")
+            return bad_request_json("Must include leaderboard id.")
 
         if type(leaderboard_id) is not int:
             return bad_request_json("leaderboard_id must be an int.")
@@ -561,8 +561,8 @@ def handle_request(request):
             return bad_request_json("You do not have permission to do that.")
 
         add_comment_command = """
-        insert into entry_comments(user, entry, date, content)
-            values (?,?,?,?)
+            insert into entry_comments(user, entry, date, content)
+                values (?,?,?,?)
         """
         add_comment_params = (request_user_id, entry_id, int(time.time()), content)
         try:
@@ -672,7 +672,10 @@ def handle_request(request):
             values (?,?,?,?)
         """
         set_permission_params = (user_id, ldb_id, p, int(time.time()))
-        sql_cur.execute(set_permission_command, set_permission_params)
+        try:
+            sql_cur.execute(set_permission_command, set_permission_params)
+        except sqlite3.IntegrityError:
+            return bad_request_json("Specified user or leaderboard does not exist.")
         db.commit()
         return {
             "success": True,
@@ -816,6 +819,76 @@ def handle_request(request):
             "success": True,
             "data": base64.b64encode(file).decode()
         }
+
+    if request_type == ResourceRequestType.ListAccessGroups:
+        try:
+            leaderboard_id = request["leaderboard_id"]
+            (lb_id, lb_name, lb_perm, lb_asc) = get_leaderboard_info(request_user_id, leaderboard_id)
+        except KeyError:
+            return bad_request_json("Must include leaderboard id.")
+        except TypeError:
+            return bad_request_json("That leaderboard does not exist.")
+        if type(leaderboard_id) is not int:
+            return bad_request_json("leaderboard_id must be an int.")
+
+        if lb_perm < Permissions.Moderate:
+            return bad_request_json("You do not have permission to do that.")
+
+        list_user_perms_command = """
+            select u.id, u.identity, max(default_permission, class, coalesce(permission, 0)) as perm
+            from users u
+            left join (select * from permissions where leaderboard = ?) p
+                on p.user = u.id
+            left join (select default_permission from leaderboards where id = ?)
+            order by perm
+        """
+        list_user_perms_params = (leaderboard_id, leaderboard_id)
+        sql_cur.execute(list_user_perms_command, list_user_perms_params)
+        user_list = sql_cur.fetchall()
+        return {
+            "success": True,
+            "data": user_list
+        }
+
+    if request_type == ResourceRequestType.RemoveProof:
+        try:
+            file_id = request["file_id"]
+        except KeyError:
+            return bad_request_json("Must include file id.")
+
+        if type(file_id) is not int:
+            return bad_request_json("file_id must be an int.")
+
+        get_submitter_command = """
+            select e.user, leaderboard
+            from files f
+                left join leaderboard_entries e on f.entry = e.id
+            where f.id = ?
+        """
+        get_submitter_params = (file_id,)
+        sql_cur.execute(get_submitter_command, get_submitter_params)
+        try:
+            (submitter, leaderboard_id) = sql_cur.fetchone()
+            (lb_id, lb_name, lb_perm, lb_asc) = get_leaderboard_info(request_user_id, leaderboard_id)
+        except TypeError:
+            return bad_request_json("That file does not exist.")
+
+        if submitter != request_user_id and lb_perm < Permissions.Moderate:
+            return bad_request_json("You do not have permission to do that.")
+
+        remove_file_command = """
+            delete
+            from files
+            where id = ?
+        """
+        remove_file_params = (file_id,)
+        sql_cur.execute(remove_file_command, remove_file_params)
+        db.commit()
+        return {
+            "success": True,
+            "data": None
+        }
+
 
 
 class Handler(socketserver.BaseRequestHandler):
