@@ -1,13 +1,16 @@
-### Permissions
-#### Authentication Server
-- Anyone can log in to an account if they provide the proper credentials (nothing)
+# Permissions
+This is the system that is used for determining user permission and access levels for the servers.
+## Authentication Server
+A server that handles the login process, and provides a user with a token that specifies their identity and permissions for the Resource Server
+- Anyone can log in to an account if they provide the proper credentials (identity)
 - Anyone can add an account to the authentication server if they have a unique identity and provide credentials to use
   - for now it is assumed that your account is already created and valid for any identity
-#### Resource Server
-- Anyone can view
+## Resource Server
+The serve that houses the leaderboards. Different users can access different parts of the server and are allowed to modify different things.
+### Public Features
   - A list of users and the user's ID, name, creation date, list of verified entries, and permissions for each leaderboard
   - A list of leaderboards for which all users are granted Read Access
-- For a given leaderboard, a user has some permission level.
+### Permission Levels
   - No Access
     - No resources can be accessed besides those which are publicly readable, all other requests responded to with Access Denied  
   - Read Access
@@ -21,6 +24,7 @@
     - An unverified entry can be verified
     - An entry can be removed
     - Permissions for any user with below moderator access can be modified for this leaderboard
+### Administrator Privileges
 - Admin includes Moderator permissions **for all leaderboards** plus
   - Create/delete leaderboards
   - set leaderboard score order

@@ -1,4 +1,4 @@
-### Making Requests
+# Making Requests
 - All client requests to the resource server should include the following fields:
   - `identity` the identity used to log in to the auth server
   - `token` the token received back from the auth server
@@ -10,7 +10,7 @@
     - Upon failure, this will simply be a string indicating a reason for the failure.
 - Additionally, the resource server will serve all dates as unix epoch ints
 
-### Request Types
+## Request Types
 - `ListLeaderboards`
   - Additional client request fields:
     - None
