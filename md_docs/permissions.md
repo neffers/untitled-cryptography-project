@@ -1,12 +1,12 @@
 # Permissions
 This is the system that is used for determining user permission and access levels for the servers.
 ## Authentication Server
-A server that handles the login process, and provides a user with a token that specifies their identity and permissions for the Resource Server
+A server that handles the login process, and provides a user with a token that specifies their identity for the Resource Server
 - Anyone can log in to an account if they provide the proper credentials (identity)
-- Anyone can add an account to the authentication server if they have a unique identity and provide credentials to use
+- Anyone can add an account through the authentication server if they have a unique identity and provide credentials to use
   - for now it is assumed that your account is already created and valid for any identity
 ## Resource Server
-The serve that houses the leaderboards. Different users can access different parts of the server and are allowed to modify different things.
+The server that houses the leaderboards. Different users can access different parts of the server and are allowed to modify different things.
 ### Public Features
   - A list of users and the user's ID, name, creation date, list of verified entries, and permissions for each leaderboard
   - A list of leaderboards for which all users are granted Read Access

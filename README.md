@@ -26,8 +26,8 @@ Please see the [Phase 2 description](desc/phase_2.pdf) for details.
 - Transparently requests token from auth. server and uses the token to make further requests to the resource server while that token is valid (for now, forever)
 - Upon receiving the response back from the resource server, displays the response and prompts for another request or allows the user to quit
 
-[Permissions](./doc/permissions.md)
+[Permissions](./doc/permissions.pdf)
 
-[Request Types](./doc/request_types.md)
+[Request Types](./doc/request_types.pdf)
 
-[Clientside Commands](./doc/clientside_commands.md)
+[Clientside Commands](./doc/clientside_commands.pdf)
