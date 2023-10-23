@@ -1,0 +1,79 @@
+### Clientside Commands
+#### Basic Commands
+- READ: list leaderboards
+  - shows all leaderboard names on this server
+- READ: open leaderboard [leaderboard name]
+  - sets local state variable 'leaderboard' to the specified leaderboard name  
+- ADMIN: create leaderboard [leaderboard name]
+  - adds a leaderboard with the specified name
+- READ: list users
+  - outputs a list of all users with ID and identity
+  - Additional client request fields:
+    - None
+  - Resource server response:
+    - A `list` of users, each a tuple of `(id, identity)`
+- READ: open user [user ID]
+  - sets local state variable 'user' to the specified ID
+- READ: open self
+  - sets local state variable 'user' to the logged in user's ID found from the request `GetIdFromIdentity`
+#### Commands Associated With a Leaderboard
+- READ: list entries
+  - shows all verified entries (ID, place, player name, score, date/time) on the leaderboard
+- MOD: list unverified
+  - shows all unverified entries (ID, place, player name, score, date/time) on the leaderboard
+- WRITE: submit entry
+  - then prompted to enter
+    - score
+    - description
+- READ: open entry [entry ID]
+  - sets local state variable 'entry' to the specified entry ID
+- MOD: get access groups
+  - gets users and their respective access levels for this leaderboard
+- ADMIN: score order [ascending/descending]
+  - set the ordering of scores to be ascending or descending
+- ADMIN: remove leaderboard
+  - deletes leaderboard from the database (after asking to confirm)
+#### Commands Associated With an Entry
+- READ/MOD: view entry
+  - Access Denied if entry is unverified and user is not moderator
+  - show the ID, place on the leaderboard, player name, score, date/time of submission, date/time of verification and who verified it (if none, declare it to be so), list of proof files, and number of comments for the current entry
+- WRITE: add proof [filename]
+  - must be original author of the submission
+  - upload specified file as a proof file to this entry
+- READ/MOD: download proof [filename] into [local filename]
+  - Access Denied if entry is unverified and user is not moderator
+  - download the proof file into the local filename specified
+- MOD: remove proof [file_id]
+  - must be a moderator or the person who submitted the entry
+  - removes the file associated with proof of the entry
+- READ/MOD: view comments
+  - Access Denied if entry is unverified and user is not moderator
+  - show all comments, printing poster's name, text content of the message, and a date/time. chronologically ordered.
+- WRITE/MOD: post comment [message]
+  - Must be owner of submission or moderator
+  - add a comment containing your message
+- MOD: verify entry
+  - mark the entry as verified
+- MOD: unverify entry
+  - mark the entry as unverified
+- WRITE/MOD: remove entry
+  - Must be owner of submission or moderator
+  - take the entry out of the database
+#### Commands Associated With a User
+- READ: view user [user_id]
+  - Access Denied if requester has No Access
+  - Gives an error if a user with the id doesn't exist
+  - Shows the name and registration date of the user
+  - Lists all entries from a user that the requester has access to
+- MOD: view permissions [user_id]
+  - List all permissions given to this user, as leaderboard:access pairs
+- MOD: set user [user_id] permission for [leaderboard_id] to [permission]
+  - sets the user's access level for the given leaderboard
+- READ: open submission [entry ID]
+  - sets local state variable 'entry' to the given ID
+  - note: this replicates behavior for open entry, bad thing?
+- ADMIN: remove user
+  - deletes user from database (with confirmation)
+  - optionally deletes all content associated with that user
+    - this sounds really hard :)
+    - not sure what should be deleted and what should be anonymized
