@@ -246,11 +246,11 @@ def do_view_user(user_id):
         entries = response["data"]["entries"]
         date = datetime.fromtimestamp(user_data[1])
         print("Name: {} Registration Date: {}".format(user_data[0], str(date)))
-        print("{:<4}{:<21.21}{:<15}{:<9}{:<20}"
-              .format("ID", "Leaderboard", "Score", "Verified", "Registration Date"))
+        print("{:<4}{:<5}{:<15}{:<9}{:<20}"
+              .format("ID", "LB ID", "Score", "Verified", "Registration Date"))
         for entry in entries:
             date = datetime.fromtimestamp(entry[4])
-            print("{:<4}{:<21.21}{:<15}{:<9}{:<20}"
+            print("{:<4}{:<5}{:<15}{:<9}{:<20}"
                   .format(entry[0], entry[1], entry[2], bools[entry[3]], str(date)))
     else:
         print(response["data"])
@@ -263,9 +263,9 @@ def do_view_permissions(user_id):
         print("Malformed packet: " + str(response))
         return
     if response["success"]:
-        print("{:<21.21}{:<12}".format("Leaderboard", "Permission"))
+        print("{:<5}{:<12}".format("LB ID", "Permission"))
         for permission in response["data"]:
-            print("{:<21.21}{:<12}".format(permission[0], perms[permission[1]]))
+            print("{:<5}{:<12}".format(permission[0], perms[permission[1]]))
     else:
         print(response["data"])
 
