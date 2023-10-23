@@ -354,18 +354,21 @@ def handle_request(request):
 
         # Check permissions by first getting leaderboard id and then getting requesting user's perms for it
         get_leaderboard_id_command = """
-            select leaderboard, verified
+            select user, leaderboard, verified
             from leaderboard_entries
             where id = ?
         """
         get_leaderboard_id_params = (entry_id,)
         sql_cur.execute(get_leaderboard_id_command, get_leaderboard_id_params)
         try:
-            (leaderboard_id, verified) = sql_cur.fetchone()
+            (submitter, leaderboard_id, verified) = sql_cur.fetchone()
         except TypeError:
             return bad_request_json("That entry does not exist.")
         (lb_id, lb_name, lb_perm, lb_asc) = get_leaderboard_info(request_user_id, leaderboard_id)
-        if lb_perm < Permissions.Read or (not verified and lb_perm < Permissions.Moderate):
+        if (verified and lb_perm >= Permissions.Read) or (
+                not verified and (submitter == request_user_id or lb_perm >= Permissions.Moderate)):
+            pass
+        else:
             return bad_request_json("You do not have permission to view that.")
 
         get_entry_command = """
@@ -557,7 +560,7 @@ def handle_request(request):
         except TypeError:
             return bad_request_json("That entry does not exist.")
         (lb_id, lb_name, lb_perm, lb_asc) = get_leaderboard_info(request_user_id, leaderboard_id)
-        if request_user_id != submitter or lb_perm < Permissions.Moderate:
+        if not(request_user_id != submitter or lb_perm < Permissions.Moderate):
             return bad_request_json("You do not have permission to do that.")
 
         add_comment_command = """
@@ -888,7 +891,6 @@ def handle_request(request):
             "success": True,
             "data": None
         }
-
 
 
 class Handler(socketserver.BaseRequestHandler):
