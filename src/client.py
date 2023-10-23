@@ -343,10 +343,11 @@ def user_options(user_id):
         elif choice == 4:
             entry_id = input("Enter the ID of the entry: ")
             try:
-                entry_options(int(entry_id))
+                entry_id = int(entry_id)
             except ValueError:
                 print("Invalid entry ID")
                 continue
+            entry_options(entry_id)
         elif choice == 5:
             do_remove_user(user_id)
 
@@ -736,10 +737,11 @@ def leaderboard_options(leaderboard_id):
         elif choice == 4:
             entry_id = input("Enter the ID of the entry: ")
             try:
-                entry_options(int(entry_id))
+                entry_id = int(entry_id)
             except ValueError:
                 print("Invalid entry ID")
                 continue
+            entry_options(entry_id)
         elif choice == 5:
             do_access_groups(leaderboard_id)
         elif choice == 6:
@@ -935,10 +937,11 @@ def server_loop(res_ip, res_port):
             # 5: open user, 6: open self
             user_id = input("Enter the ID of the user: ") if choice == 5 else do_get_user_from_identity()
             try:
-                user_options(int(user_id))
+                user_id = int(user_id)
             except ValueError:
                 print("Invalid user id")
                 continue
+            user_options(user_id)
 
     sock.close()
 
