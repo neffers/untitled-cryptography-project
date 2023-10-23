@@ -4,6 +4,8 @@ import sqlite3
 import time
 import struct
 import base64
+import signal
+import sys
 from os import path
 from enums import ResourceRequestType, Permissions, UserClass
 
@@ -128,8 +130,7 @@ def handle_request(request):
     requesting_user = sql_cur.execute(get_user_command, (request_identity,)).fetchone()
 
     if requesting_user is not None:
-        print("Found user:")
-        print(requesting_user)
+        print("Found user:", requesting_user)
     else:
         # Register user automatically
         print("User not previously registered! Registering...")
@@ -166,7 +167,7 @@ def handle_request(request):
         try:
             leaderboard_id = request["leaderboard_id"]
         except KeyError:
-            return bad_request_json("Didn't include leaderboard id")
+            return bad_request_json("Must include leaderboard id.")
 
         if type(leaderboard_id) is not int:
             return bad_request_json("leaderboard_id must be an int.")
@@ -353,18 +354,21 @@ def handle_request(request):
 
         # Check permissions by first getting leaderboard id and then getting requesting user's perms for it
         get_leaderboard_id_command = """
-            select leaderboard, verified
+            select user, leaderboard, verified
             from leaderboard_entries
             where id = ?
         """
         get_leaderboard_id_params = (entry_id,)
         sql_cur.execute(get_leaderboard_id_command, get_leaderboard_id_params)
         try:
-            (leaderboard_id, verified) = sql_cur.fetchone()
+            (submitter, leaderboard_id, verified) = sql_cur.fetchone()
         except TypeError:
             return bad_request_json("That entry does not exist.")
         (lb_id, lb_name, lb_perm, lb_asc) = get_leaderboard_info(request_user_id, leaderboard_id)
-        if lb_perm < Permissions.Read or (not verified and lb_perm < Permissions.Moderate):
+        if (verified and lb_perm >= Permissions.Read) or (
+                not verified and (submitter == request_user_id or lb_perm >= Permissions.Moderate)):
+            pass
+        else:
             return bad_request_json("You do not have permission to view that.")
 
         get_entry_command = """
@@ -556,12 +560,12 @@ def handle_request(request):
         except TypeError:
             return bad_request_json("That entry does not exist.")
         (lb_id, lb_name, lb_perm, lb_asc) = get_leaderboard_info(request_user_id, leaderboard_id)
-        if request_user_id != submitter or lb_perm < Permissions.Moderate:
+        if not(request_user_id == submitter or lb_perm >= Permissions.Moderate):
             return bad_request_json("You do not have permission to do that.")
 
         add_comment_command = """
-        insert into entry_comments(user, entry, date, content)
-            values (?,?,?,?)
+            insert into entry_comments(user, entry, date, content)
+                values (?,?,?,?)
         """
         add_comment_params = (request_user_id, entry_id, int(time.time()), content)
         try:
@@ -671,7 +675,10 @@ def handle_request(request):
             values (?,?,?,?)
         """
         set_permission_params = (user_id, ldb_id, p, int(time.time()))
-        sql_cur.execute(set_permission_command, set_permission_params)
+        try:
+            sql_cur.execute(set_permission_command, set_permission_params)
+        except sqlite3.IntegrityError:
+            return bad_request_json("Specified user or leaderboard does not exist.")
         db.commit()
         return {
             "success": True,
@@ -816,6 +823,75 @@ def handle_request(request):
             "data": base64.b64encode(file).decode()
         }
 
+    if request_type == ResourceRequestType.ListAccessGroups:
+        try:
+            leaderboard_id = request["leaderboard_id"]
+            (lb_id, lb_name, lb_perm, lb_asc) = get_leaderboard_info(request_user_id, leaderboard_id)
+        except KeyError:
+            return bad_request_json("Must include leaderboard id.")
+        except TypeError:
+            return bad_request_json("That leaderboard does not exist.")
+        if type(leaderboard_id) is not int:
+            return bad_request_json("leaderboard_id must be an int.")
+
+        if lb_perm < Permissions.Moderate:
+            return bad_request_json("You do not have permission to do that.")
+
+        list_user_perms_command = """
+            select u.id, u.identity, max(default_permission, class, coalesce(permission, 0)) as perm
+            from users u
+            left join (select * from permissions where leaderboard = ?) p
+                on p.user = u.id
+            left join (select default_permission from leaderboards where id = ?)
+            order by perm
+        """
+        list_user_perms_params = (leaderboard_id, leaderboard_id)
+        sql_cur.execute(list_user_perms_command, list_user_perms_params)
+        user_list = sql_cur.fetchall()
+        return {
+            "success": True,
+            "data": user_list
+        }
+
+    if request_type == ResourceRequestType.RemoveProof:
+        try:
+            file_id = request["file_id"]
+        except KeyError:
+            return bad_request_json("Must include file id.")
+
+        if type(file_id) is not int:
+            return bad_request_json("file_id must be an int.")
+
+        get_submitter_command = """
+            select e.user, leaderboard
+            from files f
+                left join leaderboard_entries e on f.entry = e.id
+            where f.id = ?
+        """
+        get_submitter_params = (file_id,)
+        sql_cur.execute(get_submitter_command, get_submitter_params)
+        try:
+            (submitter, leaderboard_id) = sql_cur.fetchone()
+            (lb_id, lb_name, lb_perm, lb_asc) = get_leaderboard_info(request_user_id, leaderboard_id)
+        except TypeError:
+            return bad_request_json("That file does not exist.")
+
+        if submitter != request_user_id and lb_perm < Permissions.Moderate:
+            return bad_request_json("You do not have permission to do that.")
+
+        remove_file_command = """
+            delete
+            from files
+            where id = ?
+        """
+        remove_file_params = (file_id,)
+        sql_cur.execute(remove_file_command, remove_file_params)
+        db.commit()
+        return {
+            "success": True,
+            "data": None
+        }
+
 
 class Handler(socketserver.BaseRequestHandler):
     def handle(self):
@@ -840,12 +916,20 @@ class Handler(socketserver.BaseRequestHandler):
             self.request.sendall(buffer)
 
 
+def signal_handler(sig, frame):
+    print("\nshutting down...")
+    db.commit()
+    server.server_close()
+    sys.exit(0)
+
+
 if __name__ == "__main__":
     # TODO get this from command line or config file?
     db_filename = "res_db"
 
     db = initialize_database()
     HOST, PORT = "0.0.0.0", 8086
+    signal.signal(signal.SIGINT, signal_handler)
     try:
         server = socketserver.TCPServer((HOST, PORT), Handler)
         print("socket bound successfully")

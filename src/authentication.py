@@ -1,6 +1,8 @@
 import socketserver
 import json
 import struct
+import signal
+import sys
 
 
 def response_token(token):
@@ -20,16 +22,24 @@ class Handler(socketserver.BaseRequestHandler):
             response = response_token(request["identity"])
             print("sending {}".format(response))
             response = json.dumps(response).encode()
-            buffer = struct.pack("!I", len(response))
-            buffer += bytes(response)
-            self.request.send(buffer)
         except json.decoder.JSONDecodeError:
             print("Could not interpret packet!")
-            # response = return_bad_request("Could not interpret packet.")
+            response = {"success": False, "data": "Malformed request!"}
+
+        buffer = struct.pack("!I", len(response))
+        buffer += bytes(response)
+        self.request.send(buffer)
+
+
+def signal_handler(sig, frame):
+    print("\nshutting down...")
+    server.server_close()
+    sys.exit(0)
 
 
 if __name__ == "__main__":
     HOST, PORT = "0.0.0.0", 8085
+    signal.signal(signal.SIGINT, signal_handler)
     try:
         server = socketserver.TCPServer((HOST, PORT), Handler)
         print("socket bound successfully")

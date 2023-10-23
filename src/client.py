@@ -68,6 +68,15 @@ def request_add_entry(leaderboard_id, score, comment):
     }
 
 
+def request_access_groups(leaderboard_id):
+    return {
+        "type": ResourceRequestType.ListAccessGroups,
+        "identity": identity,
+        "token": token,
+        "leaderboard_id": leaderboard_id,
+    }
+
+
 def request_set_score_order(leaderboard_id, ascending):
     return {
         "type": ResourceRequestType.ChangeScoreOrder,
@@ -115,12 +124,20 @@ def request_add_proof(entry_id, filename, blob):
     }
 
 
-def request_get_proof(entry_id, file_id):
+def request_get_proof(file_id):
     return {
         "type": ResourceRequestType.DownloadProof,
         "identity": identity,
         "token": token,
-        "entry_id": entry_id,
+        "file_id": file_id,
+    }
+
+
+def request_remove_proof(file_id):
+    return {
+        "type": ResourceRequestType.RemoveProof,
+        "identity": identity,
+        "token": token,
         "file_id": file_id,
     }
 
@@ -229,11 +246,11 @@ def do_view_user(user_id):
         entries = response["data"]["entries"]
         date = datetime.fromtimestamp(user_data[1])
         print("Name: {} Registration Date: {}".format(user_data[0], str(date)))
-        print("{:<4}{:<21.21}{:<15}{:<9}{:<20}"
-              .format("ID", "Leaderboard", "Score", "Verified", "Registration Date"))
+        print("{:<4}{:<5}{:<15}{:<9}{:<20}"
+              .format("ID", "LB ID", "Score", "Verified", "Registration Date"))
         for entry in entries:
             date = datetime.fromtimestamp(entry[4])
-            print("{:<4}{:<21.21}{:<15}{:<9}{:<20}"
+            print("{:<4}{:<5}{:<15}{:<9}{:<20}"
                   .format(entry[0], entry[1], entry[2], bools[entry[3]], str(date)))
     else:
         print(response["data"])
@@ -246,9 +263,9 @@ def do_view_permissions(user_id):
         print("Malformed packet: " + str(response))
         return
     if response["success"]:
-        print("{:<21.21}{:<12}".format("Leaderboard", "Permission"))
+        print("{:<5}{:<12}".format("LB ID", "Permission"))
         for permission in response["data"]:
-            print("{:<21.21}{:<12}".format(permission[0], perms[permission[1]]))
+            print("{:<5}{:<12}".format(permission[0], perms[permission[1]]))
     else:
         print(response["data"])
 
@@ -277,7 +294,7 @@ def do_set_permission(user_id):
         permission = Permissions.Write
     elif permission == 3:
         permission = Permissions.Moderate
-    request = request_set_permission(leaderboard_id, user_id, permission)
+    request = request_set_permission(user_id, leaderboard_id, permission)
     response = make_request(request)
     if "success" not in response or "data" not in response:
         print("Malformed packet: " + str(response))
@@ -326,10 +343,11 @@ def user_options(user_id):
         elif choice == 4:
             entry_id = input("Enter the ID of the entry: ")
             try:
-                entry_options(int(entry_id))
+                entry_id = int(entry_id)
             except ValueError:
                 print("Invalid entry ID")
                 continue
+            entry_options(entry_id)
         elif choice == 5:
             do_remove_user(user_id)
             return
@@ -393,7 +411,7 @@ def do_get_proof(entry_id):
     local_filename = input("Enter name of local file to save it to: ")
     try:
         with open(local_filename, 'wb') as file:
-            request = request_get_proof(entry_id, remote_fileid)
+            request = request_get_proof(remote_fileid)
             response = make_request(request)
             if "success" not in response or "data" not in response:
                 print("Malformed packet: " + str(response))
@@ -408,6 +426,23 @@ def do_get_proof(entry_id):
         print("File not found!")
     except IOError:
         print("IO error occurred!")
+
+
+def do_remove_proof(entry_id):
+    remote_fileid = input("Enter id of remote file to remove: ")
+    if not remote_fileid.isdigit():
+        print("Invalid input, please enter an integer")
+        return
+    remote_fileid = int(remote_fileid)
+    request = request_remove_proof(remote_fileid)
+    response = make_request(request)
+    if "success" not in response or "data" not in response:
+        print("Malformed packet: " + str(response))
+        return
+    if response["success"]:
+        print("Operation successful.")
+    else:
+        print(response["data"])
 
 
 def do_view_comments(entry_id):
@@ -466,19 +501,20 @@ def do_remove_entry(entry_id):
 def entry_options(entry_id):
     while True:
         print(
-            "Leaderboard Commands:\n"
+            "Entry Commands:\n"
             "[0] Go Back\n"
             "[1] View Entry\n"
             "[2] Add Proof\n"
             "[3] Download Proof\n"
-            "[4] View Comments\n"
-            "[5] Post Comment\n"
-            "[6] Verify Entry\n"
-            "[7] Un-verify Entry\n"
-            "[8] Remove Entry\n")
+            "[4] Remove Proof\n"
+            "[5] View Comments\n"
+            "[6] Post Comment\n"
+            "[7] Verify Entry\n"
+            "[8] Un-verify Entry\n"
+            "[9] Remove Entry\n")
         choice = input("Choose the corresponding number: ")
-        if not choice.isdigit() or int(choice) > 8:
-            print("Invalid input, please enter an integer listed above")
+        if not choice.isdigit():
+            print("Invalid input, please enter an integer")
             continue
         choice = int(choice)
         if choice == 0:
@@ -490,16 +526,20 @@ def entry_options(entry_id):
         elif choice == 3:
             do_get_proof(entry_id)
         elif choice == 4:
-            do_view_comments(entry_id)
+            do_remove_proof(entry_id)
         elif choice == 5:
-            do_add_comment(entry_id)
+            do_view_comments(entry_id)
         elif choice == 6:
-            do_modify_entry_verification(entry_id, True)
+            do_add_comment(entry_id)
         elif choice == 7:
-            do_modify_entry_verification(entry_id, False)
+            do_modify_entry_verification(entry_id, True)
         elif choice == 8:
+            do_modify_entry_verification(entry_id, False)
+        elif choice == 9:
             do_remove_entry(entry_id)
             return
+        else:
+            print("Invalid choice. Please choose from the provided list.")
 
 
 def do_show_leaderboards():
@@ -620,6 +660,20 @@ def do_add_entry(leaderboard_id):
         print(response["data"])
 
 
+def do_access_groups(leaderboard_id):
+    request = request_access_groups(leaderboard_id)
+    response = make_request(request)
+    if "success" not in response or "data" not in response:
+        print("Malformed packet: " + str(response))
+        return
+    if response["success"]:
+        print("{:<4}{:<21}{:<11}".format("ID", "Name", "Permission"))
+        for user in response["data"]:
+            print("{:<4}{:<21}{:<11}".format(user[0], user[1], user[2]))
+    else:
+        print(response["data"])
+
+
 def do_set_score_order(leaderboard_id):
     ascending = input("Set to ascending [1] or descending [2]: ")
     if not ascending.isdigit() or int(ascending) > 2 \
@@ -668,11 +722,12 @@ def leaderboard_options(leaderboard_id):
             "[2] Open Unverified\n"
             "[3] Submit Entry\n"
             "[4] Open Entry\n"
-            "[5] Set Score Order\n"
-            "[6] Remove Leaderboard\n")
+            "[5] View Access Groups\n"
+            "[6] Set Score Order\n"
+            "[7] Remove Leaderboard\n")
         choice = input("Choose the corresponding number: ")
-        if not choice.isdigit() or int(choice) > 6:
-            print("Invalid input, please enter an integer listed above")
+        if not choice.isdigit():
+            print("Invalid input, please enter an integer")
             continue
         choice = int(choice)
         if choice == 0:
@@ -686,15 +741,20 @@ def leaderboard_options(leaderboard_id):
         elif choice == 4:
             entry_id = input("Enter the ID of the entry: ")
             try:
-                entry_options(int(entry_id))
+                entry_id = int(entry_id)
             except ValueError:
                 print("Invalid entry ID")
                 continue
+            entry_options(entry_id)
         elif choice == 5:
-            do_set_score_order(leaderboard_id)
+            do_access_groups(leaderboard_id)
         elif choice == 6:
+            do_set_score_order(leaderboard_id)
+        elif choice == 7:
             do_remove_leaderboard(leaderboard_id)
             return
+        else:
+            print("Invalid choice. Please choose from the provided list.")
 
 
 """ def clear_screen():
@@ -811,6 +871,7 @@ def main():
             choice = int(choice) - 1
             if choice == -1:
                 print("Can't remove Authorization server, edit it instead")
+                continue
             elif choice >= len(db["resource_servers"]) or choice < 0:
                 print("Invalid server selection")
                 continue
@@ -858,8 +919,8 @@ def server_loop(res_ip, res_port):
             "[5] Open User\n"
             "[6] Open Self\n")
         choice = input("Choose the corresponding number: ")
-        if not choice.isdigit() or int(choice) > 6:
-            print("Invalid input, please enter an integer listed above")
+        if not choice.isdigit():
+            print("Invalid input, please enter an integer")
             continue
         choice = int(choice)
         if choice == 0:
@@ -870,10 +931,11 @@ def server_loop(res_ip, res_port):
         elif choice == 2:
             leaderboard_id = input("Enter the ID of the leaderboard: ")
             try:
-                leaderboard_options(int(leaderboard_id))
+                leaderboard_id = int(leaderboard_id)
             except ValueError:
                 print("ID must be a number")
                 continue
+            leaderboard_options(leaderboard_id)
         elif choice == 3:
             do_create_leaderboard()
         elif choice == 4:
@@ -882,10 +944,13 @@ def server_loop(res_ip, res_port):
             # 5: open user, 6: open self
             user_id = input("Enter the ID of the user: ") if choice == 5 else do_get_user_from_identity()
             try:
-                user_options(int(user_id))
+                user_id = int(user_id)
             except ValueError:
                 print("Invalid user id")
                 continue
+            user_options(user_id)
+        else:
+            print("Invalid choice. Please choose from the provided list.")
 
     sock.close()
 
