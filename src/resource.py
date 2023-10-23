@@ -759,11 +759,11 @@ def handle_request(request):
         if submitter != request_user_id:
             return bad_request_json("Can only add proof to your own entries.")
 
-        remove_file_command = """
+        add_file_command = """
             insert into files (entry, name, submission_date, data) values (?, ?, ?, ?)
         """
-        remove_file_params = (entry_id, filename, int(time.time()), file)
-        sql_cur.execute(remove_file_command, remove_file_params)
+        add_file_params = (entry_id, filename, int(time.time()), file)
+        sql_cur.execute(add_file_command, add_file_params)
         db.commit()
         return {
             "success": True,
