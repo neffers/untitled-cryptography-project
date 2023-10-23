@@ -294,7 +294,7 @@ def do_set_permission(user_id):
         permission = Permissions.Write
     elif permission == 3:
         permission = Permissions.Moderate
-    request = request_set_permission(leaderboard_id, user_id, permission)
+    request = request_set_permission(user_id, leaderboard_id, permission)
     response = make_request(request)
     if "success" not in response or "data" not in response:
         print("Malformed packet: " + str(response))
