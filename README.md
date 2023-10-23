@@ -274,6 +274,8 @@ Please see the [Phase 2 description](desc/phase_2.pdf) for details.
     - description
 - READ: open entry [entry ID]
   - sets local state variable 'entry' to the specified entry ID
+- MOD: get access groups
+  - gets users and their respective access levels for this leaderboard
 - ADMIN: score order [ascending/descending]
   - set the ordering of scores to be ascending or descending
 - ADMIN: remove leaderboard
@@ -288,6 +290,9 @@ Please see the [Phase 2 description](desc/phase_2.pdf) for details.
 - READ/MOD: download proof [filename] into [local filename]
   - Access Denied if entry is unverified and user is not moderator
   - download the proof file into the local filename specified
+- MOD: remove proof [file_id]
+  - must be a moderator or the person who submitted the entry
+  - removes the file associated with proof of the entry
 - READ/MOD: view comments
   - Access Denied if entry is unverified and user is not moderator
   - show all comments, printing poster's name, text content of the message, and a date/time. chronologically ordered.
