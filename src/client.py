@@ -512,8 +512,8 @@ def entry_options(entry_id):
             "[8] Un-verify Entry\n"
             "[9] Remove Entry\n")
         choice = input("Choose the corresponding number: ")
-        if not choice.isdigit() or int(choice) > 8:
-            print("Invalid input, please enter an integer listed above")
+        if not choice.isdigit():
+            print("Invalid input, please enter an integer")
             continue
         choice = int(choice)
         if choice == 0:
@@ -536,6 +536,8 @@ def entry_options(entry_id):
             do_modify_entry_verification(entry_id, False)
         elif choice == 9:
             do_remove_entry(entry_id)
+        else:
+            print("Invalid choice. Please choose from the provided list.")
 
 
 def do_show_leaderboards():
@@ -722,8 +724,8 @@ def leaderboard_options(leaderboard_id):
             "[6] Set Score Order\n"
             "[7] Remove Leaderboard\n")
         choice = input("Choose the corresponding number: ")
-        if not choice.isdigit() or int(choice) > 6:
-            print("Invalid input, please enter an integer listed above")
+        if not choice.isdigit():
+            print("Invalid input, please enter an integer")
             continue
         choice = int(choice)
         if choice == 0:
@@ -748,6 +750,8 @@ def leaderboard_options(leaderboard_id):
             do_set_score_order(leaderboard_id)
         elif choice == 7:
             do_remove_leaderboard(leaderboard_id)
+        else:
+            print("Invalid choice. Please choose from the provided list.")
 
 
 def clear_screen():
@@ -912,8 +916,8 @@ def server_loop(res_ip, res_port):
             "[5] Open User\n"
             "[6] Open Self\n")
         choice = input("Choose the corresponding number: ")
-        if not choice.isdigit() or int(choice) > 6:
-            print("Invalid input, please enter an integer listed above")
+        if not choice.isdigit():
+            print("Invalid input, please enter an integer")
             continue
         choice = int(choice)
         if choice == 0:
@@ -942,6 +946,8 @@ def server_loop(res_ip, res_port):
                 print("Invalid user id")
                 continue
             user_options(user_id)
+        else:
+            print("Invalid choice. Please choose from the provided list.")
 
     sock.close()
 
