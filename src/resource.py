@@ -672,7 +672,10 @@ def handle_request(request):
             values (?,?,?,?)
         """
         set_permission_params = (user_id, ldb_id, p, int(time.time()))
-        sql_cur.execute(set_permission_command, set_permission_params)
+        try:
+            sql_cur.execute(set_permission_command, set_permission_params)
+        except sqlite3.IntegrityError:
+            return bad_request_json("Specified user or leaderboard does not exist.")
         db.commit()
         return {
             "success": True,
