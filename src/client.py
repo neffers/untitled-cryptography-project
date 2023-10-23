@@ -294,7 +294,7 @@ def do_set_permission(user_id):
         permission = Permissions.Write
     elif permission == 3:
         permission = Permissions.Moderate
-    request = request_set_permission(leaderboard_id, user_id, permission)
+    request = request_set_permission(user_id, leaderboard_id, permission)
     response = make_request(request)
     if "success" not in response or "data" not in response:
         print("Malformed packet: " + str(response))
@@ -343,10 +343,11 @@ def user_options(user_id):
         elif choice == 4:
             entry_id = input("Enter the ID of the entry: ")
             try:
-                entry_options(int(entry_id))
+                entry_id = int(entry_id)
             except ValueError:
                 print("Invalid entry ID")
                 continue
+            entry_options(entry_id)
         elif choice == 5:
             do_remove_user(user_id)
 
@@ -511,8 +512,8 @@ def entry_options(entry_id):
             "[8] Un-verify Entry\n"
             "[9] Remove Entry\n")
         choice = input("Choose the corresponding number: ")
-        if not choice.isdigit() or int(choice) > 8:
-            print("Invalid input, please enter an integer listed above")
+        if not choice.isdigit():
+            print("Invalid input, please enter an integer")
             continue
         choice = int(choice)
         if choice == 0:
@@ -535,6 +536,8 @@ def entry_options(entry_id):
             do_modify_entry_verification(entry_id, False)
         elif choice == 9:
             do_remove_entry(entry_id)
+        else:
+            print("Invalid choice. Please choose from the provided list.")
 
 
 def do_show_leaderboards():
@@ -662,9 +665,9 @@ def do_access_groups(leaderboard_id):
         print("Malformed packet: " + str(response))
         return
     if response["success"]:
-        print("{:<21.21}{:<4}{:<11}".format("ID", "Name", "Permission"))
+        print("{:<4}{:<21}{:<11}".format("ID", "Name", "Permission"))
         for user in response["data"]:
-            print("{:<21.21}{:<4}{:<11}".format(user[0], user[1], user[2]))
+            print("{:<4}{:<21}{:<11}".format(user[0], user[1], user[2]))
     else:
         print(response["data"])
 
@@ -721,8 +724,8 @@ def leaderboard_options(leaderboard_id):
             "[6] Set Score Order\n"
             "[7] Remove Leaderboard\n")
         choice = input("Choose the corresponding number: ")
-        if not choice.isdigit() or int(choice) > 6:
-            print("Invalid input, please enter an integer listed above")
+        if not choice.isdigit():
+            print("Invalid input, please enter an integer")
             continue
         choice = int(choice)
         if choice == 0:
@@ -736,16 +739,19 @@ def leaderboard_options(leaderboard_id):
         elif choice == 4:
             entry_id = input("Enter the ID of the entry: ")
             try:
-                entry_options(int(entry_id))
+                entry_id = int(entry_id)
             except ValueError:
                 print("Invalid entry ID")
                 continue
+            entry_options(entry_id)
         elif choice == 5:
             do_access_groups(leaderboard_id)
         elif choice == 6:
             do_set_score_order(leaderboard_id)
         elif choice == 7:
             do_remove_leaderboard(leaderboard_id)
+        else:
+            print("Invalid choice. Please choose from the provided list.")
 
 
 def clear_screen():
@@ -910,8 +916,8 @@ def server_loop(res_ip, res_port):
             "[5] Open User\n"
             "[6] Open Self\n")
         choice = input("Choose the corresponding number: ")
-        if not choice.isdigit() or int(choice) > 6:
-            print("Invalid input, please enter an integer listed above")
+        if not choice.isdigit():
+            print("Invalid input, please enter an integer")
             continue
         choice = int(choice)
         if choice == 0:
@@ -922,10 +928,11 @@ def server_loop(res_ip, res_port):
         elif choice == 2:
             leaderboard_id = input("Enter the ID of the leaderboard: ")
             try:
-                leaderboard_options(int(leaderboard_id))
+                leaderboard_id = int(leaderboard_id)
             except ValueError:
                 print("ID must be a number")
                 continue
+            leaderboard_options(leaderboard_id)
         elif choice == 3:
             do_create_leaderboard()
         elif choice == 4:
@@ -934,10 +941,13 @@ def server_loop(res_ip, res_port):
             # 5: open user, 6: open self
             user_id = input("Enter the ID of the user: ") if choice == 5 else do_get_user_from_identity()
             try:
-                user_options(int(user_id))
+                user_id = int(user_id)
             except ValueError:
                 print("Invalid user id")
                 continue
+            user_options(user_id)
+        else:
+            print("Invalid choice. Please choose from the provided list.")
 
     sock.close()
 

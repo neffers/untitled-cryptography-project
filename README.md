@@ -228,7 +228,22 @@ Please see the [Phase 2 description](desc/phase_2.pdf) for details.
   - Additional client request fields:
     - `identity`: the identity of the desired user
   - Resource server response `data`:
-    - `user_id`: the id of the desired user
+    - the id of the desired user
+- `ListAccessGroups`
+  - List users and their access level for a particular leaderboard. Requires moderator permissions.
+  - Additional client request fields:
+    - `leaderboard_id`: the id of the leaderboard in question
+  - Resource server response `data`:
+    - a `list` of users, each a tuple with the following fields:
+      - id of the user
+      - identity of the user
+      - their access level
+- `RemoveProof`
+  - Remove a proof file from the server. Can only be done by the submitter or a moderator.
+  - Additional client request fields:
+    - `file_id`: the id of the file to be deleted.
+  - Resource server response `data`:
+    - `None`. Use `success` field alone to determine outcome.
 
 ### Clientside Commands
 #### Basic Commands
