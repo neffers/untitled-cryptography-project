@@ -602,8 +602,6 @@ def handle_request(request):
 
     # Entry: Remove Entry
     if request_type == ResourceRequestType.RemoveEntry:
-        if user_class < UserClass.Administrator:
-            return bad_request_json("You do not have permission to do that.")
         try:
             entry_id = request["entry_id"]
         except KeyError:
@@ -611,6 +609,18 @@ def handle_request(request):
 
         if type(entry_id) is not int:
             return bad_request_json("entry_id must be an int.")
+        
+        get_submitter_command = """
+            select user
+            from leaderboard_entries
+            where id = ?
+        """
+        get_submitter_params = (entry_id,)
+        sql_cur.execute(get_submitter_command, get_submitter_params)
+        (submitter,) = sql_cur.fetchone()
+
+        if user_class < UserClass.Administrator and submitter != request_user_id:
+            return bad_request_json("You do not have permission to do that.")
 
         remove_entry = """
             delete from leaderboard_entries where id = ?
