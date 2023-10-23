@@ -500,7 +500,7 @@ def do_remove_entry(entry_id):
 def entry_options(entry_id):
     while True:
         print(
-            "Leaderboard Commands:\n"
+            "Entry Commands:\n"
             "[0] Go Back\n"
             "[1] View Entry\n"
             "[2] Add Proof\n"
