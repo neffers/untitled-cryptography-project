@@ -1,3 +1,15 @@
+### Making Requests
+- All client requests to the resource server should include the following fields:
+  - `identity` the identity used to log in to the auth server
+  - `token` the token received back from the auth server
+  - `type` the type of request. Should use a ResourceRequestType enum from `enums.py`
+  - additional fields as required by the request type
+- All Resource server responses will include the following fields
+  - `success` a boolean indicating if the requested operation was successful or not
+  - `data` a blob of data formatted depending on the request
+    - Upon failure, this will simply be a string indicating a reason for the failure.
+- Additionally, the resource server will serve all dates as unix epoch ints
+
 ### Request Types
 - `ListLeaderboards`
   - Additional client request fields:
