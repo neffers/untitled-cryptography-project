@@ -662,9 +662,9 @@ def do_access_groups(leaderboard_id):
         print("Malformed packet: " + str(response))
         return
     if response["success"]:
-        print("{:<21.21}{:<4}{:<11}".format("ID", "Name", "Permission"))
+        print("{:<4}{:<21}{:<11}".format("ID", "Name", "Permission"))
         for user in response["data"]:
-            print("{:<21.21}{:<4}{:<11}".format(user[0], user[1], user[2]))
+            print("{:<4}{:<21}{:<11}".format(user[0], user[1], user[2]))
     else:
         print(response["data"])
 
@@ -922,10 +922,11 @@ def server_loop(res_ip, res_port):
         elif choice == 2:
             leaderboard_id = input("Enter the ID of the leaderboard: ")
             try:
-                leaderboard_options(int(leaderboard_id))
+                leaderboard_id = int(leaderboard_id)
             except ValueError:
                 print("ID must be a number")
                 continue
+            leaderboard_options(leaderboard_id)
         elif choice == 3:
             do_create_leaderboard()
         elif choice == 4:
