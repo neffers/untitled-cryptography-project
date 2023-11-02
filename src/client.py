@@ -1,5 +1,4 @@
 import json
-import os
 import struct
 import socket
 import base64
@@ -15,7 +14,46 @@ perms = ["No Access", "Read Access", "Write Access", "Mod", "Admin"]
 bools = ["False", "True"]
 
 
-def make_request(request: dict) -> dict:
+class Request:
+    def __init__(self, request: dict):
+        self.request = request
+
+    def make_request(self) -> dict:
+        request = self.request
+        request["identity"] = identity
+        request["token"] = token
+        request = bytes(json.dumps(self.request), "utf-8")
+        buffer = struct.pack("!I", len(request))
+        buffer += request
+        sock.send(buffer)
+        buffer_len = struct.unpack("!I", sock.recv(4))[0]
+        response_data = sock.recv(buffer_len)
+        try:
+            response = json.loads(response_data.decode())
+            return response
+        except json.JSONDecodeError:
+            print("Can't decode packet! packet: " + str(response_data))
+            return dict()
+
+    def safe_print(self, response: dict) -> None:
+        if "success" not in response or "data" not in response:
+            print("Malformed packet: " + str(response))
+            return
+        if response["success"]:
+            self.print_response(response)
+        else:
+            print(response["data"])
+
+    def print_response(self, response):
+        print("Operation successful.")
+
+
+# currently the only auth server request, so a special case
+def request_token() -> str:
+    request = {
+        "type": "token",
+        "identity": identity
+    }
     request = bytes(json.dumps(request), "utf-8")
     buffer = struct.pack("!I", len(request))
     buffer += request
@@ -24,224 +62,164 @@ def make_request(request: dict) -> dict:
     response_data = sock.recv(buffer_len)
     try:
         response = json.loads(response_data.decode())
-        return response
+        if "success" not in response or "data" not in response:
+            print("Malformed packet: " + str(response))
+            return ""
+        if response["success"]:
+            return response["token"]
+        else:
+            print(response["data"])
     except json.JSONDecodeError:
         print("Can't decode packet! packet: " + str(response_data))
-        return dict()
+        return ""
 
 
-# currently the only auth server request, so not using enum types
-def request_token():
-    return {
-        "type": "token",
-        "identity": identity,
-    }
+class ShowLeaderboardsRequest(Request):
+    def __init__(self):
+        super().__init__({
+            "type": ResourceRequestType.ListLeaderboards
+        })
+
+    def print_response(self, response: dict) -> None:
+        print("{:<4}{:<21.21}{:<6}".format("ID", "Leaderboard Name", "Permission"))
+        for ldb in response["data"]:
+            print("{:<4}{:<21.21}{:<6}".format(ldb[0], ldb[1], perms[ldb[2]]))
 
 
-def request_show_leaderboards():
-    return {
-        "type": ResourceRequestType.ListLeaderboards,
-        "identity": identity,
-        "token": token,
-    }
+class CreateLeaderboardRequest(Request):
+    def __init__(self, leaderboard_name, leaderboard_permission, leaderboard_ascending):
+        super().__init__({
+            "type": ResourceRequestType.CreateLeaderboard,
+            "leaderboard_name": leaderboard_name,
+            "leaderboard_permission": leaderboard_permission,
+            "leaderboard_ascending": leaderboard_ascending,
+        })
+
+    def print_response(self, response):
+        print("New Leaderboard ID: {}".format(response["data"]))
 
 
-def request_create_leaderboard(leaderboard_name, leaderboard_permission, leaderboard_ascending):
-    return {
-        "type": ResourceRequestType.CreateLeaderboard,
-        "identity": identity,
-        "token": token,
-        "leaderboard_name": leaderboard_name,
-        "leaderboard_permission": leaderboard_permission,
-        "leaderboard_ascending": leaderboard_ascending,
-    }
+class AddEntryRequest(Request):
+    def __init__(self, leaderboard_id, score, comment):
+        super().__init__({
+            "type": ResourceRequestType.AddEntry,
+            "leaderboard_id": leaderboard_id,
+            "score": score,
+            "comment": comment,
+        })
+
+    def print_response(self, response):
+        print("New Entry ID: {}".format(response["data"]))
 
 
-def request_add_entry(leaderboard_id, score, comment):
-    return {
-        "type": ResourceRequestType.AddEntry,
-        "identity": identity,
-        "token": token,
-        "leaderboard_id": leaderboard_id,
-        "score": score,
-        "comment": comment,
-    }
+class AccessGroupsRequest(Request):
+    def __init__(self, leaderboard_id):
+        super().__init__({
+            "type": ResourceRequestType.ListAccessGroups,
+            "leaderboard_id": leaderboard_id,
+        })
+
+    def print_response(self, response):
+        print("{:<4}{:<21}{:<11}".format("ID", "Name", "Permission"))
+        for user in response["data"]:
+            print("{:<4}{:<21}{:<11}".format(user[0], user[1], user[2]))
 
 
-def request_access_groups(leaderboard_id):
-    return {
-        "type": ResourceRequestType.ListAccessGroups,
-        "identity": identity,
-        "token": token,
-        "leaderboard_id": leaderboard_id,
-    }
+class SetScoreOrderRequest(Request):
+    def __init__(self, leaderboard_id, ascending):
+        super().__init__({
+            "type": ResourceRequestType.ChangeScoreOrder,
+            "leaderboard_id": leaderboard_id,
+            "ascending": ascending
+        })
 
 
-def request_set_score_order(leaderboard_id, ascending):
-    return {
-        "type": ResourceRequestType.ChangeScoreOrder,
-        "identity": identity,
-        "token": token,
-        "leaderboard_id": leaderboard_id,
-        "ascending": ascending,
-    }
+class ListUsersRequest(Request):
+    def __init__(self):
+        super().__init__({
+            "type": ResourceRequestType.ListUsers
+        })
+
+    def print_response(self, response):
+        print("{:<4}{:<21.21}".format("ID", "Username"))
+        for user in response["data"]:
+            print("{:<4}{:<21.21}".format(user[0], user[1]))
+
+class ListUnverifiedRequest(Request):
+    def __init__(self, leaderboard_id):
+        super().__init__({
+            "type": ResourceRequestType.ListUnverified,
+            "leaderboard_id": leaderboard_id
+        })
+
+    def print_response(self, response):
+        print("{:<9}{:<8}{:<21.21}{:<15}{:<20}".format("Entry ID", "User ID", "Username", "Score", "Date"))
+        for entry in response["data"]:
+            date = datetime.fromtimestamp(entry[4])
+            print("{:<9}{:<8}{:<21.21}{:<15}{:<20}".format(entry[0], entry[1], entry[2], entry[3], str(date)))
 
 
-def request_list_users():
-    return {
-        "type": ResourceRequestType.ListUsers,
-        "identity": identity,
-        "token": token,
-    }
+class GetEntryRequest(Request):
+    def __init__(self, entry_id):
+        super().__init__({
+            "type": ResourceRequestType.GetEntry,
+            "entry_id": entry_id
+        })
+
+    def print_response(self, response):
+        entry = response["data"]["entry"]
+        print("{:<9}{:<8}{:<21.21}{:<15}{:<20}{:<9}{:<7}{:<21.21}"
+              .format("Entry ID", "User ID", "Username", "Score", "Date", "Verified", "Mod ID", "Mod Name"))
+        date = datetime.fromtimestamp(entry[4])
+        mod_id = entry[6] if entry[6] else "N/A"
+        mod_name = entry[7] if entry[7] else "N/A"
+        print("{:<9}{:<8}{:<21.21}{:<15}{:<20}{:<9}{:<7}{:<21.21}"
+              .format(entry[0], entry[1], entry[2], entry[3], str(date), bools[entry[5]], mod_id, mod_name))
+        comments = response["data"]["comments"]
+        print("{} Comments".format(len(comments)))
+        files = response["data"]["files"]
+        print("{:<4}{:<21.21}{:<20}"
+              .format("ID", "Filename", "Date"))
+        for file in files:
+            date = datetime.fromtimestamp(file[2])
+            print("{:<4}{:<21.21}{:<20}"
+                  .format(file[0], file[1], str(date)))
 
 
-def request_list_unverified(leaderboard_id):
-    return {
-        "type": ResourceRequestType.ListUnverified,
-        "identity": identity,
-        "token": token,
-        "leaderboard_id": leaderboard_id,
-    }
+class AddProofRequest(Request):
+    def __init__(self, entry_id, filename, blob):
+        super().__init__({
+            "type": ResourceRequestType.AddProof,
+            "entry_id": entry_id,
+            "filename": filename,
+            "file": base64.b64encode(blob).decode()
+        })
 
 
-def request_get_entry(entry_id):
-    return {
-        "type": ResourceRequestType.GetEntry,
-        "identity": identity,
-        "token": token,
-        "entry_id": entry_id,
-    }
+class GetProofRequest(Request):
+    def __init__(self, file_id):
+        super().__init__({
+            "type": ResourceRequestType.DownloadProof,
+            "file_id": file_id
+        })
 
 
-def request_add_proof(entry_id, filename, blob):
-    return {
-        "type": ResourceRequestType.AddProof,
-        "identity": identity,
-        "token": token,
-        "entry_id": entry_id,
-        "filename": filename,
-        "file": base64.b64encode(blob).decode(),
-    }
+class RemoveProofRequest(Request):
+    def __init__(self, file_id):
+        super().__init__({
+            "type": ResourceRequestType.RemoveProof,
+            "file_id": file_id
+        })
 
 
-def request_get_proof(file_id):
-    return {
-        "type": ResourceRequestType.DownloadProof,
-        "identity": identity,
-        "token": token,
-        "file_id": file_id,
-    }
+class ViewUserRequest(Request):
+    def __init__(self, user_id):
+        super().__init__({
+            "type": ResourceRequestType.ViewUser,
+            "user_id": user_id
+        })
 
-
-def request_remove_proof(file_id):
-    return {
-        "type": ResourceRequestType.RemoveProof,
-        "identity": identity,
-        "token": token,
-        "file_id": file_id,
-    }
-
-
-def request_view_user(user_id):
-    return {
-        "type": ResourceRequestType.ViewUser,
-        "identity": identity,
-        "token": token,
-        "user_id": user_id,
-    }
-
-
-def request_one_leaderboard(leaderboard_id):
-    return {
-        "type": ResourceRequestType.ShowOneLeaderboard,
-        "identity": identity,
-        "token": token,
-        "leaderboard_id": leaderboard_id,
-    }
-
-
-def request_view_permissions(user_id):
-    return {
-        "type": ResourceRequestType.ViewPermissions,
-        "identity": identity,
-        "token": token,
-        "user_id": user_id,
-    }
-
-
-def request_modify_entry_verification(entry_id, verified):
-    return {
-        "type": ResourceRequestType.ModifyEntryVerification,
-        "identity": identity,
-        "token": token,
-        "entry_id": entry_id,
-        "verified": verified,
-    }
-
-
-def request_remove_leaderboard(leaderboard_id):
-    return {
-        "type": ResourceRequestType.RemoveLeaderboard,
-        "identity": identity,
-        "token": token,
-        "leaderboard_id": leaderboard_id,
-    }
-
-
-def request_add_comment(entry_id, content):
-    return {
-        "type": ResourceRequestType.AddComment,
-        "identity": identity,
-        "token": token,
-        "entry_id": entry_id,
-        "content": content,
-    }
-
-
-def request_remove_entry(entry_id):
-    return {
-        "type": ResourceRequestType.RemoveEntry,
-        "identity": identity,
-        "token": token,
-        "entry_id": entry_id,
-    }
-
-
-def request_set_permission(user_id, leaderboard_id, permission):
-    return {
-        "type": ResourceRequestType.SetPermission,
-        "identity": identity,
-        "token": token,
-        "user_id": user_id,
-        "permission": permission,
-        "leaderboard_id": leaderboard_id,
-    }
-
-
-def request_remove_user(user_id):
-    return {
-        "type": ResourceRequestType.RemoveUser,
-        "identity": identity,
-        "token": token,
-        "user_id": user_id,
-    }
-
-
-def request_get_id_from_identity():
-    return {
-        "type": ResourceRequestType.GetIdFromIdentity,
-        "identity": identity,
-        "token": token,
-    }
-
-
-def do_view_user(user_id):
-    request = request_view_user(user_id)
-    response = make_request(request)
-    if "success" not in response or "data" not in response:
-        print("Malformed packet: " + str(response))
-        return
-    if response["success"]:
+    def print_response(self, response):
         user_data = response["data"]["user_data"]
         entries = response["data"]["entries"]
         date = datetime.fromtimestamp(user_data[1])
@@ -252,22 +230,106 @@ def do_view_user(user_id):
             date = datetime.fromtimestamp(entry[4])
             print("{:<4}{:<5}{:<15}{:<9}{:<20}"
                   .format(entry[0], entry[1], entry[2], bools[entry[3]], str(date)))
-    else:
-        print(response["data"])
 
 
-def do_view_permissions(user_id):
-    request = request_view_permissions(user_id)
-    response = make_request(request)
-    if "success" not in response or "data" not in response:
-        print("Malformed packet: " + str(response))
-        return
-    if response["success"]:
+class OneLeaderboardRequest(Request):
+    def __init__(self, leaderboard_id):
+        super().__init__({
+            "type": ResourceRequestType.ShowOneLeaderboard,
+            "leaderboard_id": leaderboard_id
+        })
+
+    def print_response(self, response):
+        print("Leaderboard ID: {} Leaderboard Name: {}".format(response["data"]["id"], response["data"]["name"]))
+        print("{:<9}{:<8}{:<21.21}{:<15}{:<20}{:<6}"
+              .format("Entry ID", "User ID", "Username", "Score", "Date", "Verified"))
+        for entry in response["data"]["entries"]:
+            date = datetime.fromtimestamp(entry[4])
+            print("{:<9}{:<8}{:<21.21}{:<15}{:<20}{:<6}"
+                  .format(entry[0], entry[1], entry[2], entry[3], str(date), bools[entry[5]]))
+
+
+class ViewPermissionsRequest(Request):
+    def __init__(self, user_id):
+        super().__init__({
+            "type": ResourceRequestType.ViewPermissions,
+            "user_id": user_id
+        })
+
+    def print_response(self, response):
         print("{:<5}{:<12}".format("LB ID", "Permission"))
         for permission in response["data"]:
             print("{:<5}{:<12}".format(permission[0], perms[permission[1]]))
-    else:
-        print(response["data"])
+
+
+class ModifyEntryVerificationRequest(Request):
+    def __init__(self, entry_id, verified):
+        super().__init__({
+            "type": ResourceRequestType.ModifyEntryVerification,
+            "entry_id": entry_id,
+            "verified": verified
+        })
+
+
+class RemoveLeaderboardRequest(Request):
+    def __init__(self, leaderboard_id):
+        super().__init__({
+            "type": ResourceRequestType.RemoveLeaderboard,
+            "leaderboard_id": leaderboard_id
+        })
+
+
+class AddCommentRequest(Request):
+    def __init__(self, entry_id, content):
+        super().__init__({
+            "type": ResourceRequestType.AddComment,
+            "entry_id": entry_id,
+            "content": content
+        })
+
+
+class RemoveEntryRequest(Request):
+    def __init__(self, entry_id):
+        super().__init__({
+            "type": ResourceRequestType.RemoveEntry,
+            "entry_id": entry_id
+        })
+
+
+class SetPermissionRequest(Request):
+    def __init__(self, user_id, leaderboard_id, permission):
+        super().__init__({
+            "type": ResourceRequestType.SetPermission,
+            "user_id": user_id,
+            "leaderboard_id": leaderboard_id,
+            "permission": permission
+        })
+
+
+class RemoveUserRequest(Request):
+    def __init__(self, user_id):
+        super().__init__({
+            "type": ResourceRequestType.RemoveUser,
+            "user_id": user_id
+        })
+
+
+class GetIdFromIdentityRequest(Request):
+    def __init__(self):
+        super().__init__({
+            "type": ResourceRequestType.GetIdFromIdentity,
+            "user_id": identity
+        })
+
+
+def do_view_user(user_id):
+    request = ViewUserRequest(user_id)
+    request.safe_print(request.make_request())
+
+
+def do_view_permissions(user_id):
+    request = ViewPermissionsRequest(user_id)
+    request.safe_print(request.make_request())
 
 
 def do_set_permission(user_id):
@@ -294,27 +356,13 @@ def do_set_permission(user_id):
         permission = Permissions.Write
     elif permission == 3:
         permission = Permissions.Moderate
-    request = request_set_permission(user_id, leaderboard_id, permission)
-    response = make_request(request)
-    if "success" not in response or "data" not in response:
-        print("Malformed packet: " + str(response))
-        return
-    if response["success"]:
-        print("Operation successful.")
-    else:
-        print(response["data"])
+    request = SetPermissionRequest(user_id, leaderboard_id, permission)
+    request.safe_print(request.make_request())
 
 
 def do_remove_user(user_id):
-    request = request_remove_user(user_id)
-    response = make_request(request)
-    if "success" not in response or "data" not in response:
-        print("Malformed packet: " + str(response))
-        return
-    if response["success"]:
-        print("Operation Successful.")
-    else:
-        print(response["data"])
+    request = RemoveUserRequest(user_id)
+    request.safe_print(request.make_request())
 
 
 def user_options(user_id):
@@ -354,32 +402,8 @@ def user_options(user_id):
 
 
 def do_get_entry(entry_id):
-    request = request_get_entry(entry_id)
-    response = make_request(request)
-    if "success" not in response or "data" not in response:
-        print("Malformed packet: " + str(response))
-        return
-    if response["success"]:
-        entry = response["data"]["entry"]
-        print("{:<9}{:<8}{:<21.21}{:<15}{:<20}{:<9}{:<7}{:<21.21}"
-              .format("Entry ID", "User ID", "Username", "Score", "Date", "Verified", "Mod ID", "Mod Name"))
-        date = datetime.fromtimestamp(entry[4])
-        mod_id = entry[6] if entry[6] else "N/A"
-        mod_name = entry[7] if entry[7] else "N/A"
-        print("{:<9}{:<8}{:<21.21}{:<15}{:<20}{:<9}{:<7}{:<21.21}"
-              .format(entry[0], entry[1], entry[2], entry[3], str(date), bools[entry[5]], mod_id, mod_name))
-        comments = response["data"]["comments"]
-        print("{} Comments".format(len(comments)))
-        files = response["data"]["files"]
-        print("{:<4}{:<21.21}{:<20}"
-              .format("ID", "Filename", "Date"))
-        for file in files:
-            date = datetime.fromtimestamp(file[2])
-            print("{:<4}{:<21.21}{:<20}"
-                  .format(file[0], file[1], str(date)))
-
-    else:
-        print(response["data"])
+    request = GetEntryRequest(entry_id)
+    request.safe_print(request.make_request())
 
 
 def do_add_proof(entry_id):
@@ -387,15 +411,8 @@ def do_add_proof(entry_id):
     try:
         with open(filename, 'rb') as file:
             blob = file.read()
-            request = request_add_proof(entry_id, filename, blob)
-            response = make_request(request)
-            if "success" not in response or "data" not in response:
-                print("Malformed packet: " + str(response))
-                return
-            if response["success"]:
-                print("Operation successful.")
-            else:
-                print(response["data"])
+            request = AddProofRequest(entry_id, filename, blob)
+            request.safe_print(request.make_request())
     except FileNotFoundError:
         print("File not found!")
     except IOError:
@@ -411,8 +428,8 @@ def do_get_proof(entry_id):
     local_filename = input("Enter name of local file to save it to: ")
     try:
         with open(local_filename, 'wb') as file:
-            request = request_get_proof(remote_fileid)
-            response = make_request(request)
+            request = GetProofRequest(remote_fileid)
+            response = request.make_request()
             if "success" not in response or "data" not in response:
                 print("Malformed packet: " + str(response))
                 return
@@ -434,20 +451,13 @@ def do_remove_proof(entry_id):
         print("Invalid input, please enter an integer")
         return
     remote_fileid = int(remote_fileid)
-    request = request_remove_proof(remote_fileid)
-    response = make_request(request)
-    if "success" not in response or "data" not in response:
-        print("Malformed packet: " + str(response))
-        return
-    if response["success"]:
-        print("Operation successful.")
-    else:
-        print(response["data"])
+    request = RemoveProofRequest(remote_fileid)
+    request.safe_print(request.make_request())
 
 
 def do_view_comments(entry_id):
-    request = request_get_entry(entry_id)
-    response = make_request(request)
+    request = GetEntryRequest(entry_id)
+    response = request.make_request()
     if "success" not in response or "data" not in response:
         print("Malformed packet: " + str(response))
         return
@@ -463,39 +473,18 @@ def do_view_comments(entry_id):
 
 def do_add_comment(entry_id):
     content = input("Enter your comment to the entry: ")
-    request = request_add_comment(entry_id, content)
-    response = make_request(request)
-    if "success" not in response or "data" not in response:
-        print("Malformed packet: " + str(response))
-        return
-    if response["success"]:
-        print("Operation successful.")
-    else:
-        print(response["data"])
+    request = AddCommentRequest(entry_id, content)
+    request.safe_print(request.make_request())
 
 
 def do_modify_entry_verification(entry_id, verify):
-    request = request_modify_entry_verification(entry_id, verify)
-    response = make_request(request)
-    if "success" not in response or "data" not in response:
-        print("Malformed packet: " + str(response))
-        return
-    if response["success"]:
-        print("Operation successful.")
-    else:
-        print(response["data"])
+    request = ModifyEntryVerificationRequest(entry_id, verify)
+    request.safe_print(request.make_request())
 
 
 def do_remove_entry(entry_id):
-    request = request_remove_entry(entry_id)
-    response = make_request(request)
-    if "success" not in response or "data" not in response:
-        print("Malformed packet: " + str(response))
-        return
-    if response["success"]:
-        print("Operation successful.")
-    else:
-        print(response["data"])
+    request = RemoveEntryRequest(entry_id)
+    request.safe_print(request.print_response())
 
 
 def entry_options(entry_id):
@@ -543,17 +532,8 @@ def entry_options(entry_id):
 
 
 def do_show_leaderboards():
-    request = request_show_leaderboards()
-    response = make_request(request)
-    if "success" not in response or "data" not in response:
-        print("Malformed packet: " + str(response))
-        return
-    if response["success"]:
-        print("{:<4}{:<21.21}{:<6}".format("ID", "Leaderboard Name", "Permission"))
-        for ldb in response["data"]:
-            print("{:<4}{:<21.21}{:<6}".format(ldb[0], ldb[1], perms[ldb[2]]))
-    else:
-        print(response["data"])
+    request = ShowLeaderboardsRequest()
+    request.safe_print(request.make_request())
 
 
 def do_create_leaderboard():
@@ -577,68 +557,29 @@ def do_create_leaderboard():
     elif leaderboard_permission == 3:
         leaderboard_permission = Permissions.Moderate
     leaderboard_ascending = input("Score ascending [1] or descending [2]: ")
-    if not leaderboard_ascending.isdigit() or int(leaderboard_ascending) > 2\
+    if not leaderboard_ascending.isdigit() or int(leaderboard_ascending) > 2 \
             or int(leaderboard_ascending) < 1:
         print("Invalid input, please enter an integer listed")
         return
     leaderboard_ascending = int(leaderboard_ascending) == 1
-    request = request_create_leaderboard(leaderboard_name, leaderboard_permission,
+    request = CreateLeaderboardRequest(leaderboard_name, leaderboard_permission,
                                          leaderboard_ascending)
-    response = make_request(request)
-    if "success" not in response or "data" not in response:
-        print("Malformed packet: " + str(response))
-        return
-    if response["success"]:
-        print("New Leaderboard ID: {}".format(response["data"]))
-    else:
-        print(response["data"])
+    request.safe_print(request.make_request())
 
 
 def do_list_users():
-    request = request_list_users()
-    response = make_request(request)
-    if "success" not in response or "data" not in response:
-        print("Malformed packet: " + str(response))
-        return
-    if response["success"]:
-        print("{:<4}{:<21.21}".format("ID", "Username"))
-        for user in response["data"]:
-            print("{:<4}{:<21.21}".format(user[0], user[1]))
-    else:
-        print(response["data"])
+    request = ListUsersRequest()
+    request.safe_print(request.make_request())
 
 
 def do_one_leaderboard(leaderboard_id):
-    request = request_one_leaderboard(leaderboard_id)
-    response = make_request(request)
-    if "success" not in response or "data" not in response:
-        print("Malformed packet: " + str(response))
-        return
-    if response["success"]:
-        print("Leaderboard ID: {} Leaderboard Name: {}".format(response["data"]["id"], response["data"]["name"]))
-        print("{:<9}{:<8}{:<21.21}{:<15}{:<20}{:<6}"
-              .format("Entry ID", "User ID", "Username", "Score", "Date", "Verified"))
-        for entry in response["data"]["entries"]:
-            date = datetime.fromtimestamp(entry[4])
-            print("{:<9}{:<8}{:<21.21}{:<15}{:<20}{:<6}"
-                  .format(entry[0], entry[1], entry[2], entry[3], str(date), bools[entry[5]]))
-    else:
-        print(response["data"])
+    request = OneLeaderboardRequest(leaderboard_id)
+    request.safe_print(request.make_request())
 
 
 def do_list_unverified(leaderboard_id):
-    request = request_list_unverified(leaderboard_id)
-    response = make_request(request)
-    if "success" not in response or "data" not in response:
-        print("Malformed packet: " + str(response))
-        return
-    if response["success"]:
-        print("{:<9}{:<8}{:<21.21}{:<15}{:<20}".format("Entry ID", "User ID", "Username", "Score", "Date"))
-        for entry in response["data"]:
-            date = datetime.fromtimestamp(entry[4])
-            print("{:<9}{:<8}{:<21.21}{:<15}{:<20}".format(entry[0], entry[1], entry[2], entry[3], str(date)))
-    else:
-        print(response["data"])
+    request = ListUnverifiedRequest(leaderboard_id)
+    request.safe_print(request.make_request())
 
 
 def do_add_entry(leaderboard_id):
@@ -649,29 +590,13 @@ def do_add_entry(leaderboard_id):
         print("Must enter a number")
         return
     comment = input("Enter any comments about your score: ")
-    request = request_add_entry(leaderboard_id, score, comment)
-    response = make_request(request)
-    if "success" not in response or "data" not in response:
-        print("Malformed packet: " + str(response))
-        return
-    if response["success"]:
-        print("New Entry ID: {}".format(response["data"]))
-    else:
-        print(response["data"])
+    request = AddEntryRequest(leaderboard_id, score, comment)
+    request.safe_print(request.make_request())
 
 
 def do_access_groups(leaderboard_id):
-    request = request_access_groups(leaderboard_id)
-    response = make_request(request)
-    if "success" not in response or "data" not in response:
-        print("Malformed packet: " + str(response))
-        return
-    if response["success"]:
-        print("{:<4}{:<21}{:<11}".format("ID", "Name", "Permission"))
-        for user in response["data"]:
-            print("{:<4}{:<21}{:<11}".format(user[0], user[1], user[2]))
-    else:
-        print(response["data"])
+    request = AccessGroupsRequest(leaderboard_id)
+    request.safe_print(request.make_request())
 
 
 def do_set_score_order(leaderboard_id):
@@ -681,32 +606,18 @@ def do_set_score_order(leaderboard_id):
         print("Invalid input, please enter an integer listed")
         return
     ascending = int(ascending) == 1
-    request = request_set_score_order(leaderboard_id, ascending)
-    response = make_request(request)
-    if "success" not in response or "data" not in response:
-        print("Malformed packet: " + str(response))
-        return
-    if response["success"]:
-        print("Operation successful.")
-    else:
-        print(response["data"])
+    request = SetScoreOrderRequest(leaderboard_id, ascending)
+    request.safe_print(request.make_request())
 
 
 def do_remove_leaderboard(leaderboard_id):
-    request = request_remove_leaderboard(leaderboard_id)
-    response = make_request(request)
-    if "success" not in response or "data" not in response:
-        print("Malformed packet: " + str(response))
-        return
-    if response["success"]:
-        print("Operation successful.")
-    else:
-        print(response["data"])
+    request = RemoveLeaderboardRequest(leaderboard_id)
+    request.safe_print(request.make_request())
 
 
 def do_get_user_from_identity():
-    request = request_get_id_from_identity()
-    response = make_request(request)
+    request = GetIdFromIdentityRequest()
+    response = request.make_request()
     if "success" not in response or "data" not in response:
         print("Malformed packet: " + str(response))
         return
@@ -895,9 +806,7 @@ def server_loop(res_ip, res_port):
         return
     print("Connection successful.")
     identity = input("Enter identity: ")
-    request = request_token()
-    response = make_request(request)
-    token = response["token"]
+    token = request_token()
     sock.close()
 
     try:
