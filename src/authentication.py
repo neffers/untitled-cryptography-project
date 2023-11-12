@@ -42,7 +42,7 @@ def get_token_response(request: dict):
     decryptor = aes.decryptor()
     decrypted_payload = decryptor.update(signin_payload) + decryptor.finalize()
     unpadded = unpad.update(decrypted_payload) + unpad.finalize()
-    signin_request = json.loads(str(unpadded))
+    signin_request = json.loads(unpadded.decode())
     identity = signin_request["identity"]
     password = signin_request["password"]
 
