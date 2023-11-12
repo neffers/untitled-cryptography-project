@@ -34,6 +34,69 @@ def bad_request_json(further_info=""):
     }
 
 
+def list_leaderboards_response(requesting_user_id: int):
+    cursor = db.cursor()
+    get_leaderboards_command = """
+        select l.id, l.name, max(l.default_permission, coalesce(p.permission, 0), class) as perm
+        from leaderboards l
+            left join (select * from permissions where user = ?) p on l.id = p.leaderboard
+            inner join (select class from users where id = ?)
+        where perm >= ?
+    """
+    get_leaderboards_params = (requesting_user_id, requesting_user_id, Permissions.Read)
+    cursor.execute(get_leaderboards_command, get_leaderboards_params)
+    leaderboards_to_return = cursor.fetchall()
+    return {
+        "success": True,
+        "data": leaderboards_to_return
+    }
+
+
+def show_one_leaderboard_response(requesting_user_id, leaderboard_id):
+    cursor = db.cursor()
+    # make sure leaderboard should be visible by user
+    (leaderboard_id, leaderboard_name, permission, ascending) = (
+        get_leaderboard_info(requesting_user_id, leaderboard_id))
+    if permission < Permissions.Read:
+        return bad_request_json("You don't have permission to view that.")
+    # If moderator, return all entries
+    if permission >= Permissions.Moderate:
+        get_entries_command = """
+            select e.id, user, u.identity, score, submission_date, verified
+                from leaderboard_entries e
+                join main.leaderboards l on e.leaderboard = l.id
+                join main.users u on e.user = u.id
+            where l.id = ?
+            order by score desc
+        """
+        get_entries_params = (leaderboard_id,)
+    else:
+        # Non-mods get visible entries and those that they submitted
+        get_entries_command = """
+            select e.id, user, u.identity, score, submission_date, verified
+                from leaderboard_entries e
+                join main.leaderboards l on e.leaderboard = l.id
+                join main.users u on e.user = u.id
+            where (verified or user = ?) and l.id = ?
+            order by score desc
+        """
+        get_entries_params = (requesting_user_id, leaderboard_id)
+
+    cursor.execute(get_entries_command, get_entries_params)
+    entries = cursor.fetchall()
+    if ascending:
+        entries.reverse()
+    data_to_return = {
+        "id": leaderboard_id,
+        "name": leaderboard_name,
+        "entries": entries
+    }
+    return {
+        "success": True,
+        "data": data_to_return,
+    }
+
+
 def handle_request(request):
     # Every request needs to have these
     try:
@@ -75,20 +138,7 @@ def handle_request(request):
 
     # Basic: List Leaderboards
     if request_type == ResourceRequestType.ListLeaderboards:
-        get_leaderboards_command = """
-            select l.id, l.name, max(l.default_permission, coalesce(p.permission, 0), class) as perm
-            from leaderboards l
-                left join (select * from permissions where user = ?) p on l.id = p.leaderboard
-                inner join (select class from users where id = ?)
-            where perm >= ?
-        """
-        get_leaderboards_params = (request_user_id, request_user_id, Permissions.Read)
-        sql_cur.execute(get_leaderboards_command, get_leaderboards_params)
-        leaderboards_to_return = sql_cur.fetchall()
-        return {
-            "success": True,
-            "data": leaderboards_to_return
-        }
+        return list_leaderboards_response(request_user_id)
 
     # Basic: Open Leaderboard
     # Leaderboard: List Entries
@@ -101,48 +151,7 @@ def handle_request(request):
 
         if type(leaderboard_id) is not int:
             return bad_request_json("leaderboard_id must be an int.")
-
-        # make sure leaderboard should be visible by user
-        (leaderboard_id, leaderboard_name, permission, ascending) = (
-            get_leaderboard_info(request_user_id, leaderboard_id))
-        if permission < Permissions.Read:
-            return bad_request_json("You don't have permission to view that.")
-        # If moderator, return all entries
-        if permission >= Permissions.Moderate:
-            get_entries_command = """
-                select e.id, user, u.identity, score, submission_date, verified
-                    from leaderboard_entries e
-                    join main.leaderboards l on e.leaderboard = l.id
-                    join main.users u on e.user = u.id
-                where l.id = ?
-                order by score desc
-            """
-            get_entries_params = (leaderboard_id,)
-        else:
-            # Non-mods get visible entries and those that they submitted
-            get_entries_command = """
-                select e.id, user, u.identity, score, submission_date, verified
-                    from leaderboard_entries e
-                    join main.leaderboards l on e.leaderboard = l.id
-                    join main.users u on e.user = u.id
-                where (verified or user = ?) and l.id = ?
-                order by score desc
-            """
-            get_entries_params = (request_user_id, leaderboard_id)
-
-        sql_cur.execute(get_entries_command, get_entries_params)
-        entries = sql_cur.fetchall()
-        if ascending:
-            entries.reverse()
-        data_to_return = {
-            "id": leaderboard_id,
-            "name": leaderboard_name,
-            "entries": entries
-        }
-        return {
-            "success": True,
-            "data": data_to_return,
-        }
+        return show_one_leaderboard_response(request_user_id, leaderboard_id)
 
     # Basic: Add Leaderboard
     if request_type == ResourceRequestType.CreateLeaderboard:
