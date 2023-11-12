@@ -930,10 +930,12 @@ if __name__ == "__main__":
         );
     """
 
+    # Filenames
     db_filename = "res_db"
     key_filename = "res_private_key"
     auth_public_key_filename = "auth_public_key"
 
+    # Init Crypography stuff
     private_key = serverlib.initialize_key(key_filename)
     public_key = private_key.public_key()
     if not path.exists(auth_public_key_filename):
@@ -944,7 +946,10 @@ if __name__ == "__main__":
         print("Found Auth server public key.")
         print("Key Hash: " + serverlib.public_key_hash(auth_public_key))
 
+    # Init DB
     db = serverlib.initialize_database(db_filename, db_schema)
+
+    # Init server
     HOST, PORT = "0.0.0.0", 8086
     signal.signal(signal.SIGINT, signal_handler)
     try:
