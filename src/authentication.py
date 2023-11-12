@@ -90,11 +90,11 @@ def generate_response(request: dict):
 def initialize_database(db_filename):
     if path.exists(db_filename):
         print("Found existing database. Loading from there.")
-        db = sqlite3.connect(db_filename)
+        database = sqlite3.connect(db_filename)
     else:
         print("No database found. Initializing new database from schema...")
-        db = sqlite3.connect(db_filename)
-        cursor = db.cursor()
+        database = sqlite3.connect(db_filename)
+        cursor = database.cursor()
 
         db_init_command = """
         CREATE TABLE users (
@@ -104,8 +104,8 @@ def initialize_database(db_filename):
         """
         cursor.execute(db_init_command)
         cursor.close()
-        db.commit()
-    return db
+        database.commit()
+    return database
 
 
 def initialize_key(key_filename):
