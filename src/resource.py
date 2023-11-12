@@ -136,6 +136,10 @@ def handle_request(request):
     # Can be used throughout the request handling
     (request_user_id, request_identity, token, user_class, user_reg_date) = requesting_user
 
+    # Get public key
+    if request_type == ResourceRequestType.PublicKey:
+        return serverlib.public_key_response(public_key)
+
     # Basic: List Leaderboards
     if request_type == ResourceRequestType.ListLeaderboards:
         return list_leaderboards_response(request_user_id)
