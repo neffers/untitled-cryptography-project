@@ -915,7 +915,7 @@ if __name__ == "__main__":
     """
     # TODO get this from command line or config file?
     db_filename = "res_db"
-    key_filename = "res_key"
+    key_filename = "res_private_key"
 
     private_key = serverlib.initialize_key(key_filename)
     public_key = private_key.public_key()

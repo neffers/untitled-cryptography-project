@@ -6,3 +6,4 @@ venv
 **/res_db
 **/auth_db
 **/auth_private_key
+**/res_private_key
