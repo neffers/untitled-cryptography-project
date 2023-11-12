@@ -15,10 +15,10 @@ from enums import AuthRequestType
 def public_key_response():
     response = {
         "success": True,
-        "data": public_key.public_bytes(
+        "data": base64.b64encode(public_key.public_bytes(
             serialization.Encoding.OpenSSH,
             serialization.PublicFormat.OpenSSH
-        )
+        )).decode()
     }
     return response
 
@@ -77,8 +77,6 @@ def get_token_response(request: dict):
             "data": base64.b64encode(encrypted_token).decode()
         }
     return response
-
-
 
 
 def generate_response(request: dict):
