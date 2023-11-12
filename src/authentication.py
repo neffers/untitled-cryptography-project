@@ -35,8 +35,9 @@ def get_token_response(request: dict):
         )
     )
     aes = Cipher(algorithms.AES(aes_key), modes.CBC(urandom(16)))
-    pad = padding.PKCS7(128).padder()
-    unpad = padding.PKCS7(128).unpadder()
+    symmetric_pad = padding.PKCS7(128)
+    pad = symmetric_pad.padder()
+    unpad = symmetric_pad.unpadder()
     encryptor = aes.encryptor()
     decryptor = aes.decryptor()
     decrypted_payload = decryptor.update(signin_payload) + decryptor.finalize()
@@ -103,6 +104,7 @@ def initialize_database(db_filename):
         """
         cursor.execute(db_init_command)
         cursor.close()
+        db.commit()
     return db
 
 
