@@ -7,7 +7,6 @@ import base64
 import signal
 import sys
 import serverlib
-from os import path
 from enums import ResourceRequestType, Permissions, UserClass
 
 

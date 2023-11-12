@@ -4,10 +4,9 @@ import json
 import struct
 import signal
 import sys
-import sqlite3
 import serverlib
-from os import path, urandom
-from cryptography.hazmat.primitives import serialization, hashes, padding
+from os import urandom
+from cryptography.hazmat.primitives import hashes, padding
 from cryptography.hazmat.primitives.asymmetric import rsa, padding as apad
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 from enums import AuthRequestType
