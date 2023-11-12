@@ -929,7 +929,7 @@ if __name__ == "__main__":
             data BLOB NOT NULL
         );
     """
-    # TODO get this from command line or config file?
+
     db_filename = "res_db"
     key_filename = "res_private_key"
     auth_public_key_filename = "auth_public_key"
@@ -941,6 +941,8 @@ if __name__ == "__main__":
         sys.exit(1)
     with open(auth_public_key_filename, "rb") as key_file:
         auth_public_key: rsa.RSAPublicKey = serialization.load_ssh_public_key(key_file.read())
+        print("Found Auth server public key.")
+        print("Key Hash: " + serverlib.public_key_hash(auth_public_key))
 
     db = serverlib.initialize_database(db_filename, db_schema)
     HOST, PORT = "0.0.0.0", 8086
