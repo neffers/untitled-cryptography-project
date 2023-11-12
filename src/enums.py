@@ -39,3 +39,7 @@ class Permissions(IntEnum):
 class UserClass(IntEnum):
     User = Permissions.NoAccess
     Administrator = Permissions.Moderate
+
+class AuthRequestType(IntEnum):
+    PublicKey = auto()
+    Token = auto()
