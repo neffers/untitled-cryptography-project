@@ -74,6 +74,11 @@ def generate_response(request: dict):
         return get_token_response(request)
     elif request["type"] == AuthRequestType.PublicKey:
         return serverlib.public_key_response(public_key)
+    else:
+        return {
+            "success": False,
+            "data": "Bad request, not in AuthRequestType"
+        }
 
 
 class Handler(socketserver.BaseRequestHandler):
