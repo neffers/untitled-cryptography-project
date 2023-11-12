@@ -6,78 +6,9 @@ import struct
 import base64
 import signal
 import sys
+import serverlib
 from os import path
 from enums import ResourceRequestType, Permissions, UserClass
-
-
-def initialize_database():
-    # Initialize DB either from file or with defaults
-    if path.exists(db_filename):
-        print("Found existing database. Loading from there.")
-        sqldb = sqlite3.connect(db_filename)
-        dbcursor = sqldb.cursor()
-
-        enable_foreign_keys = "PRAGMA foreign_keys = 1"
-        dbcursor.execute(enable_foreign_keys)
-        return sqldb
-    else:
-        print("Did not find a database. Initializing new database from schema...")
-        sqldb = sqlite3.connect(db_filename)
-        dbcursor = sqldb.cursor()
-
-        enable_foreign_keys = "PRAGMA foreign_keys = 1"
-        dbcursor.execute(enable_foreign_keys)
-
-        # The base database schema
-        database_initialization_command = """
-        CREATE TABLE users (
-            id INTEGER PRIMARY KEY,
-            identity TEXT UNIQUE NOT NULL,
-            token TEXT NOT NULL,
-            class INTEGER NOT NULL,
-            registration_date INTEGER NOT NULL
-        );
-        CREATE TABLE leaderboards (
-            id INTEGER PRIMARY KEY,
-            name TEXT NOT NULL,
-            creation_date INTEGER NOT NULL,
-            default_permission INTEGER NOT NULL,
-            ascending BOOLEAN NOT NULL
-        );
-        CREATE TABLE permissions (
-            user INTEGER NOT NULL REFERENCES users(id),
-            leaderboard INTEGER NOT NULL REFERENCES  leaderboards(id) ON DELETE CASCADE,
-            permission INTEGER NOT NULL,
-            change_date INTEGER NOT NULL
-        );
-        CREATE TABLE leaderboard_entries (
-            id INTEGER PRIMARY KEY,
-            user INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-            leaderboard INTEGER NOT NULL REFERENCES leaderboards(id) ON DELETE CASCADE,
-            score REAL NOT NULL,
-            submission_date INTEGER NOT NULL,
-            verified INTEGER NOT NULL,
-            verification_date INTEGER,
-            verifier INTEGER REFERENCES users(id)
-        );
-        CREATE TABLE entry_comments (
-            id INTEGER PRIMARY KEY,
-            user INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-            entry INTEGER NOT NULL REFERENCES leaderboard_entries(id) ON DELETE CASCADE,
-            date INTEGER NOT NULL,
-            content TEXT NOT NULL
-        );
-        CREATE TABLE files (
-            id INTEGER PRIMARY KEY,
-            entry INTEGER NOT NULL REFERENCES leaderboard_entries(id) ON DELETE CASCADE,
-            name TEXT NOT NULL,
-            submission_date INTEGER NOT NULL,
-            data BLOB NOT NULL
-        );
-        """
-        dbcursor.executescript(database_initialization_command)
-        dbcursor.close()
-        return sqldb
 
 
 # Generally used as (lb_id, lb_name, lb_perm, lb_asc) = get_leaderboard_info()
@@ -936,10 +867,60 @@ def signal_handler(sig, frame):
 
 
 if __name__ == "__main__":
+    db_schema = """
+        CREATE TABLE users (
+            id INTEGER PRIMARY KEY,
+            identity TEXT UNIQUE NOT NULL,
+            token TEXT NOT NULL,
+            class INTEGER NOT NULL,
+            registration_date INTEGER NOT NULL
+        );
+        CREATE TABLE leaderboards (
+            id INTEGER PRIMARY KEY,
+            name TEXT NOT NULL,
+            creation_date INTEGER NOT NULL,
+            default_permission INTEGER NOT NULL,
+            ascending BOOLEAN NOT NULL
+        );
+        CREATE TABLE permissions (
+            user INTEGER NOT NULL REFERENCES users(id),
+            leaderboard INTEGER NOT NULL REFERENCES  leaderboards(id) ON DELETE CASCADE,
+            permission INTEGER NOT NULL,
+            change_date INTEGER NOT NULL
+        );
+        CREATE TABLE leaderboard_entries (
+            id INTEGER PRIMARY KEY,
+            user INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            leaderboard INTEGER NOT NULL REFERENCES leaderboards(id) ON DELETE CASCADE,
+            score REAL NOT NULL,
+            submission_date INTEGER NOT NULL,
+            verified INTEGER NOT NULL,
+            verification_date INTEGER,
+            verifier INTEGER REFERENCES users(id)
+        );
+        CREATE TABLE entry_comments (
+            id INTEGER PRIMARY KEY,
+            user INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            entry INTEGER NOT NULL REFERENCES leaderboard_entries(id) ON DELETE CASCADE,
+            date INTEGER NOT NULL,
+            content TEXT NOT NULL
+        );
+        CREATE TABLE files (
+            id INTEGER PRIMARY KEY,
+            entry INTEGER NOT NULL REFERENCES leaderboard_entries(id) ON DELETE CASCADE,
+            name TEXT NOT NULL,
+            submission_date INTEGER NOT NULL,
+            data BLOB NOT NULL
+        );
+    """
     # TODO get this from command line or config file?
     db_filename = "res_db"
+    key_filename = "res_key"
 
-    db = initialize_database()
+    private_key = serverlib.initialize_key(key_filename)
+    public_key = private_key.public_key()
+
+    db = serverlib.initialize_database(db_filename, db_schema)
     HOST, PORT = "0.0.0.0", 8086
     signal.signal(signal.SIGINT, signal_handler)
     try:

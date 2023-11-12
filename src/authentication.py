@@ -5,22 +5,12 @@ import struct
 import signal
 import sys
 import sqlite3
+import serverlib
 from os import path, urandom
 from cryptography.hazmat.primitives import serialization, hashes, padding
 from cryptography.hazmat.primitives.asymmetric import rsa, padding as apad
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 from enums import AuthRequestType
-
-
-def public_key_response():
-    response = {
-        "success": True,
-        "data": base64.b64encode(public_key.public_bytes(
-            serialization.Encoding.OpenSSH,
-            serialization.PublicFormat.OpenSSH
-        )).decode()
-    }
-    return response
 
 
 def get_token_response(request: dict):
@@ -84,56 +74,7 @@ def generate_response(request: dict):
     if request["type"] == AuthRequestType.Token:
         return get_token_response(request)
     elif request["type"] == AuthRequestType.PublicKey:
-        return public_key_response()
-
-
-def initialize_database(db_filename):
-    if path.exists(db_filename):
-        print("Found existing database. Loading from there.")
-        database = sqlite3.connect(db_filename)
-    else:
-        print("No database found. Initializing new database from schema...")
-        database = sqlite3.connect(db_filename)
-        cursor = database.cursor()
-
-        db_init_command = """
-        CREATE TABLE users (
-            identity TEXT UNIQUE NOT NULL,
-            password TEXT NOT NULL
-        );
-        """
-        cursor.execute(db_init_command)
-        cursor.close()
-        database.commit()
-    return database
-
-
-def initialize_key(key_filename):
-    if path.exists(key_filename):
-        print("Found existing private key, using that.")
-        with open(key_filename, "rb") as key_file:
-            key: rsa.RSAPrivateKey = serialization.load_pem_private_key(
-                key_file.read(),
-                None
-            )
-    else:
-        print("No existing private key found, generating...")
-        key = rsa.generate_private_key(65537, 4096)
-        pem = key.private_bytes(
-            serialization.Encoding.PEM,
-            serialization.PrivateFormat.PKCS8,
-            serialization.NoEncryption()
-        )
-        with open(key_filename, "wb") as key_file:
-            key_file.write(pem)
-    public_key_bytes = key.public_key().public_bytes(
-        serialization.Encoding.OpenSSH,
-        serialization.PublicFormat.OpenSSH
-    )
-    hasher = hashes.Hash(hashes.SHA256())
-    hasher.update(public_key_bytes)
-    print("Key Hash: " + hasher.finalize().hex())
-    return key
+        return serverlib.public_key_response(public_key)
 
 
 class Handler(socketserver.BaseRequestHandler):
@@ -166,12 +107,22 @@ def signal_handler(sig, frame):
 
 if __name__ == "__main__":
     HOST, PORT = "0.0.0.0", 8085
+
     db_location = "auth_db"
-    db = initialize_database(db_location)
+    db_init_command = """
+    CREATE TABLE users (
+        identity TEXT UNIQUE NOT NULL,
+        password TEXT NOT NULL
+    );
+    """
+    db = serverlib.initialize_database(db_location, db_init_command)
+
     private_key_file = "auth_private_key"
-    private_key = initialize_key(private_key_file)
+    private_key: rsa.RSAPrivateKey = serverlib.initialize_key(private_key_file)
     public_key = private_key.public_key()
+
     signal.signal(signal.SIGINT, signal_handler)
+
     try:
         server = socketserver.TCPServer((HOST, PORT), Handler)
         print("socket bound successfully")
