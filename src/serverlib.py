@@ -38,20 +38,20 @@ def initialize_key(key_filename):
     if path.exists(key_filename):
         print("Found existing private key, using that.")
         with open(key_filename, "rb") as key_file:
-            key: rsa.RSAPrivateKey = serialization.load_pem_private_key(
+            key: rsa.RSAPrivateKey = serialization.load_ssh_private_key(
                 key_file.read(),
                 None
             )
     else:
         print("No existing private key found, generating...")
         key = rsa.generate_private_key(65537, 4096)
-        pem = key.private_bytes(
-            serialization.Encoding.PEM,
-            serialization.PrivateFormat.PKCS8,
+        to_write = key.private_bytes(
+            serialization.Encoding.OpenSSH,
+            serialization.PrivateFormat.OpenSSH,
             serialization.NoEncryption()
         )
         with open(key_filename, "wb") as key_file:
-            key_file.write(pem)
+            key_file.write(to_write)
     public_key_bytes = key.public_key().public_bytes(
         serialization.Encoding.OpenSSH,
         serialization.PublicFormat.OpenSSH
