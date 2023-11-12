@@ -3,10 +3,32 @@ import json
 import struct
 import signal
 import sys
+import sqlite3
+from os import path
+from enums import AuthRequestType
 
 
 def response_token(token):
     return {"type": token, "token": token}
+
+def initialize_database():
+    if path.exists(db_filename):
+        print("Found existing database. Loading from there.")
+        db = sqlite3.connect(db_filename)
+    else:
+        print("No database found. Initializing new database from schema...")
+        db = sqlite3.connect(db_filename)
+        cursor = db.cursor()
+
+        db_init_command = """
+        CREATE TABLE users (
+            identity TEXT UNIQUE NOT NULL,
+            password TEXT NOT NULL
+        );
+        """
+        cursor.execute(db_init_command)
+        cursor.close()
+    return db
 
 
 class Handler(socketserver.BaseRequestHandler):
@@ -39,6 +61,8 @@ def signal_handler(sig, frame):
 
 if __name__ == "__main__":
     HOST, PORT = "0.0.0.0", 8085
+    db_filename = "auth_db"
+    db = initialize_database()
     signal.signal(signal.SIGINT, signal_handler)
     try:
         server = socketserver.TCPServer((HOST, PORT), Handler)
