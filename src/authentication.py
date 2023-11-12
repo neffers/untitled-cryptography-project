@@ -1,17 +1,91 @@
+import base64
 import socketserver
 import json
 import struct
 import signal
 import sys
 import sqlite3
-from os import path
-from cryptography.hazmat.primitives import serialization, hashes
-from cryptography.hazmat.primitives.asymmetric import rsa
+from os import path, urandom
+from cryptography.hazmat.primitives import serialization, hashes, padding
+from cryptography.hazmat.primitives.asymmetric import rsa, padding as apad
+from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 from enums import AuthRequestType
 
 
-def response_token(token):
-    return {"type": token, "token": token}
+def public_key_response():
+    response = {
+        "success": True,
+        "data": public_key.public_bytes(
+            serialization.Encoding.OpenSSH,
+            serialization.PublicFormat.OpenSSH
+        )
+    }
+    return response
+
+
+def get_token_response(request: dict):
+    rsa_encrypted_aes_key = base64.b64decode(request["encrypted_key"])
+    signin_payload = base64.b64decode(request["signin_payload"])
+    aes_key = private_key.decrypt(
+        rsa_encrypted_aes_key,
+        apad.OAEP(
+            apad.MGF1(hashes.SHA256()),
+            hashes.SHA256(),
+            None
+        )
+    )
+    aes = Cipher(algorithms.AES(aes_key), modes.CBC(urandom(16)))
+    pad = padding.PKCS7(128).padder()
+    unpad = padding.PKCS7(128).unpadder()
+    encryptor = aes.encryptor()
+    decryptor = aes.decryptor()
+    decrypted_payload = decryptor.update(signin_payload) + decryptor.finalize()
+    unpadded = unpad.update(decrypted_payload) + unpad.finalize()
+    signin_request = json.loads(str(unpadded))
+    identity = signin_request["identity"]
+    password = signin_request["password"]
+
+    get_user_command = """
+        select identity, password
+        from main.users
+        where identity = ?
+    """
+    get_user_params = (identity,)
+    cursor = db.cursor()
+    cursor.execute(get_user_command, get_user_params)
+    try:
+        (db_id, db_pw) = cursor.fetchone()
+    except TypeError:  # user not in db
+        add_user_command = "insert into users(identity, password) values(?,?)"
+        add_user_params = (identity, password)
+        cursor.execute(add_user_command, add_user_params)
+        cursor.close()
+        db.commit()
+        (db_id, db_pw) = (identity, password)
+    if not db_pw == password:
+        response = {
+            "success": False,
+            "data": "Password did not match",
+        }
+    else:
+        sign_pad = apad.PSS(apad.MGF1(hashes.SHA256()), apad.PSS.MAX_LENGTH)
+        token = private_key.sign(bytes(identity), sign_pad, hashes.SHA256())
+        padded_token = pad.update(token) + pad.finalize()
+        encrypted_token = encryptor.update(padded_token) + encryptor.finalize()
+        response = {
+            "success": True,
+            "data": base64.b64encode(encrypted_token).decode()
+        }
+    return response
+
+
+
+
+def generate_response(request: dict):
+    if request["type"] == AuthRequestType.Token:
+        return get_token_response(request)
+    elif request["type"] == AuthRequestType.PublicKey:
+        return public_key_response()
 
 
 def initialize_database(db_filename):
@@ -72,7 +146,7 @@ class Handler(socketserver.BaseRequestHandler):
         print("received {} from {}".format(self.data, self.client_address[0]))
         try:
             request = json.loads(self.data)
-            response = response_token(request["identity"])
+            response = generate_response(request)
             print("sending {}".format(response))
             response = json.dumps(response).encode()
         except json.decoder.JSONDecodeError:
@@ -96,6 +170,7 @@ if __name__ == "__main__":
     db = initialize_database(db_location)
     private_key_file = "auth_private_key"
     private_key = initialize_key(private_key_file)
+    public_key = private_key.public_key()
     signal.signal(signal.SIGINT, signal_handler)
     try:
         server = socketserver.TCPServer((HOST, PORT), Handler)
