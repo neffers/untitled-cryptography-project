@@ -46,7 +46,7 @@ def initialize_key(key_filename):
         print("No existing private key found, generating...")
         key = rsa.generate_private_key(65537, 4096)
         to_write = key.private_bytes(
-            serialization.Encoding.OpenSSH,
+            serialization.Encoding.PEM,
             serialization.PrivateFormat.OpenSSH,
             serialization.NoEncryption()
         )
