@@ -6,7 +6,7 @@ import signal
 import sys
 import serverlib
 from os import urandom
-from cryptography.hazmat.primitives import hashes, padding
+from cryptography.hazmat.primitives import hashes, padding, serialization
 from cryptography.hazmat.primitives.asymmetric import rsa, padding as apad
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 from enums import AuthRequestType
@@ -124,6 +124,14 @@ if __name__ == "__main__":
     private_key_file = "auth_private_key"
     private_key: rsa.RSAPrivateKey = serverlib.initialize_key(private_key_file)
     public_key = private_key.public_key()
+
+    public_key_file = "auth_public_key"
+    public_key_writable = public_key.public_bytes(
+        serialization.Encoding.OpenSSH,
+        serialization.PublicFormat.OpenSSH
+    )
+    with open(public_key_file, "wb") as key_file:
+        key_file.write(public_key_writable)
 
     signal.signal(signal.SIGINT, signal_handler)
 
