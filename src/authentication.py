@@ -44,7 +44,7 @@ def get_token_response(request: dict):
         encrypted_token = src.cryptolib.symmetric_encrypt(aes_key, token)
         response = {
             "success": True,
-            "data": base64.b64encode(encrypted_token).decode()
+            "data": src.cryptolib.bytes_to_b64(encrypted_token)
         }
     return response
 

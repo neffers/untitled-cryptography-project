@@ -30,12 +30,13 @@ def send_dict_to_socket(packet: dict, sock: socket.socket):
 
 
 def public_key_response(public_key: rsa.RSAPublicKey):
+    pubkey_bytes = public_key.public_bytes(
+        serialization.Encoding.OpenSSH,
+        serialization.PublicFormat.OpenSSH
+    )
     response = {
         "success": True,
-        "data": base64.b64encode(public_key.public_bytes(
-            serialization.Encoding.OpenSSH,
-            serialization.PublicFormat.OpenSSH
-        )).decode()
+        "data": src.cryptolib.bytes_to_b64(pubkey_bytes)
     }
     return response
 
