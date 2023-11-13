@@ -1,7 +1,6 @@
 import base64
 import socketserver
 import json
-import struct
 import signal
 import sys
 import serverlib
@@ -89,6 +88,7 @@ class Handler(socketserver.BaseRequestHandler):
         response = generate_response(request)
         print("sending {}".format(response))
         serverlib.send_dict_to_socket(response, self.request)
+        print("closing socket with {}".format(self.client_address[0]))
 
 
 def signal_handler(sig, frame):

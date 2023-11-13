@@ -11,6 +11,8 @@ from os import path
 import serverlib
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
+
+import src.cryptolib
 from enums import ResourceRequestType, Permissions, UserClass
 
 
@@ -931,7 +933,7 @@ if __name__ == "__main__":
     with open(auth_public_key_filename, "rb") as key_file:
         auth_public_key: rsa.RSAPublicKey = serialization.load_ssh_public_key(key_file.read())
         print("Found Auth server public key.")
-        print("Key Hash: " + serverlib.public_key_hash(auth_public_key))
+        print("Key Hash: " + src.cryptolib.public_key_hash(auth_public_key))
 
     # Init DB
     db = serverlib.initialize_database(db_filename, db_schema)

@@ -5,7 +5,9 @@ import sqlite3
 import struct
 from os import path
 from cryptography.hazmat.primitives.asymmetric import rsa
-from cryptography.hazmat.primitives import serialization, hashes
+from cryptography.hazmat.primitives import serialization
+
+import src.cryptolib
 
 
 def get_dict_from_socket(sock: socket.socket) -> dict:
@@ -56,16 +58,6 @@ def initialize_database(db_filename, schema_command):
     return database
 
 
-def public_key_hash(key: rsa.RSAPublicKey):
-    public_key_bytes = key.public_bytes(
-        serialization.Encoding.OpenSSH,
-        serialization.PublicFormat.OpenSSH
-    )
-    hasher = hashes.Hash(hashes.SHA256())
-    hasher.update(public_key_bytes)
-    return hasher.finalize().hex()
-
-
 def initialize_key(key_filename):
     if path.exists(key_filename):
         print("Found existing private key, using that.")
@@ -84,5 +76,5 @@ def initialize_key(key_filename):
         )
         with open(key_filename, "wb") as key_file:
             key_file.write(to_write)
-    print("Key Hash: " + public_key_hash(key.public_key()))
+    print("Key Hash: " + src.cryptolib.public_key_hash(key.public_key()))
     return key
