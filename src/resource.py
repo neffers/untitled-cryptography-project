@@ -1,3 +1,4 @@
+import os
 import socketserver
 import json
 import sqlite3
@@ -856,6 +857,47 @@ class Handler(socketserver.BaseRequestHandler):
     def handle(self):
         print("Connection opened with {}".format(self.client_address[0]))
         # Initial connection
+        request = serverlib.get_dict_from_socket(self.request)
+        if not request["type"] == ResourceRequestType.PublicKey:
+            print("Initial request not for public key, exiting")
+            return
+        response = serverlib.public_key_response(public_key)
+        serverlib.send_dict_to_socket(response, self.request)
+
+        # Authentication step
+        request = serverlib.get_dict_from_socket(self.request)
+        if not request["type"] == ResourceRequestType.Authenticate:
+            print("Secondary request not for authentication, exiting")
+            return
+        encrypted_key = src.cryptolib.b64_to_bytes(request["encrypted_key"])
+        aes_key = src.cryptolib.rsa_decrypt(private_key, encrypted_key)
+        signin_payload = src.cryptolib.b64_to_bytes(request["signin_payload"])
+        signin_request = src.cryptolib.decrypt_dict(aes_key, signin_payload)
+        socket_identity = signin_request["identity"]
+        token = src.cryptolib.b64_to_bytes(signin_request["token"])
+        if not src.cryptolib.rsa_verify_str(auth_public_key, token, socket_identity):
+            print("Invalid login token, exiting")
+            return
+        nonce = os.urandom(32)
+        encrypted_nonce = src.cryptolib.symmetric_encrypt(aes_key, nonce)
+        response = {"nonce": src.cryptolib.bytes_to_b64(encrypted_nonce)}
+        serverlib.send_dict_to_socket(response, self.request)
+
+        # verification
+        if not request["type"] == ResourceRequestType.NonceReply:
+            print("request type not a nonce reply, exiting")
+            return
+        request = serverlib.get_dict_from_socket(self.request)
+        reply_nonce = src.cryptolib.symmetric_decrypt(aes_key, request["nonce"])
+        if not src.cryptolib.bytes_to_int(nonce) + 1 == src.cryptolib.bytes_to_int(reply_nonce):
+            print("Invalid nonce reply, exiting")
+            return
+        encrypted_request = request["real_request"]
+        further_request = src.cryptolib.decrypt_dict(aes_key, encrypted_request)
+        response = handle_request(request)
+        serverlib.send_dict_to_socket(response, self.request)
+
+        # TODO: make this loop use encrypted stuff
         while True:
             request = serverlib.get_dict_from_socket(self.request)
             print("received {} from {}".format(request, self.client_address[0]))

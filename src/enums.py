@@ -7,6 +7,7 @@ from enum import auto
 class ResourceRequestType(IntEnum):
     PublicKey = auto()
     Authenticate = auto()
+    NonceReply = auto()
     ListLeaderboards = auto()
     ShowOneLeaderboard = auto()
     CreateLeaderboard = auto()
