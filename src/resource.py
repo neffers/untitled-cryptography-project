@@ -892,10 +892,12 @@ class Handler(socketserver.BaseRequestHandler):
             return
         encrypted_request = request["real_request"]
         further_request = cryptolib.decrypt_dict(aes_key, encrypted_request)
-        response = handle_request(request)
+        response = handle_request(further_request)
         netlib.send_dict_to_socket(response, self.request)
 
         # TODO: make this loop use encrypted stuff
+        # Should also use the socket_identity
+        # Change docs to say it doesn't need that anymore
         while True:
             request = netlib.get_dict_from_socket(self.request)
             print("received {} from {}".format(request, self.client_address[0]))
