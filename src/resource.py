@@ -804,6 +804,7 @@ class Handler(socketserver.BaseRequestHandler):
         request = netlib.get_dict_from_socket(self.request)
         if not request["type"] == ResourceRequestType.PublicKey:
             print("Initial request not for public key, exiting")
+            netlib.send_dict_to_socket(serverlib.bad_request_json(ServerErrCode.MalformedRequest), self.request)
             return
         response = serverlib.public_key_response(public_key)
         netlib.send_dict_to_socket(response, self.request)
@@ -812,6 +813,7 @@ class Handler(socketserver.BaseRequestHandler):
         request = netlib.get_dict_from_socket(self.request)
         if not request["type"] == ResourceRequestType.Authenticate:
             print("Secondary request not for authentication, exiting")
+            netlib.send_dict_to_socket(serverlib.bad_request_json(ServerErrCode.MalformedRequest), self.request)
             return
         encrypted_key = netlib.b64_to_bytes(request["encrypted_key"])
         aes_key = cryptolib.rsa_decrypt(private_key, encrypted_key)
@@ -821,6 +823,7 @@ class Handler(socketserver.BaseRequestHandler):
         token = netlib.b64_to_bytes(signin_request["token"])
         if not cryptolib.rsa_verify_str(auth_public_key, token, socket_identity):
             print("Invalid login token, exiting")
+            netlib.send_dict_to_socket(serverlib.bad_request_json(ServerErrCode.AuthenticationFailure), self.request)
             return
         nonce = os.urandom(32)
         encrypted_nonce = cryptolib.symmetric_encrypt(aes_key, nonce)
@@ -830,13 +833,15 @@ class Handler(socketserver.BaseRequestHandler):
         # verification
         if not request["type"] == ResourceRequestType.NonceReply:
             print("request type not a nonce reply, exiting")
+            netlib.send_dict_to_socket(serverlib.bad_request_json(ServerErrCode.MalformedRequest), self.request)
             return
         request = netlib.get_dict_from_socket(self.request)
         reply_nonce = cryptolib.symmetric_decrypt(aes_key, request["nonce"])
         if not netlib.bytes_to_int(nonce) + 1 == netlib.bytes_to_int(reply_nonce):
             print("Invalid nonce reply, exiting")
+            netlib.send_dict_to_socket(serverlib.bad_request_json(ServerErrCode.AuthenticationFailure), self.request)
             return
-        encrypted_request = request["real_request"]
+        encrypted_request = request["encrypted_request"]
         further_request = cryptolib.decrypt_dict(aes_key, encrypted_request)
         response = handle_request(further_request)
         netlib.send_dict_to_socket(response, self.request)
