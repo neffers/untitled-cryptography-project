@@ -2,7 +2,7 @@ import json
 from os import urandom
 
 from cryptography.hazmat.primitives import serialization, hashes, padding
-from cryptography.hazmat.primitives.asymmetric import rsa
+from cryptography.hazmat.primitives.asymmetric import rsa, padding as asym_pad
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 
 
@@ -14,6 +14,10 @@ def public_key_hash(key: rsa.RSAPublicKey):
     hasher = hashes.Hash(hashes.SHA256())
     hasher.update(public_key_bytes)
     return hasher.finalize().hex()
+
+
+def rsa_decrypt(key: rsa.RSAPrivateKey, ciphertext: bytes) -> bytes:
+    return key.decrypt(ciphertext, asym_pad.OAEP(asym_pad.MGF1(hashes.SHA256()), hashes.SHA256(), None))
 
 
 def symmetric_decrypt(key: bytes, ciphertext: bytes) -> bytes:
