@@ -30,6 +30,13 @@ class ResourceRequestType(IntEnum):
     GetIdFromIdentity = auto()
 
 
+class ServerErrCode(IntEnum):
+    AuthenticationFailure = auto()
+    InsufficientPermission = auto()
+    DoesNotExist = auto()
+    MalformedRequest = auto()
+
+
 class Permissions(IntEnum):
     # we want these to have a specific hierarchy
     NoAccess = 0
