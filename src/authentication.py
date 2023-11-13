@@ -1,23 +1,30 @@
-import base64
 import socketserver
 import signal
 import sys
-from cryptography.hazmat.primitives import hashes, serialization
-from cryptography.hazmat.primitives.asymmetric import rsa, padding as apad
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric import rsa
 
-from enums import AuthRequestType
+from enums import AuthRequestType, ServerErrCode
 import netlib
 import serverlib
 import cryptolib
 
 
 def get_token_response(request: dict):
-    rsa_encrypted_aes_key = base64.b64decode(request["encrypted_key"])
-    signin_payload = base64.b64decode(request["signin_payload"])
+    try:
+        rsa_encrypted_aes_key = netlib.b64_to_bytes(request["encrypted_key"])
+        signin_payload = netlib.b64_to_bytes(request["signin_payload"])
+    except KeyError or TypeError:
+        return serverlib.bad_request_json(ServerErrCode.MalformedRequest)
     aes_key = cryptolib.rsa_decrypt(private_key, rsa_encrypted_aes_key)
     signin_request = cryptolib.decrypt_dict(aes_key, signin_payload)
-    identity = signin_request["identity"]
-    password = signin_request["password"]
+    try:
+        identity = signin_request["identity"]
+        assert type(identity) is str
+        password = signin_request["password"]
+        assert type(password) is str
+    except KeyError or AssertionError:
+        return serverlib.bad_request_json(ServerErrCode.MalformedRequest)
 
     get_user_command = """
         select identity, password
@@ -37,10 +44,7 @@ def get_token_response(request: dict):
         db.commit()
         (db_id, db_pw) = (identity, password)
     if not db_pw == password:
-        response = {
-            "success": False,
-            "data": "Password did not match",
-        }
+        return serverlib.bad_request_json(ServerErrCode.AuthenticationFailure)
     else:
         token = cryptolib.rsa_sign_string(private_key, identity)
         encrypted_token = cryptolib.symmetric_encrypt(aes_key, token)
@@ -57,10 +61,7 @@ def generate_response(request: dict):
     elif request["type"] == AuthRequestType.PublicKey:
         return serverlib.public_key_response(public_key)
     else:
-        return {
-            "success": False,
-            "data": "Bad request, not in AuthRequestType"
-        }
+        return serverlib.bad_request_json(ServerErrCode.MalformedRequest)
 
 
 class Handler(socketserver.BaseRequestHandler):

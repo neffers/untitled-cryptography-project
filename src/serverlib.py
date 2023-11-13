@@ -5,6 +5,7 @@ from cryptography.hazmat.primitives import serialization
 
 import cryptolib
 import netlib
+from src.enums import ServerErrCode
 
 
 def public_key_response(public_key: rsa.RSAPublicKey):
@@ -57,3 +58,11 @@ def initialize_key(key_filename):
             key_file.write(to_write)
     print("Key Hash: " + cryptolib.public_key_hash(key.public_key()))
     return key
+
+
+def bad_request_json(err: ServerErrCode, comment: str = None):
+    return {
+        "success": False,
+        "data": err,
+        "comment": comment,
+    }
