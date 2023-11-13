@@ -1,4 +1,3 @@
-import base64
 import json
 from os import urandom
 
@@ -72,17 +71,3 @@ def encrypt_dict(key: bytes, message: dict) -> bytes:
     return symmetric_encrypt(key, to_encrypt)
 
 
-def bytes_to_int(b: bytes) -> int:
-    return int.from_bytes(input, 'big')
-
-
-def int_to_bytes(i: int) -> bytes:
-    return i.to_bytes(32, 'big')
-
-
-def bytes_to_b64(b: bytes) -> str:
-    return base64.b64encode(b).decode()
-
-
-def b64_to_bytes(s: str) -> bytes:
-    return base64.b64decode(s)

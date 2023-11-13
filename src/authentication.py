@@ -4,6 +4,8 @@ import signal
 import sys
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import rsa, padding as apad
+
+import src.netlib
 from enums import AuthRequestType
 import src.serverlib
 import src.cryptolib
@@ -44,7 +46,7 @@ def get_token_response(request: dict):
         encrypted_token = src.cryptolib.symmetric_encrypt(aes_key, token)
         response = {
             "success": True,
-            "data": src.cryptolib.bytes_to_b64(encrypted_token)
+            "data": src.netlib.bytes_to_b64(encrypted_token)
         }
     return response
 
@@ -64,11 +66,11 @@ def generate_response(request: dict):
 class Handler(socketserver.BaseRequestHandler):
     def handle(self):
         print("socket opened with {}".format(self.client_address[0]))
-        request = src.serverlib.get_dict_from_socket(self.request)
+        request = src.netlib.get_dict_from_socket(self.request)
         print("received {}".format(request))
         response = generate_response(request)
         print("sending {}".format(response))
-        src.serverlib.send_dict_to_socket(response, self.request)
+        src.netlib.send_dict_to_socket(response, self.request)
         print("closing socket with {}".format(self.client_address[0]))
 
 
