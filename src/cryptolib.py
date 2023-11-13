@@ -1,3 +1,4 @@
+import base64
 import json
 from os import urandom
 
@@ -77,3 +78,11 @@ def bytes_to_int(b: bytes) -> int:
 
 def int_to_bytes(i: int) -> bytes:
     return i.to_bytes(32, 'big')
+
+
+def bytes_to_b64(b: bytes) -> str:
+    return base64.b64encode(b).decode()
+
+
+def b64_to_bytes(s: str) -> bytes:
+    return base64.b64decode(s)
