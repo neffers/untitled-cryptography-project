@@ -690,12 +690,12 @@ def display():
         server_count += 1
 
 
-def write_database_to_file():
+def write_database_to_file(database, db_filename):
     with open(db_filename, "w") as db_file:
-        json.dump(db, db_file)
+        json.dump(database, db_file)
 
 
-def initialize_database() -> dict:
+def initialize_database(db_filename) -> dict:
     try:
         with open(db_filename, "r") as db_file:
             db_to_return = json.load(db_file)
@@ -704,8 +704,13 @@ def initialize_database() -> dict:
         print("Could not read db from file. Exiting to avoid corrupting!")
     except FileNotFoundError:
         print("No database found! Initializing new database.")
+        str = ""
+        if db_filename == "client_db":
+            str = "resource servers"
+        else:
+            str = "stored keys"
         db_to_return = {
-            "resource_servers": [],
+            str: [],
         }
     return db_to_return
 
@@ -717,7 +722,7 @@ def main():
         ip = input("Enter the ip of the server: ")
         port = input("Enter the port of the server: ")
         db["auth_server"] = {"name": name, "ip": ip, "port": port}
-        write_database_to_file()
+        write_database_to_file(db, "client_db")
 
     while True:
         display()
@@ -747,7 +752,7 @@ def main():
             ip = input("Enter the ip of the server: ")
             port = input("Enter the port of the server: ")
             db["resource_servers"].append({"name": name, "ip": ip, "port": port})
-            write_database_to_file()
+            write_database_to_file(db, "client_db")
 
         elif choice == 'e':  # edit resource server
             choice = input("Enter server number to edit (0 for auth. server): ")
@@ -772,7 +777,7 @@ def main():
             port = input("Enter new port (empty to leave as \"{}\"): ".format(server["port"]))
             if port != "":
                 server["port"] = port
-            write_database_to_file()
+            write_database_to_file(db, "client_db")
 
         elif choice == 'r':  # remove a resource server
             choice = input("Enter server number to remove: ")
@@ -865,6 +870,6 @@ def server_loop(res_ip, res_port):
 
 
 if __name__ == "__main__":
-    db_filename = "client_db"
-    db = initialize_database()
+    db = initialize_database("client_db")
+    keydb = initialize_database("pubkey_db")
     main()
