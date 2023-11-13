@@ -964,7 +964,7 @@ if __name__ == "__main__":
     key_filename = "res_private_key"
     auth_public_key_filename = "auth_public_key"
 
-    # Init Crypography stuff
+    # Init Cryptography stuff
     private_key = serverlib.initialize_key(key_filename)
     public_key = private_key.public_key()
     if not path.exists(auth_public_key_filename):
