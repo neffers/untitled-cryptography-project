@@ -299,22 +299,6 @@ def get_user(requesting_user_id: int, user_id: int) -> dict:
     }
 
 
-# TODO: Is this only used to get own identity? May replace
-def get_user_id(identity: int) -> dict:
-    cursor = db.cursor()
-    get_user_command = "SELECT id FROM users WHERE identity = ?"
-    get_user_params = (identity,)
-    cursor.execute(get_user_command, get_user_params)
-    user_id = cursor.fetchone()
-    if user_id is None:
-        return bad_request_json(ServerErrCode.DoesNotExist)
-
-    return {
-        "success": True,
-        "data": user_id,
-    }
-
-
 def handle_request(request):
     # Every request needs to have these
     try:
@@ -439,13 +423,11 @@ def handle_request(request):
         return get_user(request_user_id, user_id)
 
     # Internal
-    if request_type == ResourceRequestType.GetIdFromIdentity:
-        try:
-            identity = request["identity"]
-            assert type(identity) is str
-        except KeyError or AssertionError:
-            return bad_request_json(ServerErrCode.MalformedRequest)
-        return get_user_id(identity)
+    if request_type == ResourceRequestType.GetSelfID:
+        return {
+            "success": True,
+            "data": request_user_id
+        }
 
     # Entry: Verify Entry
     # Entry: Unverify Entry

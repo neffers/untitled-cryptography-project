@@ -27,7 +27,7 @@ class ResourceRequestType(IntEnum):
     AddProof = auto()
     DownloadProof = auto()
     RemoveProof = auto()
-    GetIdFromIdentity = auto()
+    GetSelfID = auto()
 
 
 class ServerErrCode(IntEnum):
