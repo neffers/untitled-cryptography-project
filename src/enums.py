@@ -1,5 +1,4 @@
-from enum import IntEnum
-from enum import auto
+from enum import IntEnum, auto
 
 
 # An enum for Request types to the Resource Server

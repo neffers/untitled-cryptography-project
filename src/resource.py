@@ -1,18 +1,16 @@
 import os
 import socketserver
-import json
 import sqlite3
 import time
-import struct
 import base64
 import signal
 import sys
 from os import path
 
-import serverlib
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
 
+import src.serverlib
 import src.cryptolib
 import src.netlib
 from enums import ResourceRequestType, Permissions, UserClass
@@ -146,7 +144,7 @@ def handle_request(request):
 
     # Get public key
     if request_type == ResourceRequestType.PublicKey:
-        return serverlib.public_key_response(public_key)
+        return src.serverlib.public_key_response(public_key)
 
     # Basic: List Leaderboards
     if request_type == ResourceRequestType.ListLeaderboards:
@@ -862,7 +860,7 @@ class Handler(socketserver.BaseRequestHandler):
         if not request["type"] == ResourceRequestType.PublicKey:
             print("Initial request not for public key, exiting")
             return
-        response = serverlib.public_key_response(public_key)
+        response = src.serverlib.public_key_response(public_key)
         src.netlib.send_dict_to_socket(response, self.request)
 
         # Authentication step
@@ -968,7 +966,7 @@ if __name__ == "__main__":
     auth_public_key_filename = "auth_public_key"
 
     # Init Crypography stuff
-    private_key = serverlib.initialize_key(key_filename)
+    private_key = src.serverlib.initialize_key(key_filename)
     public_key = private_key.public_key()
     if not path.exists(auth_public_key_filename):
         print("No Auth server public key found! Please provide an authentication server public key.")
@@ -979,7 +977,7 @@ if __name__ == "__main__":
         print("Key Hash: " + src.cryptolib.public_key_hash(auth_public_key))
 
     # Init DB
-    db = serverlib.initialize_database(db_filename, db_schema)
+    db = src.serverlib.initialize_database(db_filename, db_schema)
 
     # Init server
     HOST, PORT = "0.0.0.0", 8086
