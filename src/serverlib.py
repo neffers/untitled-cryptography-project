@@ -3,8 +3,8 @@ from os import path
 from cryptography.hazmat.primitives.asymmetric import rsa
 from cryptography.hazmat.primitives import serialization
 
-import src.cryptolib
-import src.netlib
+import cryptolib
+import netlib
 
 
 def public_key_response(public_key: rsa.RSAPublicKey):
@@ -14,7 +14,7 @@ def public_key_response(public_key: rsa.RSAPublicKey):
     )
     response = {
         "success": True,
-        "data": src.netlib.bytes_to_b64(pubkey_bytes)
+        "data": netlib.bytes_to_b64(pubkey_bytes)
     }
     return response
 
@@ -55,5 +55,5 @@ def initialize_key(key_filename):
         )
         with open(key_filename, "wb") as key_file:
             key_file.write(to_write)
-    print("Key Hash: " + src.cryptolib.public_key_hash(key.public_key()))
+    print("Key Hash: " + cryptolib.public_key_hash(key.public_key()))
     return key

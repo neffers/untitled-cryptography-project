@@ -10,9 +10,9 @@ from os import path
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
 
-import src.serverlib
-import src.cryptolib
-import src.netlib
+import serverlib
+import cryptolib
+import netlib
 from enums import ResourceRequestType, Permissions, UserClass
 
 
@@ -144,7 +144,7 @@ def handle_request(request):
 
     # Get public key
     if request_type == ResourceRequestType.PublicKey:
-        return src.serverlib.public_key_response(public_key)
+        return serverlib.public_key_response(public_key)
 
     # Basic: List Leaderboards
     if request_type == ResourceRequestType.ListLeaderboards:
@@ -856,53 +856,53 @@ class Handler(socketserver.BaseRequestHandler):
     def handle(self):
         print("Connection opened with {}".format(self.client_address[0]))
         # Initial connection
-        request = src.netlib.get_dict_from_socket(self.request)
+        request = netlib.get_dict_from_socket(self.request)
         if not request["type"] == ResourceRequestType.PublicKey:
             print("Initial request not for public key, exiting")
             return
-        response = src.serverlib.public_key_response(public_key)
-        src.netlib.send_dict_to_socket(response, self.request)
+        response = serverlib.public_key_response(public_key)
+        netlib.send_dict_to_socket(response, self.request)
 
         # Authentication step
-        request = src.netlib.get_dict_from_socket(self.request)
+        request = netlib.get_dict_from_socket(self.request)
         if not request["type"] == ResourceRequestType.Authenticate:
             print("Secondary request not for authentication, exiting")
             return
-        encrypted_key = src.netlib.b64_to_bytes(request["encrypted_key"])
-        aes_key = src.cryptolib.rsa_decrypt(private_key, encrypted_key)
-        signin_payload = src.netlib.b64_to_bytes(request["signin_payload"])
-        signin_request = src.cryptolib.decrypt_dict(aes_key, signin_payload)
+        encrypted_key = netlib.b64_to_bytes(request["encrypted_key"])
+        aes_key = cryptolib.rsa_decrypt(private_key, encrypted_key)
+        signin_payload = netlib.b64_to_bytes(request["signin_payload"])
+        signin_request = cryptolib.decrypt_dict(aes_key, signin_payload)
         socket_identity = signin_request["identity"]
-        token = src.netlib.b64_to_bytes(signin_request["token"])
-        if not src.cryptolib.rsa_verify_str(auth_public_key, token, socket_identity):
+        token = netlib.b64_to_bytes(signin_request["token"])
+        if not cryptolib.rsa_verify_str(auth_public_key, token, socket_identity):
             print("Invalid login token, exiting")
             return
         nonce = os.urandom(32)
-        encrypted_nonce = src.cryptolib.symmetric_encrypt(aes_key, nonce)
-        response = {"nonce": src.netlib.bytes_to_b64(encrypted_nonce)}
-        src.netlib.send_dict_to_socket(response, self.request)
+        encrypted_nonce = cryptolib.symmetric_encrypt(aes_key, nonce)
+        response = {"nonce": netlib.bytes_to_b64(encrypted_nonce)}
+        netlib.send_dict_to_socket(response, self.request)
 
         # verification
         if not request["type"] == ResourceRequestType.NonceReply:
             print("request type not a nonce reply, exiting")
             return
-        request = src.netlib.get_dict_from_socket(self.request)
-        reply_nonce = src.cryptolib.symmetric_decrypt(aes_key, request["nonce"])
-        if not src.netlib.bytes_to_int(nonce) + 1 == src.netlib.bytes_to_int(reply_nonce):
+        request = netlib.get_dict_from_socket(self.request)
+        reply_nonce = cryptolib.symmetric_decrypt(aes_key, request["nonce"])
+        if not netlib.bytes_to_int(nonce) + 1 == src.netlib.bytes_to_int(reply_nonce):
             print("Invalid nonce reply, exiting")
             return
         encrypted_request = request["real_request"]
-        further_request = src.cryptolib.decrypt_dict(aes_key, encrypted_request)
+        further_request = cryptolib.decrypt_dict(aes_key, encrypted_request)
         response = handle_request(request)
-        src.netlib.send_dict_to_socket(response, self.request)
+        netlib.send_dict_to_socket(response, self.request)
 
         # TODO: make this loop use encrypted stuff
         while True:
-            request = src.netlib.get_dict_from_socket(self.request)
+            request = netlib.get_dict_from_socket(self.request)
             print("received {} from {}".format(request, self.client_address[0]))
             response = handle_request(request)
             print("sending {} to {}".format(response, self.client_address[0]))
-            src.netlib.send_dict_to_socket(response, self.request)
+            netlib.send_dict_to_socket(response, self.request)
 
 
 def signal_handler(sig, frame):
@@ -966,7 +966,7 @@ if __name__ == "__main__":
     auth_public_key_filename = "auth_public_key"
 
     # Init Crypography stuff
-    private_key = src.serverlib.initialize_key(key_filename)
+    private_key = serverlib.initialize_key(key_filename)
     public_key = private_key.public_key()
     if not path.exists(auth_public_key_filename):
         print("No Auth server public key found! Please provide an authentication server public key.")
@@ -974,10 +974,10 @@ if __name__ == "__main__":
     with open(auth_public_key_filename, "rb") as key_file:
         auth_public_key: rsa.RSAPublicKey = serialization.load_ssh_public_key(key_file.read())
         print("Found Auth server public key.")
-        print("Key Hash: " + src.cryptolib.public_key_hash(auth_public_key))
+        print("Key Hash: " + cryptolib.public_key_hash(auth_public_key))
 
     # Init DB
-    db = src.serverlib.initialize_database(db_filename, db_schema)
+    db = serverlib.initialize_database(db_filename, db_schema)
 
     # Init server
     HOST, PORT = "0.0.0.0", 8086

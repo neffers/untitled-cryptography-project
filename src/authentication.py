@@ -5,17 +5,17 @@ import sys
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import rsa, padding as apad
 
-import src.netlib
 from enums import AuthRequestType
-import src.serverlib
-import src.cryptolib
+import netlib
+import serverlib
+import cryptolib
 
 
 def get_token_response(request: dict):
     rsa_encrypted_aes_key = base64.b64decode(request["encrypted_key"])
     signin_payload = base64.b64decode(request["signin_payload"])
-    aes_key = src.cryptolib.rsa_decrypt(private_key, rsa_encrypted_aes_key)
-    signin_request = src.cryptolib.decrypt_dict(aes_key, signin_payload)
+    aes_key = cryptolib.rsa_decrypt(private_key, rsa_encrypted_aes_key)
+    signin_request = cryptolib.decrypt_dict(aes_key, signin_payload)
     identity = signin_request["identity"]
     password = signin_request["password"]
 
@@ -42,11 +42,11 @@ def get_token_response(request: dict):
             "data": "Password did not match",
         }
     else:
-        token = src.cryptolib.rsa_sign_string(private_key, identity)
-        encrypted_token = src.cryptolib.symmetric_encrypt(aes_key, token)
+        token = cryptolib.rsa_sign_string(private_key, identity)
+        encrypted_token = cryptolib.symmetric_encrypt(aes_key, token)
         response = {
             "success": True,
-            "data": src.netlib.bytes_to_b64(encrypted_token)
+            "data": netlib.bytes_to_b64(encrypted_token)
         }
     return response
 
@@ -55,7 +55,7 @@ def generate_response(request: dict):
     if request["type"] == AuthRequestType.Token:
         return get_token_response(request)
     elif request["type"] == AuthRequestType.PublicKey:
-        return src.serverlib.public_key_response(public_key)
+        return serverlib.public_key_response(public_key)
     else:
         return {
             "success": False,
@@ -66,11 +66,11 @@ def generate_response(request: dict):
 class Handler(socketserver.BaseRequestHandler):
     def handle(self):
         print("socket opened with {}".format(self.client_address[0]))
-        request = src.netlib.get_dict_from_socket(self.request)
+        request = netlib.get_dict_from_socket(self.request)
         print("received {}".format(request))
         response = generate_response(request)
         print("sending {}".format(response))
-        src.netlib.send_dict_to_socket(response, self.request)
+        netlib.send_dict_to_socket(response, self.request)
         print("closing socket with {}".format(self.client_address[0]))
 
 
@@ -90,10 +90,10 @@ if __name__ == "__main__":
         password TEXT NOT NULL
     );
     """
-    db = src.serverlib.initialize_database(db_location, db_init_command)
+    db = serverlib.initialize_database(db_location, db_init_command)
 
     private_key_file = "auth_private_key"
-    private_key: rsa.RSAPrivateKey = src.serverlib.initialize_key(private_key_file)
+    private_key: rsa.RSAPrivateKey = serverlib.initialize_key(private_key_file)
     public_key = private_key.public_key()
 
     public_key_file = "auth_public_key"
