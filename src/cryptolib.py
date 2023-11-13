@@ -69,3 +69,11 @@ def symmetric_encrypt(key: bytes, message: bytes) -> bytes:
 def encrypt_dict(key: bytes, message: dict) -> bytes:
     to_encrypt = json.dumps(message).encode()
     return symmetric_encrypt(key, to_encrypt)
+
+
+def bytes_to_int(b: bytes) -> int:
+    return int.from_bytes(input, 'big')
+
+
+def int_to_bytes(i: int) -> bytes:
+    return i.to_bytes(32, 'big')
