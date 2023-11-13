@@ -707,8 +707,8 @@ def initialize_database(db_filename) -> dict:
         str = ""
         if db_filename == "client_db":
             str = "resource servers"
-        else:
-            str = "stored keys"
+        #else:
+        #    str = "stored keys"
         db_to_return = {
             str: [],
         }
@@ -721,7 +721,7 @@ def main():
         name = input("Name the server: ")[:20]
         ip = input("Enter the ip of the server: ")
         port = input("Enter the port of the server: ")
-        db["auth_server"] = {"name": name, "ip": ip, "port": port}
+        db["auth_server"] = {"name": name, "ip": ip, "port": port, "key": ""}
         write_database_to_file(db, "client_db")
 
     while True:
@@ -751,7 +751,7 @@ def main():
             name = input("Name the server: ")[:20]
             ip = input("Enter the ip of the server: ")
             port = input("Enter the port of the server: ")
-            db["resource_servers"].append({"name": name, "ip": ip, "port": port})
+            db["resource_servers"].append({"name": name, "ip": ip, "port": port, "key": ""})
             write_database_to_file(db, "client_db")
 
         elif choice == 'e':  # edit resource server
@@ -871,5 +871,4 @@ def server_loop(res_ip, res_port):
 
 if __name__ == "__main__":
     db = initialize_database("client_db")
-    keydb = initialize_database("pubkey_db")
     main()
