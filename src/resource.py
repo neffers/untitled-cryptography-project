@@ -887,7 +887,7 @@ class Handler(socketserver.BaseRequestHandler):
             return
         request = netlib.get_dict_from_socket(self.request)
         reply_nonce = cryptolib.symmetric_decrypt(aes_key, request["nonce"])
-        if not netlib.bytes_to_int(nonce) + 1 == src.netlib.bytes_to_int(reply_nonce):
+        if not netlib.bytes_to_int(nonce) + 1 == netlib.bytes_to_int(reply_nonce):
             print("Invalid nonce reply, exiting")
             return
         encrypted_request = request["real_request"]
