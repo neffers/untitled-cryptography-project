@@ -852,27 +852,14 @@ def handle_request(request):
 
 class Handler(socketserver.BaseRequestHandler):
     def handle(self):
+        print("Connection opened with {}".format(self.client_address[0]))
+        # Initial connection
         while True:
-            self.data = self.request.recv(4).strip()
-            if not self.data:
-                break
-            buffer_len = struct.unpack("!I", self.data)[0]
-            self.data = self.request.recv(buffer_len).strip()
-            if not self.data:
-                break
-            print("received {} from {}".format(self.data, self.client_address[0]))
-            try:
-                request = json.loads(self.data)
-                response = handle_request(request)
-            except json.decoder.JSONDecodeError:
-                print("Could not interpret packet!")
-                response = bad_request_json("Could not interpret packet.")
-
+            request = serverlib.get_dict_from_socket(self.request)
+            print("received {} from {}".format(request, self.client_address[0]))
+            response = handle_request(request)
             print("sending {} to {}".format(response, self.client_address[0]))
-            response = json.dumps(response).encode()
-            buffer = struct.pack("!I", len(response))
-            buffer += bytes(response)
-            self.request.sendall(buffer)
+            serverlib.send_dict_to_socket(response, self.request)
 
 
 def signal_handler(sig, frame):

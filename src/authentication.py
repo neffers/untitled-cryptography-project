@@ -78,24 +78,12 @@ def generate_response(request: dict):
 
 class Handler(socketserver.BaseRequestHandler):
     def handle(self):
-        print("handling packet")
-        self.data = self.request.recv(4)
-        buffer_len = struct.unpack("!I", self.data)[0]
-        self.data = self.request.recv(buffer_len)
-        print("data received")
-        print("received {} from {}".format(self.data, self.client_address[0]))
-        try:
-            request = json.loads(self.data)
-            response = generate_response(request)
-            print("sending {}".format(response))
-            response = json.dumps(response).encode()
-        except json.decoder.JSONDecodeError:
-            print("Could not interpret packet!")
-            response = {"success": False, "data": "Malformed request!"}
-
-        buffer = struct.pack("!I", len(response))
-        buffer += bytes(response)
-        self.request.send(buffer)
+        print("socket opened with {}".format(self.client_address[0]))
+        request = serverlib.get_dict_from_socket(self.request)
+        print("received {}".format(request))
+        response = generate_response(request)
+        print("sending {}".format(response))
+        serverlib.send_dict_to_socket(response, self.request)
 
 
 def signal_handler(sig, frame):

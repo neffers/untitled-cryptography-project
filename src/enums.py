@@ -6,6 +6,7 @@ from enum import auto
 # Should hopefully simplify adding request types as well as determining if all cases are handled
 class ResourceRequestType(IntEnum):
     PublicKey = auto()
+    Authenticate = auto()
     ListLeaderboards = auto()
     ShowOneLeaderboard = auto()
     CreateLeaderboard = auto()
