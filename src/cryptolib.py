@@ -6,6 +6,8 @@ from cryptography.hazmat.primitives import serialization, hashes, padding
 from cryptography.hazmat.primitives.asymmetric import rsa, padding as asym_pad
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 
+import netlib
+
 
 def public_key_hash(key: rsa.RSAPublicKey):
     public_key_bytes = key.public_bytes(
@@ -14,7 +16,7 @@ def public_key_hash(key: rsa.RSAPublicKey):
     )
     hasher = hashes.Hash(hashes.SHA256())
     hasher.update(public_key_bytes)
-    return hasher.finalize().hex()
+    return netlib.bytes_to_b64(hasher.finalize())
 
 
 def rsa_decrypt(key: rsa.RSAPrivateKey, ciphertext: bytes) -> bytes:
