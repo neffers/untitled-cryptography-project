@@ -1,6 +1,7 @@
 import json
 from os import urandom
 
+from cryptography.exceptions import InvalidSignature
 from cryptography.hazmat.primitives import serialization, hashes, padding
 from cryptography.hazmat.primitives.asymmetric import rsa, padding as asym_pad
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
@@ -18,6 +19,28 @@ def public_key_hash(key: rsa.RSAPublicKey):
 
 def rsa_decrypt(key: rsa.RSAPrivateKey, ciphertext: bytes) -> bytes:
     return key.decrypt(ciphertext, asym_pad.OAEP(asym_pad.MGF1(hashes.SHA256()), hashes.SHA256(), None))
+
+
+def rsa_sign(key: rsa.RSAPrivateKey, message: bytes) -> bytes:
+    sign_pad = asym_pad.PSS(asym_pad.MGF1(hashes.SHA256()), asym_pad.PSS.MAX_LENGTH)
+    return key.sign(message, sign_pad, hashes.SHA256())
+
+
+def rsa_sign_string(key: rsa.RSAPrivateKey, message: str) -> bytes:
+    return rsa_sign(key, message.encode())
+
+
+def rsa_verify(key: rsa.RSAPublicKey, signature: bytes, message: bytes) -> bool:
+    sign_pad = asym_pad.PSS(asym_pad.MGF1(hashes.SHA256()), asym_pad.PSS.MAX_LENGTH)
+    try:
+        key.verify(signature, message, sign_pad, hashes.SHA256())
+    except InvalidSignature:
+        return False
+    return True
+
+
+def rsa_verify_str(key: rsa.RSAPublicKey, signature: bytes, message: str) -> bool:
+    return rsa_verify(key, signature, message.encode())
 
 
 def symmetric_decrypt(key: bytes, ciphertext: bytes) -> bytes:

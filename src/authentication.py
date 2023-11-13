@@ -40,8 +40,7 @@ def get_token_response(request: dict):
             "data": "Password did not match",
         }
     else:
-        sign_pad = apad.PSS(apad.MGF1(hashes.SHA256()), apad.PSS.MAX_LENGTH)
-        token = private_key.sign(bytes(identity), sign_pad, hashes.SHA256())
+        token = src.cryptolib.rsa_sign_string(private_key, identity)
         encrypted_token = src.cryptolib.symmetric_encrypt(aes_key, token)
         response = {
             "success": True,
