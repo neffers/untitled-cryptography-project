@@ -1,14 +1,12 @@
 import base64
 import socketserver
-import json
 import signal
 import sys
 import serverlib
-from os import urandom
-from cryptography.hazmat.primitives import hashes, padding, serialization
+from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import rsa, padding as apad
-from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 from enums import AuthRequestType
+import src.cryptolib
 
 
 def get_token_response(request: dict):
@@ -22,15 +20,7 @@ def get_token_response(request: dict):
             None
         )
     )
-    aes = Cipher(algorithms.AES(aes_key), modes.CBC(urandom(16)))
-    symmetric_pad = padding.PKCS7(128)
-    pad = symmetric_pad.padder()
-    unpad = symmetric_pad.unpadder()
-    encryptor = aes.encryptor()
-    decryptor = aes.decryptor()
-    decrypted_payload = decryptor.update(signin_payload) + decryptor.finalize()
-    unpadded = unpad.update(decrypted_payload) + unpad.finalize()
-    signin_request = json.loads(unpadded.decode())
+    signin_request = src.cryptolib.decrypt_dict(aes_key, signin_payload)
     identity = signin_request["identity"]
     password = signin_request["password"]
 
@@ -59,8 +49,7 @@ def get_token_response(request: dict):
     else:
         sign_pad = apad.PSS(apad.MGF1(hashes.SHA256()), apad.PSS.MAX_LENGTH)
         token = private_key.sign(bytes(identity), sign_pad, hashes.SHA256())
-        padded_token = pad.update(token) + pad.finalize()
-        encrypted_token = encryptor.update(padded_token) + encryptor.finalize()
+        encrypted_token = src.cryptolib.symmetric_encrypt(aes_key, token)
         response = {
             "success": True,
             "data": base64.b64encode(encrypted_token).decode()
