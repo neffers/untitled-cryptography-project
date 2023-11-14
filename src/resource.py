@@ -898,6 +898,7 @@ class Handler(socketserver.BaseRequestHandler):
 
         # TODO: make this loop use encrypted stuff
         # TODO: change docs to not require identity/token on requests
+        # TODO: Handle disconnect
         while True:
             request = netlib.get_dict_from_socket(self.request)
             print("received {} from {}".format(request, self.client_address[0]))
