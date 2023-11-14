@@ -33,6 +33,29 @@ def get_leaderboard_info(userid, leaderboard_id):
     return ret_tuple
 
 
+def get_leaderboard_perms(userid: int) -> dict:
+    cur = db.cursor()
+    get_perm_command = """
+        select l.id, max(l.default_permission, coalesce(p.permission, 0), class) as perm
+        from leaderboards l
+            left join (select * from permissions where user = ?) p on l.id = p.leaderboard
+            inner join (select class from users where id = ?)
+    """
+    get_perm_params = (userid, userid)
+    cur.execute(get_perm_command, get_perm_params)
+    tups = cur.fetchall()
+    return {entry[0]: entry[1] for entry in tups}
+
+
+def get_user_class(userid: int) -> UserClass:
+    cur = db.cursor()
+    get_class_command = "select class from users where id = ?"
+    get_class_params = (userid,)
+    cur.execute(get_class_command, get_class_params)
+    (uc,) = cur.fetchone()
+    return UserClass(uc)
+
+
 def list_leaderboards_response(requesting_user_id: int):
     cursor = db.cursor()
     get_leaderboards_command = """
@@ -111,7 +134,7 @@ def add_leaderboard(new_lb_name: str, new_lb_perm: Permissions, new_lb_asc: bool
     }
 
 
-def add_entry(requesting_user_id: int, leaderboard_id:int, entry_score: float, comment: str) -> dict:
+def add_entry(requesting_user_id: int, leaderboard_id: int, entry_score: float, comment: str) -> dict:
     # error if leaderboard id doesn't exist
     try:
         (lb_id, lb_name, lb_perm, lb_asc) = get_leaderboard_info(requesting_user_id, leaderboard_id)
@@ -291,43 +314,122 @@ def get_user(requesting_user_id: int, user_id: int) -> dict:
     }
 
 
-def handle_request(request):
+def modify_verification(request_user_id: int, entry_id: int, verified: bool) -> dict:
+    cur = db.cursor()
+    get_entry_command = "select leaderboard, verified from leaderboard_entries where id = ?"
+    get_entry_params = (entry_id,)
+    cur.execute(get_entry_command, get_entry_params)
+    try:
+        (leaderboard_id, entry_verified) = cur.fetchone()
+    except TypeError:
+        return serverlib.bad_request_json(ServerErrCode.DoesNotExist)
+
+    (lb_id, lb_name, lb_perm, lb_asc) = get_leaderboard_info(request_user_id, leaderboard_id)
+    if lb_perm < Permissions.Moderate:
+        return serverlib.bad_request_json(ServerErrCode.InsufficientPermission)
+
+    modify_entry_command = """
+        update leaderboard_entries
+        set verified = ?, verifier = ?, verification_date = ?
+        where id = ?
+    """
+    modify_entry_params = (verified, request_user_id, int(time.time()), entry_id)
+    cur.execute(modify_entry_command, modify_entry_params)
+    db.commit()
+    return {
+        "success": True,
+        "data": None,
+    }
+
+
+def add_comment(request_user_id:int, entry_id: int, content: str) -> dict:
+    cur = db.cursor()
+    # Check permissions by first getting leaderboard id and then getting requesting user's perms for it
+    get_leaderboard_id_command = """
+        select user, leaderboard, verified
+        from leaderboard_entries
+        where id = ?
+    """
+    get_leaderboard_id_params = (entry_id,)
+    cur.execute(get_leaderboard_id_command, get_leaderboard_id_params)
+    try:
+        (submitter, leaderboard_id, verified) = cur.fetchone()
+    except TypeError:
+        return serverlib.bad_request_json(ServerErrCode.DoesNotExist)
+    (lb_id, lb_name, lb_perm, lb_asc) = get_leaderboard_info(request_user_id, leaderboard_id)
+    if not (request_user_id == submitter or lb_perm >= Permissions.Moderate):
+        return serverlib.bad_request_json(ServerErrCode.InsufficientPermission)
+
+    add_comment_command = """
+        insert into entry_comments(user, entry, date, content)
+            values (?,?,?,?)
+    """
+    add_comment_params = (request_user_id, entry_id, int(time.time()), content)
+    cur.execute(add_comment_command, add_comment_params)
+    db.commit()
+    return {
+        "success": True,
+        "data": None,
+    }
+
+
+def remove_leaderboard(leaderboard_id: int) -> dict:
+    cur = db.cursor()
+    remove_leaderboard_command = "delete from leaderboards where id = ?"
+    remove_leaderboard_params = (leaderboard_id,)
+    cur.execute(remove_leaderboard_command, remove_leaderboard_params)
+    db.commit()
+    return {
+        "success": True,
+        "data": None
+    }
+
+
+def remove_entry(request_user_id: int, user_class: UserClass, entry_id: int) -> dict:
+    cur = db.cursor()
+    get_submitter_command = """
+        select user
+        from leaderboard_entries
+        where id = ?
+    """
+    get_submitter_params = (entry_id,)
+    cur.execute(get_submitter_command, get_submitter_params)
+    (submitter,) = cur.fetchone()
+
+    if user_class < UserClass.Administrator and submitter != request_user_id:
+        return serverlib.bad_request_json(ServerErrCode.InsufficientPermission)
+
+    remove_entry = """
+        delete from leaderboard_entries where id = ?
+    """
+    cur.execute(remove_entry, (entry_id,))
+    db.commit()
+    return {
+        "success": True,
+        "data": None
+    }
+
+
+def view_permissions(user_id: int) -> dict:
+    cur = db.cursor()
+    view_permissions_command = "SELECT leaderboard, permission FROM permissions WHERE user = ?"
+    cur.execute(view_permissions_command, (user_id,))
+    permissions = cur.fetchall()
+    return {
+        "success": True,
+        "data": permissions,
+    }
+
+
+def handle_request(request_user_id: int, request: dict):
+    perms = get_leaderboard_perms(request_user_id)
+    user_class = get_user_class(request_user_id)
     # Every request needs to have these
     try:
         request_type = request["type"]
-        request_identity = request["identity"]
-        token = request["token"]
-    except KeyError:
+        assert type(request_type) is int
+    except KeyError or AssertionError:
         return serverlib.bad_request_json(ServerErrCode.MalformedRequest)
-
-    sql_cur = db.cursor()
-
-    # Make sure we have any administrators, create user as admin if not
-    get_admins_command = "SELECT * FROM users WHERE class = ?"
-    sql_cur.execute(get_admins_command, (UserClass.Administrator,))
-    admins = sql_cur.fetchall()
-    if len(admins) == 0:
-        print("No admin found, adding newly connected user to admin list")
-        create_admin_command = "INSERT INTO users(identity, token, class, registration_date) VALUES(?, ?, ?, ?)"
-        admin_params = (request_identity, token, UserClass.Administrator, int(time.time()))
-        sql_cur.execute(create_admin_command, admin_params)
-        db.commit()
-
-    get_user_command = "SELECT * FROM users WHERE identity = ?"
-    requesting_user = sql_cur.execute(get_user_command, (request_identity,)).fetchone()
-
-    if requesting_user is not None:
-        print("Found user:", requesting_user)
-    else:
-        # Register user automatically
-        print("User not previously registered! Registering...")
-        insert_user_command = "INSERT INTO users(identity, token, class, registration_date) VALUES(?,?,?,?)"
-        insert_user_params = (request_identity, token, UserClass.User, int(time.time()))
-        sql_cur.execute(insert_user_command, insert_user_params)
-        db.commit()
-        requesting_user = sql_cur.execute(get_user_command, (request_identity,)).fetchone()
-    # Can be used throughout the request handling
-    (request_user_id, request_identity, token, user_class, user_reg_date) = requesting_user
 
     # Get public key
     if request_type == ResourceRequestType.PublicKey:
@@ -345,7 +447,6 @@ def handle_request(request):
             assert type(leaderboard_id) is int
         except KeyError or AssertionError:
             return serverlib.bad_request_json(ServerErrCode.MalformedRequest)
-
         return show_one_leaderboard_response(request_user_id, leaderboard_id)
 
     # Basic: Add Leaderboard
@@ -356,7 +457,6 @@ def handle_request(request):
             new_lb_name = request["leaderboard_name"]
             assert type(new_lb_name) is str
             new_lb_perm = request["leaderboard_permission"]
-            assert type(new_lb_perm) is int
             assert Permissions.NoAccess <= new_lb_perm <= Permissions.Moderate and type(new_lb_perm) is int
             new_lb_asc = request["leaderboard_ascending"]
             assert type(new_lb_asc) is bool
@@ -431,35 +531,7 @@ def handle_request(request):
             assert type(verified) is bool
         except KeyError or AssertionError:
             return serverlib.bad_request_json(ServerErrCode.MalformedRequest)
-
-        get_entry_command = """
-            select leaderboard, verified
-            from leaderboard_entries
-            where id = ?
-        """
-        get_entry_params = (entry_id,)
-        sql_cur.execute(get_entry_command, get_entry_params)
-        try:
-            (leaderboard_id, entry_verified) = sql_cur.fetchone()
-        except TypeError:
-            return serverlib.bad_request_json(ServerErrCode.DoesNotExist)
-
-        (lb_id, lb_name, lb_perm, lb_asc) = get_leaderboard_info(request_user_id, leaderboard_id)
-        if lb_perm < Permissions.Moderate:
-            return serverlib.bad_request_json(ServerErrCode.InsufficientPermission)
-
-        modify_entry_command = """
-            update leaderboard_entries
-            set verified = ?, verifier = ?, verification_date = ?
-            where id = ?
-        """
-        modify_entry_params = (verified, request_user_id, int(time.time()), entry_id)
-        sql_cur.execute(modify_entry_command, modify_entry_params)
-        db.commit()
-        return {
-            "success": True,
-            "data": None,
-        }
+        return modify_verification(request_user_id, entry_id, verified)
 
     # Entry: Add comment
     if request_type == ResourceRequestType.AddComment:
@@ -470,54 +542,18 @@ def handle_request(request):
             assert type(content) is str
         except KeyError:
             return serverlib.bad_request_json(ServerErrCode.MalformedRequest)
-
-        # Check permissions by first getting leaderboard id and then getting requesting user's perms for it
-        get_leaderboard_id_command = """
-            select user, leaderboard, verified
-            from leaderboard_entries
-            where id = ?
-        """
-        get_leaderboard_id_params = (entry_id,)
-        sql_cur.execute(get_leaderboard_id_command, get_leaderboard_id_params)
-        try:
-            (submitter, leaderboard_id, verified) = sql_cur.fetchone()
-        except TypeError:
-            return serverlib.bad_request_json(ServerErrCode.DoesNotExist)
-        (lb_id, lb_name, lb_perm, lb_asc) = get_leaderboard_info(request_user_id, leaderboard_id)
-        if not (request_user_id == submitter or lb_perm >= Permissions.Moderate):
-            return serverlib.bad_request_json(ServerErrCode.InsufficientPermission)
-
-        add_comment_command = """
-            insert into entry_comments(user, entry, date, content)
-                values (?,?,?,?)
-        """
-        add_comment_params = (request_user_id, entry_id, int(time.time()), content)
-        sql_cur.execute(add_comment_command, add_comment_params)
-        db.commit()
-        return {
-            "success": True,
-            "data": None,
-        }
+        return add_comment(request_user_id, entry_id, content)
 
     # Admin: Remove Leaderboard
     if request_type == ResourceRequestType.RemoveLeaderboard:
         if user_class != UserClass.Administrator:
             return serverlib.bad_request_json(ServerErrCode.InsufficientPermission)
         try:
-            ldb_id = request["leaderboard_id"]
-            assert type(ldb_id) is int
+            leaderboard_id = request["leaderboard_id"]
+            assert type(leaderboard_id) is int
         except KeyError or AssertionError:
             return serverlib.bad_request_json(ServerErrCode.MalformedRequest)
-
-        remove_lbd = """
-            delete from leaderboards where id = ?
-        """
-        sql_cur.execute(remove_lbd, (ldb_id,))
-        db.commit()
-        return {
-            "success": True,
-            "data": None
-        }
+        return remove_leaderboard(leaderboard_id)
 
     # Entry: Remove Entry
     if request_type == ResourceRequestType.RemoveEntry:
@@ -526,28 +562,7 @@ def handle_request(request):
             assert type(entry_id) is int
         except KeyError or AssertionError:
             return serverlib.bad_request_json(ServerErrCode.MalformedRequest)
-
-        get_submitter_command = """
-            select user
-            from leaderboard_entries
-            where id = ?
-        """
-        get_submitter_params = (entry_id,)
-        sql_cur.execute(get_submitter_command, get_submitter_params)
-        (submitter,) = sql_cur.fetchone()
-
-        if user_class < UserClass.Administrator and submitter != request_user_id:
-            return serverlib.bad_request_json(ServerErrCode.InsufficientPermission)
-
-        remove_entry = """
-            delete from leaderboard_entries where id = ?
-        """
-        sql_cur.execute(remove_entry, (entry_id,))
-        db.commit()
-        return {
-            "success": True,
-            "data": None
-        }
+        return remove_entry(request_user_id, user_class, entry_id)
 
     # User: View Permissions
     if request_type == ResourceRequestType.ViewPermissions:
@@ -558,14 +573,7 @@ def handle_request(request):
             assert type(user_id) is int
         except KeyError or AssertionError:
             return serverlib.bad_request_json(ServerErrCode.MalformedRequest)
-
-        view_permissions_command = "SELECT leaderboard, permission FROM permissions WHERE user = ?"
-        sql_cur.execute(view_permissions_command, (user_id,))
-        permissions = sql_cur.fetchall()
-        return {
-            "success": True,
-            "data": permissions,
-        }
+        return view_permissions(user_id)
 
     # User: Set Permission
     if request_type == ResourceRequestType.SetPermission:
@@ -574,8 +582,8 @@ def handle_request(request):
         try:
             user_id = request["user_id"]
             assert type(user_id) is int
-            ldb_id = request["leaderboard_id"]
-            assert type(ldb_id) is int
+            leaderboard_id = request["leaderboard_id"]
+            assert type(leaderboard_id) is int
             p = request["permission"]
             assert type(p) is int and Permissions.NoAccess <= p <= Permissions.Moderate
         except KeyError or AssertionError:
@@ -586,17 +594,17 @@ def handle_request(request):
             from permissions
             where user = ? and leaderboard = ?
         """
-        delete_old_permissions_params = (user_id, ldb_id)
-        sql_cur.execute(delete_old_permissions_command, delete_old_permissions_params)
+        delete_old_permissions_params = (user_id, leaderboard_id)
+        cur.execute(delete_old_permissions_command, delete_old_permissions_params)
 
         set_permission_command = """
             insert
             into permissions (user, leaderboard, permission, change_date)
             values (?,?,?,?)
         """
-        set_permission_params = (user_id, ldb_id, p, int(time.time()))
+        set_permission_params = (user_id, leaderboard_id, p, int(time.time()))
         try:
-            sql_cur.execute(set_permission_command, set_permission_params)
+            cur.execute(set_permission_command, set_permission_params)
         except sqlite3.IntegrityError:
             return serverlib.bad_request_json(ServerErrCode.DoesNotExist)
         db.commit()
@@ -621,7 +629,7 @@ def handle_request(request):
             where id = ?
         """
         delete_user_params = (user_id,)
-        sql_cur.execute(delete_user_command, delete_user_params)
+        cur.execute(delete_user_command, delete_user_params)
         db.commit()
         return {
             "success": True,
@@ -644,7 +652,7 @@ def handle_request(request):
             where id = ?
         """
         update_order_params = (ascending, leaderboard_id)
-        sql_cur.execute(update_order_command, update_order_params)
+        cur.execute(update_order_command, update_order_params)
         db.commit()
         return {
             "success": True,
@@ -668,9 +676,9 @@ def handle_request(request):
             where id = ?
         """
         get_submitter_params = (entry_id,)
-        sql_cur.execute(get_submitter_command, get_submitter_params)
+        cur.execute(get_submitter_command, get_submitter_params)
         try:
-            (submitter,) = sql_cur.fetchone()
+            (submitter,) = cur.fetchone()
         except TypeError:
             return serverlib.bad_request_json(ServerErrCode.DoesNotExist)
 
@@ -681,7 +689,7 @@ def handle_request(request):
             insert into files (entry, name, submission_date, data) values (?, ?, ?, ?)
         """
         add_file_params = (entry_id, filename, int(time.time()), file)
-        sql_cur.execute(add_file_command, add_file_params)
+        cur.execute(add_file_command, add_file_params)
         db.commit()
         return {
             "success": True,
@@ -705,9 +713,9 @@ def handle_request(request):
                          where id = ?)
         """
         get_leaderboard_params = (file_id,)
-        sql_cur.execute(get_leaderboard_command, get_leaderboard_params)
+        cur.execute(get_leaderboard_command, get_leaderboard_params)
         try:
-            (submitter, verified, leaderboard_id) = sql_cur.fetchone()
+            (submitter, verified, leaderboard_id) = cur.fetchone()
         except TypeError:
             return serverlib.bad_request_json(ServerErrCode.DoesNotExist)
         (lb_id, lb_name, lb_perm, lb_asc) = get_leaderboard_info(request_user_id, leaderboard_id)
@@ -723,8 +731,8 @@ def handle_request(request):
             where id = ?
         """
         get_file_params = (file_id,)
-        sql_cur.execute(get_file_command, get_file_params)
-        (file,) = sql_cur.fetchone()
+        cur.execute(get_file_command, get_file_params)
+        (file,) = cur.fetchone()
         return {
             "success": True,
             "data": base64.b64encode(file).decode()
@@ -752,8 +760,8 @@ def handle_request(request):
             order by perm
         """
         list_user_perms_params = (leaderboard_id, leaderboard_id)
-        sql_cur.execute(list_user_perms_command, list_user_perms_params)
-        user_list = sql_cur.fetchall()
+        cur.execute(list_user_perms_command, list_user_perms_params)
+        user_list = cur.fetchall()
         return {
             "success": True,
             "data": user_list
@@ -773,9 +781,9 @@ def handle_request(request):
             where f.id = ?
         """
         get_submitter_params = (file_id,)
-        sql_cur.execute(get_submitter_command, get_submitter_params)
+        cur.execute(get_submitter_command, get_submitter_params)
         try:
-            (submitter, leaderboard_id) = sql_cur.fetchone()
+            (submitter, leaderboard_id) = cur.fetchone()
             (lb_id, lb_name, lb_perm, lb_asc) = get_leaderboard_info(request_user_id, leaderboard_id)
         except TypeError:
             return serverlib.bad_request_json(ServerErrCode.DoesNotExist)
@@ -789,7 +797,7 @@ def handle_request(request):
             where id = ?
         """
         remove_file_params = (file_id,)
-        sql_cur.execute(remove_file_command, remove_file_params)
+        cur.execute(remove_file_command, remove_file_params)
         db.commit()
         return {
             "success": True,
@@ -841,9 +849,37 @@ class Handler(socketserver.BaseRequestHandler):
             print("Invalid nonce reply, exiting")
             netlib.send_dict_to_socket(serverlib.bad_request_json(ServerErrCode.AuthenticationFailure), self.request)
             return
+
+        # verified
+        # Register user if not registered
+        print("User {} successfully connected".format(socket_identity))
+        cursor = db.cursor()
+        register_command = "insert into users(identity, class, registration_date) values(?, ?, ?) on conflict do nothing"
+        register_params = (socket_identity, UserClass.User, int(time.time()))
+        cursor.execute(register_command, register_params)
+        db.commit()
+
+        # add admin if none exist
+        get_admins_command = "select * from users where class = ?"
+        get_admins_params = (UserClass.Administrator,)
+        cursor.execute(get_admins_command, get_admins_params)
+        admins = cursor.fetchall()
+        if len(admins) == 0:
+            print("No admins found, setting {} as admin.".format(socket_identity))
+            add_admin_command = "update users set class = ? where identity = ?"
+            add_admin_params = (UserClass.Administrator, socket_identity)
+            cursor.execute(add_admin_command, add_admin_params)
+            db.commit()
+
+        # Get requesting user ID
+        get_id_command = "select id from users where identity = ?"
+        get_id_params = (socket_identity,)
+        cursor.execute(get_id_command, get_id_params)
+        (socket_user_id,) = cursor.fetchone()
+
         encrypted_request = request["encrypted_request"]
         further_request = cryptolib.decrypt_dict(aes_key, encrypted_request)
-        response = handle_request(further_request)
+        response = handle_request(socket_user_id, further_request)
         netlib.send_dict_to_socket(response, self.request)
 
         # TODO: make this loop use encrypted stuff
@@ -852,7 +888,7 @@ class Handler(socketserver.BaseRequestHandler):
         while True:
             request = netlib.get_dict_from_socket(self.request)
             print("received {} from {}".format(request, self.client_address[0]))
-            response = handle_request(request)
+            response = handle_request(socket_user_id, request)
             print("sending {} to {}".format(response, self.client_address[0]))
             netlib.send_dict_to_socket(response, self.request)
 
@@ -869,7 +905,6 @@ if __name__ == "__main__":
         CREATE TABLE users (
             id INTEGER PRIMARY KEY,
             identity TEXT UNIQUE NOT NULL,
-            token TEXT NOT NULL,
             class INTEGER NOT NULL,
             registration_date INTEGER NOT NULL
         );
