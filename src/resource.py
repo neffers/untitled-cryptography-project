@@ -14,7 +14,6 @@ import netlib
 from enums import ResourceRequestType, Permissions, UserClass, ServerErrCode
 
 TIMEOUT_SECONDS = 300
-prev_request_time = None
 
 def get_leaderboard_perms(userid: int) -> dict:
     cur = db.cursor()
@@ -601,14 +600,6 @@ def handle_request(request_user_id: int, request: dict):
     if request_type == ResourceRequestType.PublicKey:
         return serverlib.public_key_response(public_key)
     
-    # time check should be higher in the code path but idk when exactly
-    cur_time = get_cur_time()
-    if prev_request_time is None:
-        prev_request_time = cur_time # first request
-
-    if cur_time - prev_request_time > TIMEOUT_SECONDS:
-        return serverlib.bad_request_json(ServerErrCode.Timeout)
-    prev_request_time = cur_time
 
     # Basic: List Leaderboards
     if request_type == ResourceRequestType.ListLeaderboards:
@@ -942,16 +933,34 @@ class Handler(socketserver.BaseRequestHandler):
         further_request = cryptolib.decrypt_dict(aes_key, encrypted_request)
         response = handle_request(socket_user_id, further_request)
         netlib.send_dict_to_socket(response, self.request)
-
+        
+        self._prev_request_time = None
         # TODO: make this loop use encrypted stuff
         # TODO: change docs to not require identity/token on requests
         # TODO: Handle disconnect
         while True:
             request = netlib.get_dict_from_socket(self.request)
+            timeout = self.check_timeout()
+            if timeout:
+                response = serverlib.bad_request_json(ServerErrCode.Timeout)
+                netlib.send_dict_to_socket(response, self.request)
             print("received {} from {}".format(request, self.client_address[0]))
             response = handle_request(socket_user_id, request)
             print("sending {} to {}".format(response, self.client_address[0]))
             netlib.send_dict_to_socket(response, self.request)
+
+    def check_timeout(self):
+        # time check should be higher in the code path but idk when exactly
+        cur_time = get_cur_time()
+        if self._prev_request_time is None:
+            prev_request_time = cur_time # first request
+
+        if cur_time - prev_request_time > TIMEOUT_SECONDS:
+            return True
+            #return serverlib.bad_request_json(ServerErrCode.Timeout)
+            
+        self._prev_request_time = cur_time
+        return False
 
 
 # noinspection PyUnusedLocal
