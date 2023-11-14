@@ -57,7 +57,7 @@ class Request:
 
 # Auth server request
 def request_token(password, as_pub) -> str:
-    aes_key = os.urandom(256)
+    aes_key = os.urandom(32)
     encrypted_key = cryptolib.rsa_encrypt(as_pub, aes_key)
     signin_dict = {
         "identity": identity,
@@ -69,49 +69,16 @@ def request_token(password, as_pub) -> str:
         "encrpyted_key": encrypted_key,
         "signin_payload": signin_payload,
     }
-    request = bytes(json.dumps(request), "utf-8")
-    buffer = struct.pack("!I", len(request))
-    buffer += request
-    sock.send(buffer)
-    buffer_len = struct.unpack("!I", sock.recv(4))[0]
-    response_data = sock.recv(buffer_len)
-    try:
-        response = json.loads(response_data.decode())
-        if "success" not in response or "data" not in response:
-            print("Malformed packet: " + str(response))
-            return ""
-        if response["success"]:
-            return response["data"]
-        else:
-            print(response["data"])
-            return ""
-    except json.JSONDecodeError:
-        print("Can't decode packet! packet: " + str(response_data))
-        return ""
+    netlib.send_dict_to_socket(request, sock)
+    return netlib.get_dict_from_socket(sock)
     
 # Auth server request
 def request_pub_key() -> str:
     request = {
         "type": AuthRequestType.PublicKey
     }
-    request = bytes(json.dumps(request), "utf-8")
-    buffer = struct.pack("!I", len(request))
-    buffer += request
-    sock.send(buffer)
-    buffer_len = struct.unpack("!I", sock.recv(4))[0]
-    response_data = sock.recv(buffer_len)
-    try:
-        response = json.loads(response_data.decode())
-        if "success" not in response or "data" not in response:
-            print("Malformed packet: " + str(response))
-            return ""
-        if response["success"]:
-            return response["data"]
-        else:
-            return ""
-    except json.JSONDecodeError:
-        print("Can't decode packet! packet: " + str(response_data))
-        return ""
+    netlib.send_dict_to_socket(request, sock)
+    return netlib.get_dict_from_socket(sock)
 
 class ShowLeaderboardsRequest(Request):
     def __init__(self):
@@ -851,7 +818,7 @@ def server_loop(res_ip, res_port):
     print("Connection successful.")
 
     as_pub = request_pub_key()
-    if not as_pub:
+    if as_pub is None:
         print("No public key was found.")
         return
     if "as_pub" in db["auth_server"]:
@@ -862,11 +829,10 @@ def server_loop(res_ip, res_port):
         db["auth_server"]["as_pub"] = as_pub
 
     identity = input("Enter identity: ")
-    while True:
+    token = None
+    while token is None:
         password = input("Enter password: ")
         token = request_token(password, as_pub)
-        if token:
-            break
 
     sock.close()
 
