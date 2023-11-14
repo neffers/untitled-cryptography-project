@@ -546,6 +546,58 @@ def download_proof(request_user_id:int, file_id: int) -> dict:
     }
 
 
+def list_access_groups(leaderboard_id: int) -> dict:
+    cur = db.cursor()
+    list_user_perms_command = """
+        select u.id, u.identity, max(default_permission, class, coalesce(permission, 0)) as perm
+        from users u
+        left join (select * from permissions where leaderboard = ?) p
+            on p.user = u.id
+        left join (select default_permission from leaderboards where id = ?)
+        order by perm
+    """
+    list_user_perms_params = (leaderboard_id, leaderboard_id)
+    cur.execute(list_user_perms_command, list_user_perms_params)
+    user_list = cur.fetchall()
+    return {
+        "success": True,
+        "data": user_list
+    }
+
+
+def remove_proof(request_user_id: int, file_id: int) -> dict:
+    cur = db.cursor()
+    get_submitter_command = """
+        select e.user, leaderboard
+        from files f
+            left join leaderboard_entries e on f.entry = e.id
+        where f.id = ?
+    """
+    get_submitter_params = (file_id,)
+    cur.execute(get_submitter_command, get_submitter_params)
+    try:
+        (submitter, leaderboard_id) = cur.fetchone()
+        (lb_id, lb_name, lb_perm, lb_asc) = get_leaderboard_info(request_user_id, leaderboard_id)
+    except TypeError:
+        return serverlib.bad_request_json(ServerErrCode.DoesNotExist)
+
+    if submitter != request_user_id and lb_perm < Permissions.Moderate:
+        return serverlib.bad_request_json(ServerErrCode.InsufficientPermission)
+
+    remove_file_command = """
+        delete
+        from files
+        where id = ?
+    """
+    remove_file_params = (file_id,)
+    cur.execute(remove_file_command, remove_file_params)
+    db.commit()
+    return {
+        "success": True,
+        "data": None
+    }
+
+
 def handle_request(request_user_id: int, request: dict):
     perms = get_leaderboard_perms(request_user_id)
     user_class = get_user_class(request_user_id)
@@ -761,30 +813,16 @@ def handle_request(request_user_id: int, request: dict):
         try:
             leaderboard_id = request["leaderboard_id"]
             assert type(leaderboard_id) is int
-            (lb_id, lb_name, lb_perm, lb_asc) = get_leaderboard_info(request_user_id, leaderboard_id)
         except KeyError or AssertionError:
             return serverlib.bad_request_json(ServerErrCode.MalformedRequest)
-        except TypeError:
+        try:
+            lb_perm = perms[leaderboard_id]
+        except KeyError:
             return serverlib.bad_request_json(ServerErrCode.DoesNotExist)
 
         if lb_perm < Permissions.Moderate:
             return serverlib.bad_request_json(ServerErrCode.InsufficientPermission)
-
-        list_user_perms_command = """
-            select u.id, u.identity, max(default_permission, class, coalesce(permission, 0)) as perm
-            from users u
-            left join (select * from permissions where leaderboard = ?) p
-                on p.user = u.id
-            left join (select default_permission from leaderboards where id = ?)
-            order by perm
-        """
-        list_user_perms_params = (leaderboard_id, leaderboard_id)
-        cur.execute(list_user_perms_command, list_user_perms_params)
-        user_list = cur.fetchall()
-        return {
-            "success": True,
-            "data": user_list
-        }
+        return list_access_groups(leaderboard_id)
 
     if request_type == ResourceRequestType.RemoveProof:
         try:
@@ -792,36 +830,7 @@ def handle_request(request_user_id: int, request: dict):
             assert type(file_id) is int
         except KeyError or AssertionError:
             return serverlib.bad_request_json(ServerErrCode.MalformedRequest)
-
-        get_submitter_command = """
-            select e.user, leaderboard
-            from files f
-                left join leaderboard_entries e on f.entry = e.id
-            where f.id = ?
-        """
-        get_submitter_params = (file_id,)
-        cur.execute(get_submitter_command, get_submitter_params)
-        try:
-            (submitter, leaderboard_id) = cur.fetchone()
-            (lb_id, lb_name, lb_perm, lb_asc) = get_leaderboard_info(request_user_id, leaderboard_id)
-        except TypeError:
-            return serverlib.bad_request_json(ServerErrCode.DoesNotExist)
-
-        if submitter != request_user_id and lb_perm < Permissions.Moderate:
-            return serverlib.bad_request_json(ServerErrCode.InsufficientPermission)
-
-        remove_file_command = """
-            delete
-            from files
-            where id = ?
-        """
-        remove_file_params = (file_id,)
-        cur.execute(remove_file_command, remove_file_params)
-        db.commit()
-        return {
-            "success": True,
-            "data": None
-        }
+        return remove_proof(request_user_id, file_id)
 
 
 class Handler(socketserver.BaseRequestHandler):
