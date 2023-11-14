@@ -35,7 +35,7 @@ class ServerErrCode(IntEnum):
     InsufficientPermission = auto()
     DoesNotExist = auto()
     MalformedRequest = auto()
-    Timeout = auto()
+    SessionExpired = auto()
 
 
 class Permissions(IntEnum):
