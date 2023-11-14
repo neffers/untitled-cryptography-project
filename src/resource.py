@@ -942,8 +942,10 @@ class Handler(socketserver.BaseRequestHandler):
             request = netlib.get_dict_from_socket(self.request)
             timeout = self.check_timeout()
             if timeout:
+                print("Inactive. Sending Timeout")
                 response = serverlib.bad_request_json(ServerErrCode.Timeout)
                 netlib.send_dict_to_socket(response, self.request)
+                break # I assume we drop the connection once we get a timeout
             print("received {} from {}".format(request, self.client_address[0]))
             response = handle_request(socket_user_id, request)
             print("sending {} to {}".format(response, self.client_address[0]))
