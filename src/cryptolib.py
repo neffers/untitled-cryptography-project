@@ -50,6 +50,7 @@ def rsa_verify_str(key: rsa.RSAPublicKey, signature: bytes, message: str) -> boo
 
 
 def symmetric_decrypt(key: bytes, ciphertext: bytes) -> bytes:
+    assert len(key) == 32  # AES keys should be 256 bits
     # initialize with 0 IV because we don't use it for encryption, only decryption
     aes = Cipher(algorithms.AES(key), modes.CBC(bytes(16)))
     unpad = padding.PKCS7(128).unpadder()
@@ -65,6 +66,7 @@ def decrypt_dict(key: bytes, ciphertext: bytes) -> dict:
 
 
 def symmetric_encrypt(key: bytes, message: bytes) -> bytes:
+    assert len(key) == 32  # AES keys should be 256 bits
     aes = Cipher(algorithms.AES(key), modes.CBC(urandom(16)))
     pad = padding.PKCS7(128).padder()
     encryptor = aes.encryptor()
