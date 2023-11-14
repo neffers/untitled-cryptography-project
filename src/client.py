@@ -828,11 +828,13 @@ def server_loop(res_ip, res_port):
     else:
         db["auth_server"]["as_pub"] = as_pub
 
-    identity = input("Enter identity: ")
     token = None
     while token is None:
+        identity = input("Enter identity: ")
         password = input("Enter password: ")
         token = request_token(password, as_pub)
+        if token is None:
+            print("Incorrect username or password! Try again.")
 
     sock.close()
 
