@@ -5,7 +5,6 @@ import signal
 import sys
 from os import path
 import time
-
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
 
@@ -15,7 +14,6 @@ import netlib
 from enums import ResourceRequestType, Permissions, UserClass, ServerErrCode
 
 TIMEOUT_SECONDS = 300
-
 
 def get_leaderboard_perms(userid: int) -> dict:
     cur = db.cursor()
@@ -583,6 +581,9 @@ def remove_proof(request_user_id: int, user_perms: dict, file_id: int) -> dict:
         "data": None
     }
 
+def get_cur_time():
+    # this is reasonable as long as we trust RS's system time
+    return time.time()
 
 def handle_request(request_user_id: int, request: dict):
     perms = get_leaderboard_perms(request_user_id)
@@ -598,6 +599,7 @@ def handle_request(request_user_id: int, request: dict):
     # Get public key
     if request_type == ResourceRequestType.PublicKey:
         return serverlib.public_key_response(public_key)
+    
 
     # Basic: List Leaderboards
     if request_type == ResourceRequestType.ListLeaderboards:
@@ -898,7 +900,6 @@ class Handler(socketserver.BaseRequestHandler):
             return
 
         # verified
-        last_request_time = int(time.time())
         # Register user if not registered
         print("User {} successfully connected".format(socket_identity))
         cursor = db.cursor()
@@ -932,22 +933,36 @@ class Handler(socketserver.BaseRequestHandler):
         further_request = cryptolib.decrypt_dict(aes_key, encrypted_request)
         response = handle_request(socket_user_id, further_request)
         netlib.send_dict_to_socket(response, self.request)
-
+        
+        self._prev_request_time = None
         # TODO: make this loop use encrypted stuff
         # TODO: change docs to not require identity/token on requests
         # TODO: Handle disconnect
         while True:
             request = netlib.get_dict_from_socket(self.request)
-            if last_request_time + TIMEOUT_SECONDS > int(time.time()):
-                print("Received request on timed out session, exiting.")
-                netlib.send_dict_to_socket(serverlib.bad_request_json(ServerErrCode.SessionExpired), self.request)
-                return
-            else:
-                last_request_time = int(time.time())
+            timeout = self.check_timeout()
+            if timeout:
+                print("Inactive. Sending Timeout")
+                response = serverlib.bad_request_json(ServerErrCode.Timeout)
+                netlib.send_dict_to_socket(response, self.request)
+                break # I assume we drop the connection once we get a timeout
             print("received {} from {}".format(request, self.client_address[0]))
             response = handle_request(socket_user_id, request)
             print("sending {} to {}".format(response, self.client_address[0]))
             netlib.send_dict_to_socket(response, self.request)
+
+    def check_timeout(self):
+        # time check should be higher in the code path but idk when exactly
+        cur_time = get_cur_time()
+        if self._prev_request_time is None:
+            prev_request_time = cur_time # first request
+
+        if cur_time - prev_request_time > TIMEOUT_SECONDS:
+            return True
+            #return serverlib.bad_request_json(ServerErrCode.Timeout)
+            
+        self._prev_request_time = cur_time
+        return False
 
 
 # noinspection PyUnusedLocal
