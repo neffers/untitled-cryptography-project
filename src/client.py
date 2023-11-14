@@ -3,7 +3,14 @@ import struct
 import socket
 import base64
 from datetime import datetime
-from enums import ResourceRequestType, Permissions
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric import rsa
+
+import os
+import netlib
+import serverlib
+import cryptolib
+from enums import AuthRequestType, ResourceRequestType, Permissions, ServerErrCode
 
 identity: str = ""
 token: str = ""
@@ -48,11 +55,19 @@ class Request:
         print("Operation successful.")
 
 
-# currently the only auth server request, so a special case
-def request_token() -> str:
+# Auth server request
+def request_token(password, as_pub) -> str:
+    aes_key = os.urandom(256)
+    encrypted_key = cryptolib.rsa_encrypt(as_pub, aes_key)
+    signin_dict = {
+        "identity": identity,
+        "password": password,
+    }
+    signin_payload = cryptolib.encrypt_dict(aes_key, signin_dict)
     request = {
-        "type": "token",
-        "identity": identity
+        "type": AuthRequestType.Token,
+        "encrpyted_key": encrypted_key,
+        "signin_payload": signin_payload,
     }
     request = bytes(json.dumps(request), "utf-8")
     buffer = struct.pack("!I", len(request))
@@ -66,13 +81,34 @@ def request_token() -> str:
             print("Malformed packet: " + str(response))
             return ""
         if response["success"]:
-            return response["token"]
+            return response["data"]
         else:
             print(response["data"])
     except json.JSONDecodeError:
         print("Can't decode packet! packet: " + str(response_data))
         return ""
-
+    
+# Auth server request
+def request_pub_key() -> str:
+    request = {
+        "type": AuthRequestType.PublicKey
+    }
+    request = bytes(json.dumps(request), "utf-8")
+    buffer = struct.pack("!I", len(request))
+    buffer += request
+    sock.send(buffer)
+    buffer_len = struct.unpack("!I", sock.recv(4))[0]
+    response_data = sock.recv(buffer_len)
+    try:
+        response = json.loads(response_data.decode())
+        if "success" not in response or "data" not in response:
+            print("Malformed packet: " + str(response))
+            return ""
+        if response["success"]:
+            return response["data"]
+    except json.JSONDecodeError:
+        print("Can't decode packet! packet: " + str(response_data))
+        return ""
 
 class ShowLeaderboardsRequest(Request):
     def __init__(self):
@@ -810,8 +846,22 @@ def server_loop(res_ip, res_port):
         print("Connection to authentication server failed! error: " + str(e))
         return
     print("Connection successful.")
+
+    as_pub = request_pub_key()
+    if "as_pub" in db["auth_server"]:
+        if db["auth_server"]["as_pub"] != as_pub:
+            print("Requested public key doesn't match stored public key!")
+            return
+    else:
+        db["auth_server"]["as_pub"] = as_pub
+
     identity = input("Enter identity: ")
-    token = request_token()
+    while True:
+        password = input("Enter password: ")
+        token = request_token(password, as_pub)
+        if token != ServerErrCode:
+            break
+
     sock.close()
 
     try:
