@@ -1,7 +1,6 @@
 import os
 import socketserver
 import sqlite3
-import time
 import base64
 import signal
 import sys
@@ -26,8 +25,8 @@ def get_leaderboard_perms(userid: int) -> dict:
     """
     get_perm_params = (userid, userid)
     cur.execute(get_perm_command, get_perm_params)
-    tups = cur.fetchall()
-    return {entry[0]: entry[1] for entry in tups}
+    perm_tuples = cur.fetchall()
+    return {entry[0]: entry[1] for entry in perm_tuples}
 
 
 def get_user_class(userid: int) -> UserClass:
@@ -112,9 +111,9 @@ def show_one_leaderboard_response(requesting_user_id: int, user_perms: dict, lea
 def add_leaderboard(new_lb_name: str, new_lb_perm: Permissions, new_lb_asc: bool) -> dict:
     cur = db.cursor()
     new_lb_command = """
-        insert into leaderboards(name, creation_date, default_permission, ascending) values(?,?,?,?)
+        insert into leaderboards(name, creation_date, default_permission, ascending) values(?, strftime('%s'), ?, ?)
     """
-    new_lb_params = (new_lb_name, int(time.time()), new_lb_perm, new_lb_asc)
+    new_lb_params = (new_lb_name, new_lb_perm, new_lb_asc)
     cur.execute(new_lb_command, new_lb_params)
     db.commit()
     new_lb_id = cur.lastrowid
@@ -135,17 +134,17 @@ def add_entry(requesting_user_id: int, user_perms: dict, leaderboard_id: int, en
         return serverlib.bad_request_json(ServerErrCode.InsufficientPermission)
     create_entry_command = """
         insert into leaderboard_entries(user, leaderboard, score, submission_date, verified)
-        values(?,?,?,?,?)
+        values(?, ?, ?, strftime('%s'), ?)
     """
-    create_entry_params = (requesting_user_id, leaderboard_id, entry_score, int(time.time()), False)
+    create_entry_params = (requesting_user_id, leaderboard_id, entry_score, False)
     cur = db.cursor()
     cur.execute(create_entry_command, create_entry_params)
     entry_id = cur.lastrowid
     create_comment_command = """
         insert into entry_comments(user, entry, date, content)
-        values(?,?,?,?)
+        values(?, ?, strftime('%s'), ?)
     """
-    create_comment_params = (requesting_user_id, entry_id, int(time.time()), comment)
+    create_comment_params = (requesting_user_id, entry_id, comment)
     cur.execute(create_comment_command, create_comment_params)
     db.commit()
     return {
@@ -317,10 +316,10 @@ def modify_verification(request_user_id: int, user_perms: dict, entry_id: int, v
 
     modify_entry_command = """
         update leaderboard_entries
-        set verified = ?, verifier = ?, verification_date = ?
+        set verified = ?, verifier = ?, verification_date = strftime('%s')
         where id = ?
     """
-    modify_entry_params = (verified, request_user_id, int(time.time()), entry_id)
+    modify_entry_params = (verified, request_user_id, entry_id)
     cur.execute(modify_entry_command, modify_entry_params)
     db.commit()
     return {
@@ -329,18 +328,18 @@ def modify_verification(request_user_id: int, user_perms: dict, entry_id: int, v
     }
 
 
-def add_comment(request_user_id:int, user_perms: dict, entry_id: int, content: str) -> dict:
+def add_comment(request_user_id: int, user_perms: dict, entry_id: int, content: str) -> dict:
     cur = db.cursor()
     # Check permissions by first getting leaderboard id and then getting requesting user's perms for it
     get_leaderboard_id_command = """
-        select user, leaderboard, verified
+        select user, leaderboard
         from leaderboard_entries
         where id = ?
     """
     get_leaderboard_id_params = (entry_id,)
     cur.execute(get_leaderboard_id_command, get_leaderboard_id_params)
     try:
-        (submitter, leaderboard_id, verified) = cur.fetchone()
+        (submitter, leaderboard_id) = cur.fetchone()
     except TypeError:
         return serverlib.bad_request_json(ServerErrCode.DoesNotExist)
     lb_perm = user_perms[leaderboard_id]
@@ -349,9 +348,9 @@ def add_comment(request_user_id:int, user_perms: dict, entry_id: int, content: s
 
     add_comment_command = """
         insert into entry_comments(user, entry, date, content)
-            values (?,?,?,?)
+            values (?, ?, strftime('%s'), ?)
     """
-    add_comment_params = (request_user_id, entry_id, int(time.time()), content)
+    add_comment_params = (request_user_id, entry_id, content)
     cur.execute(add_comment_command, add_comment_params)
     db.commit()
     return {
@@ -386,10 +385,8 @@ def remove_entry(request_user_id: int, user_class: UserClass, entry_id: int) -> 
     if user_class < UserClass.Administrator and submitter != request_user_id:
         return serverlib.bad_request_json(ServerErrCode.InsufficientPermission)
 
-    remove_entry = """
-        delete from leaderboard_entries where id = ?
-    """
-    cur.execute(remove_entry, (entry_id,))
+    remove_entry_command = "delete from leaderboard_entries where id = ?"
+    cur.execute(remove_entry_command, (entry_id,))
     db.commit()
     return {
         "success": True,
@@ -421,9 +418,9 @@ def set_permission(user_id: int, leaderboard_id: int, p: Permissions) -> dict:
     set_permission_command = """
         insert
         into permissions (user, leaderboard, permission, change_date)
-        values (?,?,?,?)
+        values (?, ?, ?, strftime('%s'))
     """
-    set_permission_params = (user_id, leaderboard_id, p, int(time.time()))
+    set_permission_params = (user_id, leaderboard_id, p)
     try:
         cur.execute(set_permission_command, set_permission_params)
     except sqlite3.IntegrityError:
@@ -485,9 +482,9 @@ def add_proof(request_user_id: int, entry_id: int, filename: str, file: bytes) -
         return serverlib.bad_request_json(ServerErrCode.InsufficientPermission)
 
     add_file_command = """
-        insert into files (entry, name, submission_date, data) values (?, ?, ?, ?)
+        insert into files (entry, name, submission_date, data) values (?, ?, strftime('%s'), ?)
     """
-    add_file_params = (entry_id, filename, int(time.time()), file)
+    add_file_params = (entry_id, filename, file)
     cur.execute(add_file_command, add_file_params)
     db.commit()
     return {
@@ -496,7 +493,7 @@ def add_proof(request_user_id: int, entry_id: int, filename: str, file: bytes) -
     }
 
 
-def download_proof(request_user_id:int, user_perms: dict, file_id: int) -> dict:
+def download_proof(request_user_id: int, user_perms: dict, file_id: int) -> dict:
     cur = db.cursor()
     # make sure the user should be able to see the associated entry
     get_leaderboard_command = """
@@ -591,8 +588,9 @@ def handle_request(request_user_id: int, request: dict):
     # Every request needs to have these
     try:
         request_type = request["type"]
-        assert type(request_type) is int
-    except KeyError or AssertionError:
+        if not isinstance(request_type, int):
+            raise TypeError
+    except KeyError or TypeError:
         return serverlib.bad_request_json(ServerErrCode.MalformedRequest)
 
     # Get public key
@@ -608,8 +606,9 @@ def handle_request(request_user_id: int, request: dict):
     if request_type == ResourceRequestType.ShowOneLeaderboard:
         try:
             leaderboard_id = request["leaderboard_id"]
-            assert type(leaderboard_id) is int
-        except KeyError or AssertionError:
+            if not isinstance(leaderboard_id, int):
+                raise TypeError
+        except KeyError or TypeError:
             return serverlib.bad_request_json(ServerErrCode.MalformedRequest)
         return show_one_leaderboard_response(request_user_id, perms, leaderboard_id)
 
@@ -619,12 +618,16 @@ def handle_request(request_user_id: int, request: dict):
             return serverlib.bad_request_json(ServerErrCode.InsufficientPermission)
         try:
             new_lb_name = request["leaderboard_name"]
-            assert type(new_lb_name) is str
+            if not isinstance(new_lb_name, str):
+                raise TypeError
             new_lb_perm = request["leaderboard_permission"]
-            assert Permissions.NoAccess <= new_lb_perm <= Permissions.Moderate and type(new_lb_perm) is int
+            if not isinstance(new_lb_perm, int):
+                raise TypeError
+            new_lb_perm = Permissions(new_lb_perm)
             new_lb_asc = request["leaderboard_ascending"]
-            assert type(new_lb_asc) is bool
-        except KeyError or AssertionError:
+            if not isinstance(new_lb_asc, bool):
+                raise TypeError
+        except KeyError or TypeError or ValueError:
             return serverlib.bad_request_json(ServerErrCode.MalformedRequest)
         return add_leaderboard(new_lb_name, new_lb_perm, new_lb_asc)
 
@@ -632,12 +635,15 @@ def handle_request(request_user_id: int, request: dict):
     if request_type == ResourceRequestType.AddEntry:
         try:
             leaderboard_id = request["leaderboard_id"]
-            assert type(leaderboard_id) is int
+            if not isinstance(leaderboard_id, int):
+                raise TypeError
             entry_score = request["score"]
-            assert (type(entry_score) is float or type(entry_score) is int)
+            if not isinstance(entry_score, (float, int)):
+                raise TypeError
             comment = request["comment"]
-            assert type(comment) is str
-        except KeyError or AssertionError:
+            if not isinstance(comment, str):
+                raise TypeError
+        except KeyError or TypeError:
             return serverlib.bad_request_json(ServerErrCode.MalformedRequest)
 
         return add_entry(request_user_id, perms, leaderboard_id, entry_score, comment)
@@ -650,8 +656,9 @@ def handle_request(request_user_id: int, request: dict):
     if request_type == ResourceRequestType.ListUnverified:
         try:
             leaderboard_id = request["leaderboard_id"]
-            assert type(leaderboard_id) is int
-        except KeyError or AssertionError:
+            if not isinstance(leaderboard_id, int):
+                raise TypeError
+        except KeyError or TypeError:
             return serverlib.bad_request_json(ServerErrCode.MalformedRequest)
         return list_unverified(request_user_id, leaderboard_id)
 
@@ -662,8 +669,9 @@ def handle_request(request_user_id: int, request: dict):
     if request_type == ResourceRequestType.GetEntry:
         try:
             entry_id = request["entry_id"]
-            assert type(entry_id) is int
-        except KeyError or AssertionError:
+            if not isinstance(entry_id, int):
+                raise TypeError
+        except KeyError or TypeError:
             return serverlib.bad_request_json(ServerErrCode.MalformedRequest)
         return get_entry(request_user_id, perms, entry_id)
 
@@ -673,8 +681,9 @@ def handle_request(request_user_id: int, request: dict):
     if request_type == ResourceRequestType.ViewUser:
         try:
             user_id = request["user_id"]
-            assert type(user_id) is int
-        except KeyError or AssertionError:
+            if not isinstance(user_id, int):
+                raise TypeError
+        except KeyError or TypeError:
             return serverlib.bad_request_json(ServerErrCode.MalformedRequest)
         return get_user(request_user_id, user_id)
 
@@ -686,14 +695,16 @@ def handle_request(request_user_id: int, request: dict):
         }
 
     # Entry: Verify Entry
-    # Entry: Unverify Entry
+    # Entry: Un-verify Entry
     if request_type == ResourceRequestType.ModifyEntryVerification:
         try:
             entry_id = request["entry_id"]
-            assert type(entry_id) is int
+            if not isinstance(entry_id, int):
+                raise TypeError
             verified = request["verified"]
-            assert type(verified) is bool
-        except KeyError or AssertionError:
+            if not isinstance(verified, bool):
+                raise TypeError
+        except KeyError or TypeError:
             return serverlib.bad_request_json(ServerErrCode.MalformedRequest)
         return modify_verification(request_user_id, perms, entry_id, verified)
 
@@ -701,10 +712,12 @@ def handle_request(request_user_id: int, request: dict):
     if request_type == ResourceRequestType.AddComment:
         try:
             entry_id = request["entry_id"]
-            assert type(entry_id) is int
+            if not isinstance(entry_id, int):
+                raise TypeError
             content = request["content"]
-            assert type(content) is str
-        except KeyError:
+            if not isinstance(content, str):
+                raise TypeError
+        except KeyError or TypeError:
             return serverlib.bad_request_json(ServerErrCode.MalformedRequest)
         return add_comment(request_user_id, perms, entry_id, content)
 
@@ -714,8 +727,9 @@ def handle_request(request_user_id: int, request: dict):
             return serverlib.bad_request_json(ServerErrCode.InsufficientPermission)
         try:
             leaderboard_id = request["leaderboard_id"]
-            assert type(leaderboard_id) is int
-        except KeyError or AssertionError:
+            if not isinstance(leaderboard_id, int):
+                raise TypeError
+        except KeyError or TypeError:
             return serverlib.bad_request_json(ServerErrCode.MalformedRequest)
         return remove_leaderboard(leaderboard_id)
 
@@ -723,8 +737,9 @@ def handle_request(request_user_id: int, request: dict):
     if request_type == ResourceRequestType.RemoveEntry:
         try:
             entry_id = request["entry_id"]
-            assert type(entry_id) is int
-        except KeyError or AssertionError:
+            if not isinstance(entry_id, int):
+                raise TypeError
+        except KeyError or TypeError:
             return serverlib.bad_request_json(ServerErrCode.MalformedRequest)
         return remove_entry(request_user_id, user_class, entry_id)
 
@@ -734,8 +749,9 @@ def handle_request(request_user_id: int, request: dict):
             return serverlib.bad_request_json(ServerErrCode.InsufficientPermission)
         try:
             user_id = request["user_id"]
-            assert type(user_id) is int
-        except KeyError or AssertionError:
+            if not isinstance(user_id, int):
+                raise TypeError
+        except KeyError or TypeError:
             return serverlib.bad_request_json(ServerErrCode.MalformedRequest)
         return view_permissions(user_id)
 
@@ -745,11 +761,16 @@ def handle_request(request_user_id: int, request: dict):
             return serverlib.bad_request_json(ServerErrCode.InsufficientPermission)
         try:
             user_id = request["user_id"]
-            assert type(user_id) is int
+            if not isinstance(user_id, int):
+                raise TypeError
             leaderboard_id = request["leaderboard_id"]
-            assert type(leaderboard_id) is int
+            if not isinstance(leaderboard_id, int):
+                raise TypeError
+            p = request["permission"]
+            if not isinstance(p, int):
+                raise TypeError
             p = Permissions(request["permission"])
-        except KeyError or AssertionError or ValueError:
+        except KeyError or TypeError or ValueError:
             return serverlib.bad_request_json(ServerErrCode.MalformedRequest)
         return set_permission(user_id, leaderboard_id, p)
 
@@ -759,8 +780,9 @@ def handle_request(request_user_id: int, request: dict):
             return serverlib.bad_request_json(ServerErrCode.InsufficientPermission)
         try:
             user_id = request["user_id"]
-            assert type(user_id) is int
-        except KeyError or AssertionError:
+            if not isinstance(user_id, int):
+                raise TypeError
+        except KeyError or TypeError:
             return serverlib.bad_request_json(ServerErrCode.MalformedRequest)
         return remove_user(user_id)
 
@@ -768,10 +790,12 @@ def handle_request(request_user_id: int, request: dict):
     if request_type == ResourceRequestType.ChangeScoreOrder:
         try:
             leaderboard_id = request["leaderboard_id"]
-            assert type(leaderboard_id) is int
+            if not isinstance(leaderboard_id, int):
+                raise TypeError
             ascending = request["ascending"]
-            assert type(ascending) is bool
-        except KeyError:
+            if not isinstance(ascending, bool):
+                raise TypeError
+        except KeyError or TypeError:
             return serverlib.bad_request_json(ServerErrCode.MalformedRequest)
         return set_score_order(leaderboard_id, ascending)
 
@@ -779,11 +803,13 @@ def handle_request(request_user_id: int, request: dict):
     if request_type == ResourceRequestType.AddProof:
         try:
             entry_id = request["entry_id"]
-            assert type(entry_id) is int
+            if not isinstance(entry_id, int):
+                raise TypeError
             filename = request["filename"]
-            assert type(filename) is str
+            if not isinstance(filename, str):
+                raise TypeError
             file = base64.b64decode(request["file"])
-        except KeyError or AssertionError:
+        except KeyError or TypeError:
             return serverlib.bad_request_json(ServerErrCode.MalformedRequest)
         return add_proof(request_user_id, entry_id, filename, file)
 
@@ -791,16 +817,18 @@ def handle_request(request_user_id: int, request: dict):
     if request_type == ResourceRequestType.DownloadProof:
         try:
             file_id = request["file_id"]
-            assert type(file_id) is int
-        except KeyError or AssertionError:
+            if not isinstance(file_id, int):
+                raise TypeError
+        except KeyError or TypeError:
             return serverlib.bad_request_json(ServerErrCode.MalformedRequest)
         return download_proof(request_user_id, perms, file_id)
 
     if request_type == ResourceRequestType.ListAccessGroups:
         try:
             leaderboard_id = request["leaderboard_id"]
-            assert type(leaderboard_id) is int
-        except KeyError or AssertionError:
+            if not isinstance(leaderboard_id, int):
+                raise TypeError
+        except KeyError or TypeError:
             return serverlib.bad_request_json(ServerErrCode.MalformedRequest)
         try:
             lb_perm = perms[leaderboard_id]
@@ -814,8 +842,9 @@ def handle_request(request_user_id: int, request: dict):
     if request_type == ResourceRequestType.RemoveProof:
         try:
             file_id = request["file_id"]
-            assert type(file_id) is int
-        except KeyError or AssertionError:
+            if not isinstance(file_id, int):
+                raise TypeError
+        except KeyError or TypeError:
             return serverlib.bad_request_json(ServerErrCode.MalformedRequest)
         return remove_proof(request_user_id, perms, file_id)
 
@@ -869,8 +898,11 @@ class Handler(socketserver.BaseRequestHandler):
         # Register user if not registered
         print("User {} successfully connected".format(socket_identity))
         cursor = db.cursor()
-        register_command = "insert into users(identity, class, registration_date) values(?, ?, ?) on conflict do nothing"
-        register_params = (socket_identity, UserClass.User, int(time.time()))
+        register_command = """
+            insert into users(identity, class, registration_date) values(?, ?, strftime('%s'))
+            on conflict do nothing
+            """
+        register_params = (socket_identity, UserClass.User)
         cursor.execute(register_command, register_params)
         db.commit()
 
@@ -908,6 +940,7 @@ class Handler(socketserver.BaseRequestHandler):
             netlib.send_dict_to_socket(response, self.request)
 
 
+# noinspection PyUnusedLocal
 def signal_handler(sig, frame):
     print("\nshutting down...")
     db.commit()
