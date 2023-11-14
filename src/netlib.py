@@ -19,7 +19,7 @@ def get_dict_from_socket(sock: socket.socket) -> dict:
 def send_dict_to_socket(packet: dict, sock: socket.socket):
     dict_bytes = json.dumps(packet).encode()
     length = len(dict_bytes)
-    buffer = struct.pack("!I", length) + bytes(dict_bytes)
+    buffer = struct.pack("!I", length) + dict_bytes
     sock.sendall(buffer)
 
 
