@@ -5,7 +5,7 @@ from cryptography.hazmat.primitives import serialization
 
 import cryptolib
 import netlib
-from src.enums import ServerErrCode
+from enums import ServerErrCode
 
 
 def public_key_response(public_key: rsa.RSAPublicKey):
