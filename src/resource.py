@@ -111,7 +111,7 @@ def show_one_leaderboard_response(requesting_user_id: int, user_perms: dict, lea
 def add_leaderboard(new_lb_name: str, new_lb_perm: Permissions, new_lb_asc: bool) -> dict:
     cur = db.cursor()
     new_lb_command = """
-        insert into leaderboards(name, creation_date, default_permission, ascending) values(?, unixepoch(), ?, ?)
+        insert into leaderboards(name, creation_date, default_permission, ascending) values(?, strftime('%s'), ?, ?)
     """
     new_lb_params = (new_lb_name, new_lb_perm, new_lb_asc)
     cur.execute(new_lb_command, new_lb_params)
@@ -134,7 +134,7 @@ def add_entry(requesting_user_id: int, user_perms: dict, leaderboard_id: int, en
         return serverlib.bad_request_json(ServerErrCode.InsufficientPermission)
     create_entry_command = """
         insert into leaderboard_entries(user, leaderboard, score, submission_date, verified)
-        values(?, ?, ?, unixepoch(), ?)
+        values(?, ?, ?, strftime('%s'), ?)
     """
     create_entry_params = (requesting_user_id, leaderboard_id, entry_score, False)
     cur = db.cursor()
@@ -142,7 +142,7 @@ def add_entry(requesting_user_id: int, user_perms: dict, leaderboard_id: int, en
     entry_id = cur.lastrowid
     create_comment_command = """
         insert into entry_comments(user, entry, date, content)
-        values(?, ?, unixepoch(), ?)
+        values(?, ?, strftime('%s'), ?)
     """
     create_comment_params = (requesting_user_id, entry_id, comment)
     cur.execute(create_comment_command, create_comment_params)
@@ -316,7 +316,7 @@ def modify_verification(request_user_id: int, user_perms: dict, entry_id: int, v
 
     modify_entry_command = """
         update leaderboard_entries
-        set verified = ?, verifier = ?, verification_date = unixepoch()
+        set verified = ?, verifier = ?, verification_date = strftime('%s')
         where id = ?
     """
     modify_entry_params = (verified, request_user_id, entry_id)
@@ -348,7 +348,7 @@ def add_comment(request_user_id:int, user_perms: dict, entry_id: int, content: s
 
     add_comment_command = """
         insert into entry_comments(user, entry, date, content)
-            values (?, ?, unixepoch(), ?)
+            values (?, ?, strftime('%s'), ?)
     """
     add_comment_params = (request_user_id, entry_id, content)
     cur.execute(add_comment_command, add_comment_params)
@@ -420,7 +420,7 @@ def set_permission(user_id: int, leaderboard_id: int, p: Permissions) -> dict:
     set_permission_command = """
         insert
         into permissions (user, leaderboard, permission, change_date)
-        values (?, ?, ?, unixepoch())
+        values (?, ?, ?, strftime('%s'))
     """
     set_permission_params = (user_id, leaderboard_id, p)
     try:
@@ -484,7 +484,7 @@ def add_proof(request_user_id: int, entry_id: int, filename: str, file: bytes) -
         return serverlib.bad_request_json(ServerErrCode.InsufficientPermission)
 
     add_file_command = """
-        insert into files (entry, name, submission_date, data) values (?, ?, unixepoch(), ?)
+        insert into files (entry, name, submission_date, data) values (?, ?, strftime('%s'), ?)
     """
     add_file_params = (entry_id, filename, file)
     cur.execute(add_file_command, add_file_params)
@@ -868,7 +868,10 @@ class Handler(socketserver.BaseRequestHandler):
         # Register user if not registered
         print("User {} successfully connected".format(socket_identity))
         cursor = db.cursor()
-        register_command = "insert into users(identity, class, registration_date) values(?, ?, unixepoch()) on conflict do nothing"
+        register_command = """
+            insert into users(identity, class, registration_date) values(?, ?, strftime('%s'))
+            on conflict do nothing
+            """
         register_params = (socket_identity, UserClass.User)
         cursor.execute(register_command, register_params)
         db.commit()
