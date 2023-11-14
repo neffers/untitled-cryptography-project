@@ -6,7 +6,7 @@ import base64
 import signal
 import sys
 from os import path
-
+import time
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
 
@@ -15,6 +15,8 @@ import cryptolib
 import netlib
 from enums import ResourceRequestType, Permissions, UserClass, ServerErrCode
 
+TIMEOUT_SECONDS = 300
+prev_request_time = None
 
 def get_leaderboard_perms(userid: int) -> dict:
     cur = db.cursor()
@@ -584,6 +586,9 @@ def remove_proof(request_user_id: int, user_perms: dict, file_id: int) -> dict:
         "data": None
     }
 
+def get_cur_time():
+    # this is reasonable as long as we trust RS's system time
+    return time.time()
 
 def handle_request(request_user_id: int, request: dict):
     perms = get_leaderboard_perms(request_user_id)
@@ -598,6 +603,15 @@ def handle_request(request_user_id: int, request: dict):
     # Get public key
     if request_type == ResourceRequestType.PublicKey:
         return serverlib.public_key_response(public_key)
+    
+    # time check should be higher in the code path but idk when exactly
+    cur_time = get_cur_time()
+    if prev_request_time is None:
+        prev_request_time = cur_time # first request
+
+    if cur_time - prev_request_time > TIMEOUT_SECONDS:
+        return serverlib.bad_request_json(ServerErrCode.Timeout)
+    prev_request_time = cur_time
 
     # Basic: List Leaderboards
     if request_type == ResourceRequestType.ListLeaderboards:
