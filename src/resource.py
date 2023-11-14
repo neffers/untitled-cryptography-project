@@ -897,8 +897,7 @@ class Handler(socketserver.BaseRequestHandler):
         netlib.send_dict_to_socket(response, self.request)
 
         # TODO: make this loop use encrypted stuff
-        # Should also use the socket_identity
-        # Change docs to say it doesn't need that anymore
+        # TODO: change docs to not require identity/token on requests
         while True:
             request = netlib.get_dict_from_socket(self.request)
             print("received {} from {}".format(request, self.client_address[0]))
