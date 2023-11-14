@@ -23,6 +23,10 @@ def rsa_decrypt(key: rsa.RSAPrivateKey, ciphertext: bytes) -> bytes:
     return key.decrypt(ciphertext, asym_pad.OAEP(asym_pad.MGF1(hashes.SHA256()), hashes.SHA256(), None))
 
 
+def rsa_encrypt(key: rsa.RSAPublicKey, message: bytes) -> bytes:
+    return key.encrypt(message, asym_pad.OAEP(asym_pad.MGF1(hashes.SHA256()), hashes.SHA256(), None))
+
+
 def rsa_sign(key: rsa.RSAPrivateKey, message: bytes) -> bytes:
     sign_pad = asym_pad.PSS(asym_pad.MGF1(hashes.SHA256()), asym_pad.PSS.MAX_LENGTH)
     return key.sign(message, sign_pad, hashes.SHA256())
