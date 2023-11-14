@@ -1,17 +1,21 @@
-import base64
 import sqlite3
 from os import path
 from cryptography.hazmat.primitives.asymmetric import rsa
-from cryptography.hazmat.primitives import serialization, hashes
+from cryptography.hazmat.primitives import serialization
+
+import cryptolib
+import netlib
+from enums import ServerErrCode
 
 
 def public_key_response(public_key: rsa.RSAPublicKey):
+    pubkey_bytes = public_key.public_bytes(
+        serialization.Encoding.OpenSSH,
+        serialization.PublicFormat.OpenSSH
+    )
     response = {
         "success": True,
-        "data": base64.b64encode(public_key.public_bytes(
-            serialization.Encoding.OpenSSH,
-            serialization.PublicFormat.OpenSSH
-        )).decode()
+        "data": netlib.bytes_to_b64(pubkey_bytes)
     }
     return response
 
@@ -38,25 +42,27 @@ def initialize_key(key_filename):
     if path.exists(key_filename):
         print("Found existing private key, using that.")
         with open(key_filename, "rb") as key_file:
-            key: rsa.RSAPrivateKey = serialization.load_pem_private_key(
+            key: rsa.RSAPrivateKey = serialization.load_ssh_private_key(
                 key_file.read(),
                 None
             )
     else:
         print("No existing private key found, generating...")
         key = rsa.generate_private_key(65537, 4096)
-        pem = key.private_bytes(
+        to_write = key.private_bytes(
             serialization.Encoding.PEM,
-            serialization.PrivateFormat.PKCS8,
+            serialization.PrivateFormat.OpenSSH,
             serialization.NoEncryption()
         )
         with open(key_filename, "wb") as key_file:
-            key_file.write(pem)
-    public_key_bytes = key.public_key().public_bytes(
-        serialization.Encoding.OpenSSH,
-        serialization.PublicFormat.OpenSSH
-    )
-    hasher = hashes.Hash(hashes.SHA256())
-    hasher.update(public_key_bytes)
-    print("Key Hash: " + hasher.finalize().hex())
+            key_file.write(to_write)
+    print("Key Hash: " + cryptolib.public_key_hash(key.public_key()))
     return key
+
+
+def bad_request_json(err: ServerErrCode, comment: str = None):
+    return {
+        "success": False,
+        "data": err,
+        "comment": comment,
+    }
