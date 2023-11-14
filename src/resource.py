@@ -16,23 +16,6 @@ import netlib
 from enums import ResourceRequestType, Permissions, UserClass, ServerErrCode
 
 
-# Generally used as (lb_id, lb_name, lb_perm, lb_asc) = get_leaderboard_info()
-def get_leaderboard_info(userid, leaderboard_id):
-    cur = db.cursor()
-    get_leaderboard_info_command = """
-        select l.id, l.name, max(l.default_permission, coalesce(p.permission, 0), class) as perm, l.ascending
-        from leaderboards l
-            left join (select * from permissions where user = ?) p on l.id = p.leaderboard
-            inner join (select class from users where id = ?)
-        where l.id = ?
-    """
-    get_leaderboard_info_params = (userid, userid, leaderboard_id)
-    cur.execute(get_leaderboard_info_command, get_leaderboard_info_params)
-    ret_tuple = cur.fetchone()
-    cur.close()
-    return ret_tuple
-
-
 def get_leaderboard_perms(userid: int) -> dict:
     cur = db.cursor()
     get_perm_command = """
@@ -74,13 +57,20 @@ def list_leaderboards_response(requesting_user_id: int):
     }
 
 
-def show_one_leaderboard_response(requesting_user_id: int, leaderboard_id: int):
+def show_one_leaderboard_response(requesting_user_id: int, user_perms: dict, leaderboard_id: int):
     cursor = db.cursor()
     # make sure leaderboard should be visible by user
-    (leaderboard_id, leaderboard_name, permission, ascending) = (
-        get_leaderboard_info(requesting_user_id, leaderboard_id))
+    try:
+        permission = user_perms[leaderboard_id]
+    except KeyError:
+        return serverlib.bad_request_json(ServerErrCode.DoesNotExist)
     if permission < Permissions.Read:
         return serverlib.bad_request_json(ServerErrCode.InsufficientPermission)
+    # Get leaderboard name and ascending
+    leaderboard_info_command = "select name, ascending from leaderboards where id = ?"
+    leaderboard_info_params = (leaderboard_id,)
+    cursor.execute(leaderboard_info_command, leaderboard_info_params)
+    (leaderboard_name, ascending) = cursor.fetchone()
     # If moderator, return all entries
     if permission >= Permissions.Moderate:
         get_entries_command = """
@@ -134,15 +124,12 @@ def add_leaderboard(new_lb_name: str, new_lb_perm: Permissions, new_lb_asc: bool
     }
 
 
-def add_entry(requesting_user_id: int, leaderboard_id: int, entry_score: float, comment: str) -> dict:
+def add_entry(requesting_user_id: int, user_perms: dict, leaderboard_id: int, entry_score: float, comment: str) -> dict:
     # error if leaderboard id doesn't exist
     try:
-        (lb_id, lb_name, lb_perm, lb_asc) = get_leaderboard_info(requesting_user_id, leaderboard_id)
-    except TypeError:
-        return serverlib.bad_request_json(
-            ServerErrCode.DoesNotExist,
-            "Leaderboard with id {} does not exist.".format(leaderboard_id)
-        )
+        lb_perm = user_perms[leaderboard_id]
+    except KeyError:
+        return serverlib.bad_request_json(ServerErrCode.DoesNotExist)
     # error if you don't have permission to write to it
     if lb_perm < Permissions.Write:
         return serverlib.bad_request_json(ServerErrCode.InsufficientPermission)
@@ -209,7 +196,7 @@ def list_unverified(requesting_user_id: int, leaderboard_id: int) -> dict:
     }
 
 
-def get_entry(requesting_user_id: int, entry_id: int) -> dict:
+def get_entry(requesting_user_id: int, user_perms: dict, entry_id: int) -> dict:
     cursor = db.cursor()
     # Check permissions by first getting leaderboard id and then getting requesting user's perms for it
     get_leaderboard_id_command = """
@@ -223,7 +210,7 @@ def get_entry(requesting_user_id: int, entry_id: int) -> dict:
         (submitter, leaderboard_id, verified) = cursor.fetchone()
     except TypeError:
         return serverlib.bad_request_json(ServerErrCode.DoesNotExist)
-    (lb_id, lb_name, lb_perm, lb_asc) = get_leaderboard_info(requesting_user_id, leaderboard_id)
+    lb_perm = user_perms[leaderboard_id]
     if (verified and lb_perm >= Permissions.Read) or (
             not verified and (submitter == requesting_user_id or lb_perm >= Permissions.Moderate)):
         pass
@@ -314,17 +301,17 @@ def get_user(requesting_user_id: int, user_id: int) -> dict:
     }
 
 
-def modify_verification(request_user_id: int, entry_id: int, verified: bool) -> dict:
+def modify_verification(request_user_id: int, user_perms: dict, entry_id: int, verified: bool) -> dict:
     cur = db.cursor()
-    get_entry_command = "select leaderboard, verified from leaderboard_entries where id = ?"
+    get_entry_command = "select leaderboard from leaderboard_entries where id = ?"
     get_entry_params = (entry_id,)
     cur.execute(get_entry_command, get_entry_params)
     try:
-        (leaderboard_id, entry_verified) = cur.fetchone()
+        (leaderboard_id,) = cur.fetchone()
     except TypeError:
         return serverlib.bad_request_json(ServerErrCode.DoesNotExist)
 
-    (lb_id, lb_name, lb_perm, lb_asc) = get_leaderboard_info(request_user_id, leaderboard_id)
+    lb_perm = user_perms[leaderboard_id]
     if lb_perm < Permissions.Moderate:
         return serverlib.bad_request_json(ServerErrCode.InsufficientPermission)
 
@@ -342,7 +329,7 @@ def modify_verification(request_user_id: int, entry_id: int, verified: bool) -> 
     }
 
 
-def add_comment(request_user_id:int, entry_id: int, content: str) -> dict:
+def add_comment(request_user_id:int, user_perms: dict, entry_id: int, content: str) -> dict:
     cur = db.cursor()
     # Check permissions by first getting leaderboard id and then getting requesting user's perms for it
     get_leaderboard_id_command = """
@@ -356,7 +343,7 @@ def add_comment(request_user_id:int, entry_id: int, content: str) -> dict:
         (submitter, leaderboard_id, verified) = cur.fetchone()
     except TypeError:
         return serverlib.bad_request_json(ServerErrCode.DoesNotExist)
-    (lb_id, lb_name, lb_perm, lb_asc) = get_leaderboard_info(request_user_id, leaderboard_id)
+    lb_perm = user_perms[leaderboard_id]
     if not (request_user_id == submitter or lb_perm >= Permissions.Moderate):
         return serverlib.bad_request_json(ServerErrCode.InsufficientPermission)
 
@@ -509,7 +496,7 @@ def add_proof(request_user_id: int, entry_id: int, filename: str, file: bytes) -
     }
 
 
-def download_proof(request_user_id:int, file_id: int) -> dict:
+def download_proof(request_user_id:int, user_perms: dict, file_id: int) -> dict:
     cur = db.cursor()
     # make sure the user should be able to see the associated entry
     get_leaderboard_command = """
@@ -525,7 +512,7 @@ def download_proof(request_user_id:int, file_id: int) -> dict:
         (submitter, verified, leaderboard_id) = cur.fetchone()
     except TypeError:
         return serverlib.bad_request_json(ServerErrCode.DoesNotExist)
-    (lb_id, lb_name, lb_perm, lb_asc) = get_leaderboard_info(request_user_id, leaderboard_id)
+    lb_perm = user_perms[leaderboard_id]
     if submitter == request_user_id or lb_perm >= Permissions.Moderate or (
             verified and lb_perm >= Permissions.Read):
         pass
@@ -565,7 +552,7 @@ def list_access_groups(leaderboard_id: int) -> dict:
     }
 
 
-def remove_proof(request_user_id: int, file_id: int) -> dict:
+def remove_proof(request_user_id: int, user_perms: dict, file_id: int) -> dict:
     cur = db.cursor()
     get_submitter_command = """
         select e.user, leaderboard
@@ -577,9 +564,9 @@ def remove_proof(request_user_id: int, file_id: int) -> dict:
     cur.execute(get_submitter_command, get_submitter_params)
     try:
         (submitter, leaderboard_id) = cur.fetchone()
-        (lb_id, lb_name, lb_perm, lb_asc) = get_leaderboard_info(request_user_id, leaderboard_id)
     except TypeError:
         return serverlib.bad_request_json(ServerErrCode.DoesNotExist)
+    lb_perm = user_perms[leaderboard_id]
 
     if submitter != request_user_id and lb_perm < Permissions.Moderate:
         return serverlib.bad_request_json(ServerErrCode.InsufficientPermission)
@@ -624,7 +611,7 @@ def handle_request(request_user_id: int, request: dict):
             assert type(leaderboard_id) is int
         except KeyError or AssertionError:
             return serverlib.bad_request_json(ServerErrCode.MalformedRequest)
-        return show_one_leaderboard_response(request_user_id, leaderboard_id)
+        return show_one_leaderboard_response(request_user_id, perms, leaderboard_id)
 
     # Basic: Add Leaderboard
     if request_type == ResourceRequestType.CreateLeaderboard:
@@ -653,7 +640,7 @@ def handle_request(request_user_id: int, request: dict):
         except KeyError or AssertionError:
             return serverlib.bad_request_json(ServerErrCode.MalformedRequest)
 
-        return add_entry(request_user_id, leaderboard_id, entry_score, comment)
+        return add_entry(request_user_id, perms, leaderboard_id, entry_score, comment)
 
     # Basic: List Users
     if request_type == ResourceRequestType.ListUsers:
@@ -678,7 +665,7 @@ def handle_request(request_user_id: int, request: dict):
             assert type(entry_id) is int
         except KeyError or AssertionError:
             return serverlib.bad_request_json(ServerErrCode.MalformedRequest)
-        return get_entry(request_user_id, entry_id)
+        return get_entry(request_user_id, perms, entry_id)
 
     # User: View User (get visible entries)
     # Basic: Open user
@@ -708,7 +695,7 @@ def handle_request(request_user_id: int, request: dict):
             assert type(verified) is bool
         except KeyError or AssertionError:
             return serverlib.bad_request_json(ServerErrCode.MalformedRequest)
-        return modify_verification(request_user_id, entry_id, verified)
+        return modify_verification(request_user_id, perms, entry_id, verified)
 
     # Entry: Add comment
     if request_type == ResourceRequestType.AddComment:
@@ -719,7 +706,7 @@ def handle_request(request_user_id: int, request: dict):
             assert type(content) is str
         except KeyError:
             return serverlib.bad_request_json(ServerErrCode.MalformedRequest)
-        return add_comment(request_user_id, entry_id, content)
+        return add_comment(request_user_id, perms, entry_id, content)
 
     # Admin: Remove Leaderboard
     if request_type == ResourceRequestType.RemoveLeaderboard:
@@ -807,7 +794,7 @@ def handle_request(request_user_id: int, request: dict):
             assert type(file_id) is int
         except KeyError or AssertionError:
             return serverlib.bad_request_json(ServerErrCode.MalformedRequest)
-        return download_proof(request_user_id, file_id)
+        return download_proof(request_user_id, perms, file_id)
 
     if request_type == ResourceRequestType.ListAccessGroups:
         try:
@@ -830,7 +817,7 @@ def handle_request(request_user_id: int, request: dict):
             assert type(file_id) is int
         except KeyError or AssertionError:
             return serverlib.bad_request_json(ServerErrCode.MalformedRequest)
-        return remove_proof(request_user_id, file_id)
+        return remove_proof(request_user_id, perms, file_id)
 
 
 class Handler(socketserver.BaseRequestHandler):
