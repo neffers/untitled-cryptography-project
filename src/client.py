@@ -84,6 +84,7 @@ def request_token(password, as_pub) -> str:
             return response["data"]
         else:
             print(response["data"])
+            return ""
     except json.JSONDecodeError:
         print("Can't decode packet! packet: " + str(response_data))
         return ""
@@ -106,6 +107,8 @@ def request_pub_key() -> str:
             return ""
         if response["success"]:
             return response["data"]
+        else:
+            return ""
     except json.JSONDecodeError:
         print("Can't decode packet! packet: " + str(response_data))
         return ""
@@ -848,9 +851,12 @@ def server_loop(res_ip, res_port):
     print("Connection successful.")
 
     as_pub = request_pub_key()
+    if not as_pub:
+        print("No public key was found.")
+        return
     if "as_pub" in db["auth_server"]:
         if db["auth_server"]["as_pub"] != as_pub:
-            print("Requested public key doesn't match stored public key!")
+            print("Requested public key doesn't match stored public key.")
             return
     else:
         db["auth_server"]["as_pub"] = as_pub
@@ -859,7 +865,7 @@ def server_loop(res_ip, res_port):
     while True:
         password = input("Enter password: ")
         token = request_token(password, as_pub)
-        if token != ServerErrCode:
+        if token:
             break
 
     sock.close()
