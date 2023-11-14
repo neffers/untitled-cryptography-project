@@ -25,8 +25,8 @@ def get_leaderboard_perms(userid: int) -> dict:
     """
     get_perm_params = (userid, userid)
     cur.execute(get_perm_command, get_perm_params)
-    tups = cur.fetchall()
-    return {entry[0]: entry[1] for entry in tups}
+    perm_tuples = cur.fetchall()
+    return {entry[0]: entry[1] for entry in perm_tuples}
 
 
 def get_user_class(userid: int) -> UserClass:
@@ -328,18 +328,18 @@ def modify_verification(request_user_id: int, user_perms: dict, entry_id: int, v
     }
 
 
-def add_comment(request_user_id:int, user_perms: dict, entry_id: int, content: str) -> dict:
+def add_comment(request_user_id: int, user_perms: dict, entry_id: int, content: str) -> dict:
     cur = db.cursor()
     # Check permissions by first getting leaderboard id and then getting requesting user's perms for it
     get_leaderboard_id_command = """
-        select user, leaderboard, verified
+        select user, leaderboard
         from leaderboard_entries
         where id = ?
     """
     get_leaderboard_id_params = (entry_id,)
     cur.execute(get_leaderboard_id_command, get_leaderboard_id_params)
     try:
-        (submitter, leaderboard_id, verified) = cur.fetchone()
+        (submitter, leaderboard_id) = cur.fetchone()
     except TypeError:
         return serverlib.bad_request_json(ServerErrCode.DoesNotExist)
     lb_perm = user_perms[leaderboard_id]
@@ -385,10 +385,8 @@ def remove_entry(request_user_id: int, user_class: UserClass, entry_id: int) -> 
     if user_class < UserClass.Administrator and submitter != request_user_id:
         return serverlib.bad_request_json(ServerErrCode.InsufficientPermission)
 
-    remove_entry = """
-        delete from leaderboard_entries where id = ?
-    """
-    cur.execute(remove_entry, (entry_id,))
+    remove_entry_command = "delete from leaderboard_entries where id = ?"
+    cur.execute(remove_entry_command, (entry_id,))
     db.commit()
     return {
         "success": True,
@@ -495,7 +493,7 @@ def add_proof(request_user_id: int, entry_id: int, filename: str, file: bytes) -
     }
 
 
-def download_proof(request_user_id:int, user_perms: dict, file_id: int) -> dict:
+def download_proof(request_user_id: int, user_perms: dict, file_id: int) -> dict:
     cur = db.cursor()
     # make sure the user should be able to see the associated entry
     get_leaderboard_command = """
@@ -685,7 +683,7 @@ def handle_request(request_user_id: int, request: dict):
         }
 
     # Entry: Verify Entry
-    # Entry: Unverify Entry
+    # Entry: Un-verify Entry
     if request_type == ResourceRequestType.ModifyEntryVerification:
         try:
             entry_id = request["entry_id"]
@@ -910,6 +908,7 @@ class Handler(socketserver.BaseRequestHandler):
             netlib.send_dict_to_socket(response, self.request)
 
 
+# noinspection PyUnusedLocal
 def signal_handler(sig, frame):
     print("\nshutting down...")
     db.commit()
