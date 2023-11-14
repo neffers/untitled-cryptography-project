@@ -1,39 +1,30 @@
-import base64
 import socketserver
-import json
-import struct
 import signal
 import sys
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric import rsa
+
+from enums import AuthRequestType, ServerErrCode
+import netlib
 import serverlib
-from os import urandom
-from cryptography.hazmat.primitives import hashes, padding, serialization
-from cryptography.hazmat.primitives.asymmetric import rsa, padding as apad
-from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
-from enums import AuthRequestType
+import cryptolib
 
 
 def get_token_response(request: dict):
-    rsa_encrypted_aes_key = base64.b64decode(request["encrypted_key"])
-    signin_payload = base64.b64decode(request["signin_payload"])
-    aes_key = private_key.decrypt(
-        rsa_encrypted_aes_key,
-        apad.OAEP(
-            apad.MGF1(hashes.SHA256()),
-            hashes.SHA256(),
-            None
-        )
-    )
-    aes = Cipher(algorithms.AES(aes_key), modes.CBC(urandom(16)))
-    symmetric_pad = padding.PKCS7(128)
-    pad = symmetric_pad.padder()
-    unpad = symmetric_pad.unpadder()
-    encryptor = aes.encryptor()
-    decryptor = aes.decryptor()
-    decrypted_payload = decryptor.update(signin_payload) + decryptor.finalize()
-    unpadded = unpad.update(decrypted_payload) + unpad.finalize()
-    signin_request = json.loads(unpadded.decode())
-    identity = signin_request["identity"]
-    password = signin_request["password"]
+    try:
+        rsa_encrypted_aes_key = netlib.b64_to_bytes(request["encrypted_key"])
+        signin_payload = netlib.b64_to_bytes(request["signin_payload"])
+    except KeyError or TypeError:
+        return serverlib.bad_request_json(ServerErrCode.MalformedRequest)
+    aes_key = cryptolib.rsa_decrypt(private_key, rsa_encrypted_aes_key)
+    signin_request = cryptolib.decrypt_dict(aes_key, signin_payload)
+    try:
+        identity = signin_request["identity"]
+        assert type(identity) is str
+        password = signin_request["password"]
+        assert type(password) is str
+    except KeyError or AssertionError:
+        return serverlib.bad_request_json(ServerErrCode.MalformedRequest)
 
     get_user_command = """
         select identity, password
@@ -53,18 +44,13 @@ def get_token_response(request: dict):
         db.commit()
         (db_id, db_pw) = (identity, password)
     if not db_pw == password:
-        response = {
-            "success": False,
-            "data": "Password did not match",
-        }
+        return serverlib.bad_request_json(ServerErrCode.AuthenticationFailure)
     else:
-        sign_pad = apad.PSS(apad.MGF1(hashes.SHA256()), apad.PSS.MAX_LENGTH)
-        token = private_key.sign(bytes(identity), sign_pad, hashes.SHA256())
-        padded_token = pad.update(token) + pad.finalize()
-        encrypted_token = encryptor.update(padded_token) + encryptor.finalize()
+        token = cryptolib.rsa_sign_string(private_key, identity)
+        encrypted_token = cryptolib.symmetric_encrypt(aes_key, token)
         response = {
             "success": True,
-            "data": base64.b64encode(encrypted_token).decode()
+            "data": netlib.bytes_to_b64(encrypted_token)
         }
     return response
 
@@ -75,32 +61,18 @@ def generate_response(request: dict):
     elif request["type"] == AuthRequestType.PublicKey:
         return serverlib.public_key_response(public_key)
     else:
-        return {
-            "success": False,
-            "data": "Bad request, not in AuthRequestType"
-        }
+        return serverlib.bad_request_json(ServerErrCode.MalformedRequest)
 
 
 class Handler(socketserver.BaseRequestHandler):
     def handle(self):
-        print("handling packet")
-        self.data = self.request.recv(4)
-        buffer_len = struct.unpack("!I", self.data)[0]
-        self.data = self.request.recv(buffer_len)
-        print("data received")
-        print("received {} from {}".format(self.data, self.client_address[0]))
-        try:
-            request = json.loads(self.data)
-            response = generate_response(request)
-            print("sending {}".format(response))
-            response = json.dumps(response).encode()
-        except json.decoder.JSONDecodeError:
-            print("Could not interpret packet!")
-            response = {"success": False, "data": "Malformed request!"}
-
-        buffer = struct.pack("!I", len(response))
-        buffer += bytes(response)
-        self.request.send(buffer)
+        print("socket opened with {}".format(self.client_address[0]))
+        request = netlib.get_dict_from_socket(self.request)
+        print("received {}".format(request))
+        response = generate_response(request)
+        print("sending {}".format(response))
+        netlib.send_dict_to_socket(response, self.request)
+        print("closing socket with {}".format(self.client_address[0]))
 
 
 def signal_handler(sig, frame):

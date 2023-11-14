@@ -1,10 +1,12 @@
-from enum import IntEnum
-from enum import auto
+from enum import IntEnum, auto
 
 
 # An enum for Request types to the Resource Server
 # Should hopefully simplify adding request types as well as determining if all cases are handled
 class ResourceRequestType(IntEnum):
+    PublicKey = auto()
+    Authenticate = auto()
+    NonceReply = auto()
     ListLeaderboards = auto()
     ShowOneLeaderboard = auto()
     CreateLeaderboard = auto()
@@ -25,7 +27,14 @@ class ResourceRequestType(IntEnum):
     AddProof = auto()
     DownloadProof = auto()
     RemoveProof = auto()
-    GetIdFromIdentity = auto()
+    GetSelfID = auto()
+
+
+class ServerErrCode(IntEnum):
+    AuthenticationFailure = auto()
+    InsufficientPermission = auto()
+    DoesNotExist = auto()
+    MalformedRequest = auto()
 
 
 class Permissions(IntEnum):
