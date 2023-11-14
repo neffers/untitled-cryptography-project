@@ -1,7 +1,6 @@
 import os
 import socketserver
 import sqlite3
-import base64
 import signal
 import sys
 from os import path
@@ -526,7 +525,7 @@ def download_proof(request_user_id: int, user_perms: dict, file_id: int) -> dict
     (file,) = cur.fetchone()
     return {
         "success": True,
-        "data": base64.b64encode(file).decode()
+        "data": netlib.bytes_to_b64(file)
     }
 
 
@@ -808,7 +807,7 @@ def handle_request(request_user_id: int, request: dict):
             filename = request["filename"]
             if not isinstance(filename, str):
                 raise TypeError
-            file = base64.b64decode(request["file"])
+            file = netlib.b64_to_bytes(request["file"])
         except KeyError or TypeError:
             return serverlib.bad_request_json(ServerErrCode.MalformedRequest)
         return add_proof(request_user_id, entry_id, filename, file)
