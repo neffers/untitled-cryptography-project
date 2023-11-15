@@ -85,11 +85,8 @@ def request_pub_key() -> rsa.RSAPublicKey:
     }
     netlib.send_dict_to_socket(request, sock)
     response = netlib.get_dict_from_socket(sock)
-    if "success" in response:
-        if response["success"]:
-            return serialization.load_ssh_public_key(netlib.b64_to_bytes(response["data"]))
-        else:
-            return None
+    if "success" in response and response["success"]:
+        return serialization.load_ssh_public_key(netlib.b64_to_bytes(response["data"]))
     return None
 
 class ShowLeaderboardsRequest(Request):
@@ -835,31 +832,30 @@ def server_loop(res_ip, res_port):
         print("No public key was found.")
         return
     if "as_pub" in db["auth_server"]:
-        if db["auth_server"]["as_pub"].public_bytes(encoding=serialization.Encoding.PEM,format=serialization.PublicFormat.SubjectPublicKeyInfo) != as_pub.public_bytes(encoding=serialization.Encoding.PEM,format=serialization.PublicFormat.SubjectPublicKeyInfo):
+        if db["auth_server"]["as_pub"] != netlib.bytes_to_b64(as_pub.public_bytes(encoding=serialization.Encoding.PEM,format=serialization.PublicFormat.SubjectPublicKeyInfo)):
             print("Requested public key doesn't match stored public key.")
             return
     else:
-        db["auth_server"]["as_pub"] = as_pub
+        db["auth_server"]["as_pub"] = netlib.bytes_to_b64(as_pub.public_bytes(encoding=serialization.Encoding.PEM,format=serialization.PublicFormat.SubjectPublicKeyInfo))
 
     sock.close()
 
-    token = None
-    while token is None:
-        auth_server = db["auth_server"]
-        print("Trying to connect to {}:{}".format(auth_server["ip"], auth_server["port"]))
-        try:
-            sock = socket.socket()
-            sock.connect((auth_server["ip"], int(auth_server["port"])))
-        except OSError as e:
-            print("Connection to authentication server failed! error: " + str(e))
-            return
-        print("Connection successful.")
-        identity = input("Enter identity: ")
-        password = input("Enter password: ")
-        token = request_token(password, as_pub)
-        if token is None:
-            print("Incorrect username or password! Try again.")
-            sock.close
+    auth_server = db["auth_server"]
+    print("Trying to connect to {}:{}".format(auth_server["ip"], auth_server["port"]))
+    try:
+        sock = socket.socket()
+        sock.connect((auth_server["ip"], int(auth_server["port"])))
+    except OSError as e:
+        print("Connection to authentication server failed! error: " + str(e))
+        return
+    print("Connection successful.")
+    identity = input("Enter identity: ")
+    password = input("Enter password: ")
+    token = request_token(password, as_pub)
+    if token is None:
+        print("Incorrect username or password!")
+        sock.close()
+        return
 
     print("Login successful!")
     sock.close()
@@ -888,14 +884,14 @@ def server_loop(res_ip, res_port):
         print("No public key was found.")
         return
     rs_pub = serialization.load_ssh_public_key(netlib.b64_to_bytes(rs_pub))
-    for i in range(len(db["resource_servers"])):
-        rs = db["resource_servers"][i]
+    for rs in db["resource_servers"]:
         if rs["ip"] == res_ip and rs["port"] == res_port:
-            if "rs_pub" in rs and rs["rs_pub"].public_bytes(encoding=serialization.Encoding.PEM,format=serialization.PublicFormat.SubjectPublicKeyInfo) != rs_pub.public_bytes(encoding=serialization.Encoding.PEM,format=serialization.PublicFormat.SubjectPublicKeyInfo):
+            if "rs_pub" in rs and rs["rs_pub"] != netlib.bytes_to_b64(rs_pub.public_bytes(encoding=serialization.Encoding.PEM,format=serialization.PublicFormat.SubjectPublicKeyInfo)):
                 print("Requested public key doesn't match stored public key.")
                 return
-            else:
-                db["resource_servers"][i]["rs_pub"] = rs_pub
+            elif "rs_pub" not in rs:
+                rs["rs_pub"] = netlib.bytes_to_b64(rs_pub.public_bytes(encoding=serialization.Encoding.PEM,format=serialization.PublicFormat.SubjectPublicKeyInfo))
+                break
 
     aes_key = os.urandom(32)
     encrypted_key = cryptolib.rsa_encrypt(rs_pub, aes_key)
@@ -911,11 +907,6 @@ def server_loop(res_ip, res_port):
     }
 
     netlib.send_dict_to_socket(request, sock)
-    response = netlib.get_dict_from_socket(sock)
-    if "nonce" in response:
-        encrpyted_nonce = response["nonce"]
-    else:
-        return
     
     nonce = cryptolib.symmetric_decrypt(aes_key, netlib.b64_to_bytes(encrpyted_nonce))
     nonce_plus_1 = netlib.int_to_bytes(netlib.bytes_to_int(nonce) + 1)
@@ -924,6 +915,10 @@ def server_loop(res_ip, res_port):
         "nonce": netlib.bytes_to_b64(cryptolib.symmetric_encrypt(aes_key, nonce_plus_1)),
     }
     netlib.send_dict_to_socket(request, sock)
+    response = netlib.get_dict_from_socket(sock)
+    if response is None or not response["success"]:
+        print("Nonce authentication failed!")
+        return
 
     print("Connected to " + res_ip + ":" + res_port + " as " + identity + "\n")
 
