@@ -835,7 +835,7 @@ def server_loop(res_ip, res_port):
         print("No public key was found.")
         return
     if "as_pub" in db["auth_server"]:
-        if db["auth_server"]["as_pub"] != as_pub:
+        if db["auth_server"]["as_pub"].public_bytes(encoding=serialization.Encoding.PEM,format=serialization.PublicFormat.SubjectPublicKeyInfo) != as_pub.public_bytes(encoding=serialization.Encoding.PEM,format=serialization.PublicFormat.SubjectPublicKeyInfo):
             print("Requested public key doesn't match stored public key.")
             return
     else:
@@ -887,13 +887,14 @@ def server_loop(res_ip, res_port):
     if rs_pub is None:
         print("No public key was found.")
         return
-    for rs in db["resource_servers"]:
+    for i in range(len(db["resource_servers"])):
+        rs = db["resource_servers"][i]
         if rs["ip"] == res_ip and rs["port"] == res_port:
-            if "rs_pub" in rs and rs["rs_pub"] != rs_pub:
+            if "rs_pub" in rs and rs["rs_pub"].public_bytes(encoding=serialization.Encoding.PEM,format=serialization.PublicFormat.SubjectPublicKeyInfo) != rs_pub.public_bytes(encoding=serialization.Encoding.PEM,format=serialization.PublicFormat.SubjectPublicKeyInfo):
                 print("Requested public key doesn't match stored public key.")
                 return
             else:
-                rs["rs_pub"] = rs_pub
+                db["resource_servers"][i]["rs_pub"] = rs_pub
     rs_pub = serialization.load_ssh_public_key(netlib.b64_to_bytes(rs_pub))
 
     aes_key = os.urandom(32)
