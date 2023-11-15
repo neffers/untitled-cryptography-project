@@ -910,7 +910,8 @@ class Handler(socketserver.BaseRequestHandler):
             return
 
         # verified
-        last_request_time = int(time.time())
+        netlib.send_dict_to_socket({"success": True, "data": None}, self.request)
+        self.request.settimeout(300)
         # Register user if not registered
         print("User {} successfully connected".format(socket_identity))
         cursor = db.cursor()
@@ -940,14 +941,9 @@ class Handler(socketserver.BaseRequestHandler):
         cursor.execute(get_id_command, get_id_params)
         (socket_user_id,) = cursor.fetchone()
 
-        encrypted_request = netlib.b64_to_bytes(request["encrypted_request"])
-        further_request = cryptolib.decrypt_dict(aes_key, encrypted_request)
-        response = handle_request(socket_user_id, further_request)
-        netlib.send_dict_to_socket(response, self.request)
-
-        # TODO: make this loop use encrypted stuff
         # TODO: change docs to not require identity/token on requests
         # TODO: Handle disconnect
+            # Done for timeouts, not for closure?
         while True:
             try:
                 request = netlib.get_dict_from_socket(self.request)
@@ -956,7 +952,9 @@ class Handler(socketserver.BaseRequestHandler):
                 netlib.send_dict_to_socket(serverlib.bad_request_json(ServerErrCode.SessionExpired), self.request)
                 return
             print("received {} from {}".format(request, self.client_address[0]))
-            response = handle_request(socket_user_id, request)
+            encrypted_request = netlib.b64_to_bytes(request["encrypted_request"])
+            real_request = cryptolib.decrypt_dict(aes_key, encrypted_request)
+            response = handle_request(socket_user_id, real_request)
             print("sending {} to {}".format(response, self.client_address[0]))
             netlib.send_dict_to_socket(response, self.request)
 
