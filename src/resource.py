@@ -883,6 +883,7 @@ class Handler(socketserver.BaseRequestHandler):
         netlib.send_dict_to_socket(response, self.request)
 
         # verification
+        request = netlib.get_dict_from_socket(self.request)
         if not request["type"] == ResourceRequestType.NonceReply:
             print("request type not a nonce reply, exiting")
             netlib.send_dict_to_socket(serverlib.bad_request_json(ServerErrCode.MalformedRequest), self.request)
