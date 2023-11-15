@@ -66,8 +66,8 @@ def request_token(password, as_pub) -> str:
     signin_payload = cryptolib.encrypt_dict(aes_key, signin_dict)
     request = {
         "type": AuthRequestType.Token,
-        "encrpyted_key": encrypted_key,
-        "signin_payload": signin_payload,
+        "encrypted_key": netlib.bytes_to_b64(encrypted_key),
+        "signin_payload": netlib.bytes_to_b64(signin_payload),
     }
     netlib.send_dict_to_socket(request, sock)
     response = netlib.get_dict_from_socket(sock)
@@ -79,15 +79,15 @@ def request_token(password, as_pub) -> str:
     return None
     
 # Auth server request
-def request_pub_key() -> str:
+def request_pub_key() -> rsa.RSAPublicKey:
     request = {
-        "type": AuthRequestType.PublicKey
+        "type": AuthRequestType.PublicKey,
     }
     netlib.send_dict_to_socket(request, sock)
     response = netlib.get_dict_from_socket(sock)
     if "success" in response:
         if response["success"]:
-            return response["data"]
+            return serialization.load_ssh_public_key(netlib.b64_to_bytes(response["data"]))
         else:
             return None
     return None
@@ -841,13 +841,25 @@ def server_loop(res_ip, res_port):
     else:
         db["auth_server"]["as_pub"] = as_pub
 
+    sock.close()
+
     token = None
     while token is None:
+        auth_server = db["auth_server"]
+        print("Trying to connect to {}:{}".format(auth_server["ip"], auth_server["port"]))
+        try:
+            sock = socket.socket()
+            sock.connect((auth_server["ip"], int(auth_server["port"])))
+        except OSError as e:
+            print("Connection to authentication server failed! error: " + str(e))
+            return
+        print("Connection successful.")
         identity = input("Enter identity: ")
         password = input("Enter password: ")
         token = request_token(password, as_pub)
         if token is None:
             print("Incorrect username or password! Try again.")
+            sock.close
 
     sock.close()
 
