@@ -888,7 +888,6 @@ class Handler(socketserver.BaseRequestHandler):
             print("request type not a nonce reply, exiting")
             netlib.send_dict_to_socket(serverlib.bad_request_json(ServerErrCode.MalformedRequest), self.request)
             return
-        request = netlib.get_dict_from_socket(self.request)
         reply_nonce = cryptolib.symmetric_decrypt(aes_key, request["nonce"])
         if not netlib.bytes_to_int(nonce) + 1 == netlib.bytes_to_int(reply_nonce):
             print("Invalid nonce reply, exiting")
