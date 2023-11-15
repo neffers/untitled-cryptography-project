@@ -3,7 +3,14 @@ import struct
 import socket
 import base64
 from datetime import datetime
-from enums import ResourceRequestType, Permissions
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric import rsa
+
+import os
+import netlib
+import serverlib
+import cryptolib
+from enums import AuthRequestType, ResourceRequestType, Permissions, ServerErrCode
 
 identity: str = ""
 token: str = ""
@@ -48,31 +55,42 @@ class Request:
         print("Operation successful.")
 
 
-# currently the only auth server request, so a special case
-def request_token() -> str:
-    request = {
-        "type": "token",
-        "identity": identity
+# Auth server request
+def request_token(password, as_pub) -> str:
+    aes_key = os.urandom(32)
+    encrypted_key = cryptolib.rsa_encrypt(as_pub, aes_key)
+    signin_dict = {
+        "identity": identity,
+        "password": password,
     }
-    request = bytes(json.dumps(request), "utf-8")
-    buffer = struct.pack("!I", len(request))
-    buffer += request
-    sock.send(buffer)
-    buffer_len = struct.unpack("!I", sock.recv(4))[0]
-    response_data = sock.recv(buffer_len)
-    try:
-        response = json.loads(response_data.decode())
-        if "success" not in response or "data" not in response:
-            print("Malformed packet: " + str(response))
-            return ""
+    signin_payload = cryptolib.encrypt_dict(aes_key, signin_dict)
+    request = {
+        "type": AuthRequestType.Token,
+        "encrpyted_key": encrypted_key,
+        "signin_payload": signin_payload,
+    }
+    netlib.send_dict_to_socket(request, sock)
+    response = netlib.get_dict_from_socket(sock)
+    if "success" in response:
         if response["success"]:
-            return response["token"]
+            return response["data"]
         else:
-            print(response["data"])
-    except json.JSONDecodeError:
-        print("Can't decode packet! packet: " + str(response_data))
-        return ""
-
+            return None
+    return None
+    
+# Auth server request
+def request_pub_key() -> str:
+    request = {
+        "type": AuthRequestType.PublicKey
+    }
+    netlib.send_dict_to_socket(request, sock)
+    response = netlib.get_dict_from_socket(sock)
+    if "success" in response:
+        if response["success"]:
+            return response["data"]
+        else:
+            return None
+    return None
 
 class ShowLeaderboardsRequest(Request):
     def __init__(self):
@@ -690,12 +708,12 @@ def display():
         server_count += 1
 
 
-def write_database_to_file():
+def write_database_to_file(database, db_filename):
     with open(db_filename, "w") as db_file:
-        json.dump(db, db_file)
+        json.dump(database, db_file)
 
 
-def initialize_database() -> dict:
+def initialize_database(db_filename) -> dict:
     try:
         with open(db_filename, "r") as db_file:
             db_to_return = json.load(db_file)
@@ -704,8 +722,13 @@ def initialize_database() -> dict:
         print("Could not read db from file. Exiting to avoid corrupting!")
     except FileNotFoundError:
         print("No database found! Initializing new database.")
+        str = ""
+        if db_filename == "client_db":
+            str = "resource servers"
+        #else:
+        #    str = "stored keys"
         db_to_return = {
-            "resource_servers": [],
+            str: [],
         }
     return db_to_return
 
@@ -716,8 +739,8 @@ def main():
         name = input("Name the server: ")[:20]
         ip = input("Enter the ip of the server: ")
         port = input("Enter the port of the server: ")
-        db["auth_server"] = {"name": name, "ip": ip, "port": port}
-        write_database_to_file()
+        db["auth_server"] = {"name": name, "ip": ip, "port": port, "key": ""}
+        write_database_to_file(db, "client_db")
 
     while True:
         display()
@@ -746,8 +769,8 @@ def main():
             name = input("Name the server: ")[:20]
             ip = input("Enter the ip of the server: ")
             port = input("Enter the port of the server: ")
-            db["resource_servers"].append({"name": name, "ip": ip, "port": port})
-            write_database_to_file()
+            db["resource_servers"].append({"name": name, "ip": ip, "port": port, "key": ""})
+            write_database_to_file(db, "client_db")
 
         elif choice == 'e':  # edit resource server
             choice = input("Enter server number to edit (0 for auth. server): ")
@@ -772,7 +795,7 @@ def main():
             port = input("Enter new port (empty to leave as \"{}\"): ".format(server["port"]))
             if port != "":
                 server["port"] = port
-            write_database_to_file()
+            write_database_to_file(db, "client_db")
 
         elif choice == 'r':  # remove a resource server
             choice = input("Enter server number to remove: ")
@@ -796,6 +819,7 @@ def server_loop(res_ip, res_port):
     global identity, token, sock
     # clear_screen()
 
+    # Authentication process
     auth_server = db["auth_server"]
     print("Trying to connect to {}:{}".format(auth_server["ip"], auth_server["port"]))
     try:
@@ -805,17 +829,90 @@ def server_loop(res_ip, res_port):
         print("Connection to authentication server failed! error: " + str(e))
         return
     print("Connection successful.")
-    identity = input("Enter identity: ")
-    token = request_token()
+
+    as_pub = request_pub_key()
+    if as_pub is None:
+        print("No public key was found.")
+        return
+    if "as_pub" in db["auth_server"]:
+        if db["auth_server"]["as_pub"] != as_pub:
+            print("Requested public key doesn't match stored public key.")
+            return
+    else:
+        db["auth_server"]["as_pub"] = as_pub
+
+    token = None
+    while token is None:
+        identity = input("Enter identity: ")
+        password = input("Enter password: ")
+        token = request_token(password, as_pub)
+        if token is None:
+            print("Incorrect username or password! Try again.")
+
     sock.close()
 
+    # Resource server handshake
     try:
         sock = socket.socket()
         sock.connect((res_ip, int(res_port)))
     except OSError as e:
         print("Connection to resource server failed! error: " + str(e))
         return
+    
+    request = {
+        "type": ResourceRequestType.PublicKey
+    }
+    netlib.send_dict_to_socket(request, sock)
+    response = netlib.get_dict_from_socket(sock)
+    if "success" in response:
+        if response["success"]:
+            rs_pub = response["data"]
+        else:
+            return
+    else:
+        return
+    if rs_pub is None:
+        print("No public key was found.")
+        return
+    for rs in db["resource_servers"]:
+        if rs["ip"] == res_ip and rs["port"] == res_port:
+            if "rs_pub" in rs and rs["rs_pub"] != rs_pub:
+                print("Requested public key doesn't match stored public key.")
+                return
+            else:
+                rs["rs_pub"] = rs_pub
+
+    aes_key = os.urandom(32)
+    encrypted_key = cryptolib.rsa_encrypt(rs_pub, aes_key)
+    signin_dict = {
+        "identity": identity,
+        "token": token,
+    }
+    signin_payload = cryptolib.encrypt_dict(aes_key, signin_dict)
+    request = {
+        "type": ResourceRequestType.Authenticate,
+        "encrpyted_key": encrypted_key,
+        "signin_payload": signin_payload,
+    }
+
+    netlib.send_dict_to_socket(request, sock)
+    response = netlib.get_dict_from_socket(sock)
+    if "nonce" in response:
+        encrpyted_nonce = response["nonce"]
+    else:
+        return
+    
+    nonce = cryptolib.symmetric_decrypt(aes_key, encrpyted_nonce)
+    nonce_plus_1 = netlib.int_to_bytes(netlib.bytes_to_int(nonce) + 1)
+    request = {
+        "type": ResourceRequestType.NonceReply,
+        "nonce": cryptolib.symmetric_encrypt(aes_key, nonce_plus_1),
+    }
+    netlib.send_dict_to_socket(request, sock)
+
     print("Connected to " + res_ip + ":" + res_port + " as " + identity + "\n")
+
+    # Resource server connection loop
     while True:
         # clear_screen()
         print(
@@ -865,6 +962,5 @@ def server_loop(res_ip, res_port):
 
 
 if __name__ == "__main__":
-    db_filename = "client_db"
-    db = initialize_database()
+    db = initialize_database("client_db")
     main()
