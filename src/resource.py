@@ -4,6 +4,7 @@ import sqlite3
 import signal
 import sys
 from os import path
+import time
 
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
@@ -12,6 +13,8 @@ import serverlib
 import cryptolib
 import netlib
 from enums import ResourceRequestType, Permissions, UserClass, ServerErrCode
+
+TIMEOUT_SECONDS = 300
 
 
 def get_leaderboard_perms(userid: int) -> dict:
@@ -894,6 +897,7 @@ class Handler(socketserver.BaseRequestHandler):
             return
 
         # verified
+        last_request_time = int(time.time())
         # Register user if not registered
         print("User {} successfully connected".format(socket_identity))
         cursor = db.cursor()
@@ -933,6 +937,12 @@ class Handler(socketserver.BaseRequestHandler):
         # TODO: Handle disconnect
         while True:
             request = netlib.get_dict_from_socket(self.request)
+            if last_request_time + TIMEOUT_SECONDS > int(time.time()):
+                print("Received request on timed out session, exiting.")
+                netlib.send_dict_to_socket(serverlib.bad_request_json(ServerErrCode.SessionExpired), self.request)
+                return
+            else:
+                last_request_time = int(time.time())
             print("received {} from {}".format(request, self.client_address[0]))
             response = handle_request(socket_user_id, request)
             print("sending {} to {}".format(response, self.client_address[0]))
