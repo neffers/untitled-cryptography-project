@@ -861,6 +861,7 @@ def server_loop(res_ip, res_port):
             print("Incorrect username or password! Try again.")
             sock.close
 
+    print("Login successful!")
     sock.close()
 
     # Resource server handshake
@@ -893,6 +894,7 @@ def server_loop(res_ip, res_port):
                 return
             else:
                 rs["rs_pub"] = rs_pub
+    rs_pub = serialization.load_ssh_public_key(netlib.b64_to_bytes(rs_pub))
 
     aes_key = os.urandom(32)
     encrypted_key = cryptolib.rsa_encrypt(rs_pub, aes_key)
@@ -903,8 +905,8 @@ def server_loop(res_ip, res_port):
     signin_payload = cryptolib.encrypt_dict(aes_key, signin_dict)
     request = {
         "type": ResourceRequestType.Authenticate,
-        "encrpyted_key": encrypted_key,
-        "signin_payload": signin_payload,
+        "encrypted_key": netlib.bytes_to_b64(encrypted_key),
+        "signin_payload": netlib.bytes_to_b64(signin_payload),
     }
 
     netlib.send_dict_to_socket(request, sock)
