@@ -73,7 +73,7 @@ def request_token(password, as_pub) -> str:
     response = netlib.get_dict_from_socket(sock)
     if "success" in response:
         if response["success"]:
-            return response["data"]
+            return cryptolib.symmetric_decrypt(aes_key, netlib.b64_to_bytes(response["data"]))
         else:
             return None
     return None
@@ -887,6 +887,7 @@ def server_loop(res_ip, res_port):
     if rs_pub is None:
         print("No public key was found.")
         return
+    rs_pub = serialization.load_ssh_public_key(netlib.b64_to_bytes(rs_pub))
     for i in range(len(db["resource_servers"])):
         rs = db["resource_servers"][i]
         if rs["ip"] == res_ip and rs["port"] == res_port:
@@ -895,13 +896,12 @@ def server_loop(res_ip, res_port):
                 return
             else:
                 db["resource_servers"][i]["rs_pub"] = rs_pub
-    rs_pub = serialization.load_ssh_public_key(netlib.b64_to_bytes(rs_pub))
 
     aes_key = os.urandom(32)
     encrypted_key = cryptolib.rsa_encrypt(rs_pub, aes_key)
     signin_dict = {
         "identity": identity,
-        "token": token,
+        "token": netlib.bytes_to_b64(token),
     }
     signin_payload = cryptolib.encrypt_dict(aes_key, signin_dict)
     request = {
@@ -917,11 +917,11 @@ def server_loop(res_ip, res_port):
     else:
         return
     
-    nonce = cryptolib.symmetric_decrypt(aes_key, encrpyted_nonce)
+    nonce = cryptolib.symmetric_decrypt(aes_key, netlib.b64_to_bytes(encrpyted_nonce))
     nonce_plus_1 = netlib.int_to_bytes(netlib.bytes_to_int(nonce) + 1)
     request = {
         "type": ResourceRequestType.NonceReply,
-        "nonce": cryptolib.symmetric_encrypt(aes_key, nonce_plus_1),
+        "nonce": netlib.bytes_to_b64(cryptolib.symmetric_encrypt(aes_key, nonce_plus_1)),
     }
     netlib.send_dict_to_socket(request, sock)
 
