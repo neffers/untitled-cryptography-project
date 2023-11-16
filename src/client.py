@@ -57,7 +57,7 @@ class Request:
 
 
 # Auth server request
-def request_token(password, as_pub) -> str:
+def request_token(password, as_pub) -> Union[bytes, None]:
     aes_key = os.urandom(32)
     encrypted_key = cryptolib.rsa_encrypt(as_pub, aes_key)
     signin_dict = {
@@ -75,13 +75,12 @@ def request_token(password, as_pub) -> str:
     if "success" in response:
         if response["success"]:
             return cryptolib.symmetric_decrypt(aes_key, netlib.b64_to_bytes(response["data"]))
-        else:
-            return None
+
     return None
 
 
 # Auth server request
-def request_pub_key() -> rsa.RSAPublicKey:
+def request_pub_key() -> Union[rsa.RSAPublicKey, None]:
     request = {
         "type": AuthRequestType.PublicKey,
     }
@@ -89,6 +88,7 @@ def request_pub_key() -> rsa.RSAPublicKey:
     response = netlib.get_dict_from_socket(sock)
     if "success" in response and response["success"]:
         return serialization.load_ssh_public_key(netlib.b64_to_bytes(response["data"]))
+
     return None
 
 
@@ -438,7 +438,7 @@ def do_add_proof(entry_id):
         print("IO error occurred!")
 
 
-def do_get_proof(entry_id):
+def do_get_proof():
     remote_fileid = input("Enter id of remote file to download: ")
     if not remote_fileid.isdigit():
         print("Invalid input, please enter an integer")
@@ -464,7 +464,7 @@ def do_get_proof(entry_id):
         print("IO error occurred!")
 
 
-def do_remove_proof(entry_id):
+def do_remove_proof():
     remote_fileid = input("Enter id of remote file to remove: ")
     if not remote_fileid.isdigit():
         print("Invalid input, please enter an integer")
@@ -532,9 +532,9 @@ def entry_options(entry_id):
         elif choice == 2:
             do_add_proof(entry_id)
         elif choice == 3:
-            do_get_proof(entry_id)
+            do_get_proof()
         elif choice == 4:
-            do_remove_proof(entry_id)
+            do_remove_proof()
         elif choice == 5:
             do_view_comments(entry_id)
         elif choice == 6:
@@ -687,15 +687,7 @@ def leaderboard_options(leaderboard_id):
             print("Invalid choice. Please choose from the provided list.")
 
 
-""" def clear_screen():
-    if os.name == 'nt':
-        os.system('cls')
-    else:
-        os.system('clear') """
-
-
 def display():
-    # clear_screen()
 
     print("Authentication Server")
     print("{:<21.21}{:<16}{:<6}".format("Name", "IP", "Port"))
@@ -813,7 +805,6 @@ def main():
 
 def server_loop(res_ip, res_port):
     global identity, token, sock
-    # clear_screen()
 
     # Authentication process
     auth_server = db["auth_server"]
@@ -928,7 +919,6 @@ def server_loop(res_ip, res_port):
 
     # Resource server connection loop
     while True:
-        # clear_screen()
         print(
             "Basic Commands:\n"
             "[0] Quit\n"
