@@ -8,9 +8,8 @@ from cryptography.hazmat.primitives.asymmetric import rsa
 
 import os
 import netlib
-import serverlib
 import cryptolib
-from enums import AuthRequestType, ResourceRequestType, Permissions, ServerErrCode
+from enums import AuthRequestType, ResourceRequestType, Permissions
 
 identity: str = ""
 token: str = ""
@@ -77,7 +76,8 @@ def request_token(password, as_pub) -> str:
         else:
             return None
     return None
-    
+
+
 # Auth server request
 def request_pub_key() -> rsa.RSAPublicKey:
     request = {
@@ -88,6 +88,7 @@ def request_pub_key() -> rsa.RSAPublicKey:
     if "success" in response and response["success"]:
         return serialization.load_ssh_public_key(netlib.b64_to_bytes(response["data"]))
     return None
+
 
 class ShowLeaderboardsRequest(Request):
     def __init__(self):
@@ -159,6 +160,7 @@ class ListUsersRequest(Request):
         print("{:<4}{:<21.21}".format("ID", "Username"))
         for user in response["data"]:
             print("{:<4}{:<21.21}".format(user[0], user[1]))
+
 
 class ListUnverifiedRequest(Request):
     def __init__(self, leaderboard_id):
@@ -578,7 +580,7 @@ def do_create_leaderboard():
         return
     leaderboard_ascending = int(leaderboard_ascending) == 1
     request = CreateLeaderboardRequest(leaderboard_name, leaderboard_permission,
-                                         leaderboard_ascending)
+                                       leaderboard_ascending)
     request.safe_print(request.make_request())
 
 
@@ -827,11 +829,13 @@ def server_loop(res_ip, res_port):
         print("No public key was found.")
         return
     if "as_pub" in db["auth_server"]:
-        if db["auth_server"]["as_pub"] != netlib.bytes_to_b64(as_pub.public_bytes(encoding=serialization.Encoding.PEM,format=serialization.PublicFormat.SubjectPublicKeyInfo)):
+        if db["auth_server"]["as_pub"] != netlib.bytes_to_b64(as_pub.public_bytes(encoding=serialization.Encoding.PEM,
+                                                                                  format=serialization.PublicFormat.SubjectPublicKeyInfo)):
             print("Requested public key doesn't match stored public key.")
             return
     else:
-        db["auth_server"]["as_pub"] = netlib.bytes_to_b64(as_pub.public_bytes(encoding=serialization.Encoding.PEM,format=serialization.PublicFormat.SubjectPublicKeyInfo))
+        db["auth_server"]["as_pub"] = netlib.bytes_to_b64(as_pub.public_bytes(encoding=serialization.Encoding.PEM,
+                                                                              format=serialization.PublicFormat.SubjectPublicKeyInfo))
 
     sock.close()
 
@@ -862,7 +866,7 @@ def server_loop(res_ip, res_port):
     except OSError as e:
         print("Connection to resource server failed! error: " + str(e))
         return
-    
+
     request = {
         "type": ResourceRequestType.PublicKey
     }
@@ -881,11 +885,14 @@ def server_loop(res_ip, res_port):
     rs_pub = serialization.load_ssh_public_key(netlib.b64_to_bytes(rs_pub))
     for rs in db["resource_servers"]:
         if rs["ip"] == res_ip and rs["port"] == res_port:
-            if "rs_pub" in rs and rs["rs_pub"] != netlib.bytes_to_b64(rs_pub.public_bytes(encoding=serialization.Encoding.PEM,format=serialization.PublicFormat.SubjectPublicKeyInfo)):
+            if "rs_pub" in rs and rs["rs_pub"] != netlib.bytes_to_b64(
+                    rs_pub.public_bytes(encoding=serialization.Encoding.PEM,
+                                        format=serialization.PublicFormat.SubjectPublicKeyInfo)):
                 print("Requested public key doesn't match stored public key.")
                 return
             elif "rs_pub" not in rs:
-                rs["rs_pub"] = netlib.bytes_to_b64(rs_pub.public_bytes(encoding=serialization.Encoding.PEM,format=serialization.PublicFormat.SubjectPublicKeyInfo))
+                rs["rs_pub"] = netlib.bytes_to_b64(rs_pub.public_bytes(encoding=serialization.Encoding.PEM,
+                                                                       format=serialization.PublicFormat.SubjectPublicKeyInfo))
                 break
 
     aes_key = os.urandom(32)
@@ -902,7 +909,7 @@ def server_loop(res_ip, res_port):
     }
 
     netlib.send_dict_to_socket(request, sock)
-    
+
     nonce = cryptolib.symmetric_decrypt(aes_key, netlib.b64_to_bytes(encrpyted_nonce))
     nonce_plus_1 = netlib.int_to_bytes(netlib.bytes_to_int(nonce) + 1)
     request = {
