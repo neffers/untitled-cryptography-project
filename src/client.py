@@ -719,13 +719,8 @@ def initialize_database(db_filename) -> dict:
         print("Could not read db from file. Exiting to avoid corrupting!")
     except FileNotFoundError:
         print("No database found! Initializing new database.")
-        str = ""
-        if db_filename == "client_db":
-            str = "resource servers"
-        #else:
-        #    str = "stored keys"
         db_to_return = {
-            str: [],
+            "resource_servers": [],
         }
     return db_to_return
 
