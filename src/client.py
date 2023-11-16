@@ -87,7 +87,7 @@ def request_pub_key() -> Union[rsa.RSAPublicKey, None]:
     netlib.send_dict_to_socket(request, sock)
     response = netlib.get_dict_from_socket(sock)
     if "success" in response and response["success"]:
-        return serialization.load_ssh_public_key(response["data"])
+        return serialization.load_ssh_public_key(response["data"].encode())
 
     return None
 
@@ -871,7 +871,7 @@ def server_loop(res_ip, res_port):
     else:
         print("RS public key request failed")
         return
-    rs_pub: rsa.RSAPublicKey = serialization.load_ssh_public_key(rs_pub_serialized)
+    rs_pub: rsa.RSAPublicKey = serialization.load_ssh_public_key(rs_pub_serialized.encode())
     for rs in db["resource_servers"]:
         if rs["ip"] == res_ip and rs["port"] == res_port:
             if "rs_pub" in rs and rs["rs_pub"] != netlib.bytes_to_b64(
