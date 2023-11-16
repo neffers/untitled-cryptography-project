@@ -688,7 +688,6 @@ def leaderboard_options(leaderboard_id):
 
 
 def display():
-
     print("Authentication Server")
     print("{:<21.21}{:<16}{:<6}".format("Name", "IP", "Port"))
     auth_server = db["auth_server"]
@@ -829,7 +828,7 @@ def server_loop(res_ip, res_port):
     else:
         db["auth_server"]["as_pub"] = netlib.bytes_to_b64(as_pub.public_bytes(encoding=serialization.Encoding.PEM,
                                                                               format=serialization.PublicFormat.SubjectPublicKeyInfo))
-
+    print("AS public key checks out")
     sock.close()
 
     auth_server = db["auth_server"]
@@ -853,29 +852,26 @@ def server_loop(res_ip, res_port):
     sock.close()
 
     # Resource server handshake
+    print("Trying to connect to {}:{}".format(res_ip, res_port))
     try:
         sock = socket.socket()
         sock.connect((res_ip, int(res_port)))
     except OSError as e:
         print("Connection to resource server failed! error: " + str(e))
         return
+    print("Connection successful.")
 
     request = {
         "type": ResourceRequestType.PublicKey
     }
     netlib.send_dict_to_socket(request, sock)
     response = netlib.get_dict_from_socket(sock)
-    if "success" in response:
-        if response["success"]:
-            rs_pub = response["data"]
-        else:
-            return
+    if "success" in response and response["success"] and response["data"]:
+        rs_pub_serialized = response["data"]
     else:
+        print("RS public key request failed")
         return
-    if rs_pub is None:
-        print("No public key was found.")
-        return
-    rs_pub = serialization.load_ssh_public_key(rs_pub)
+    rs_pub: rsa.RSAPublicKey = serialization.load_ssh_public_key(rs_pub_serialized)
     for rs in db["resource_servers"]:
         if rs["ip"] == res_ip and rs["port"] == res_port:
             if "rs_pub" in rs and rs["rs_pub"] != netlib.bytes_to_b64(
@@ -884,9 +880,21 @@ def server_loop(res_ip, res_port):
                 print("Requested public key doesn't match stored public key.")
                 return
             elif "rs_pub" not in rs:
-                rs["rs_pub"] = netlib.bytes_to_b64(rs_pub.public_bytes(encoding=serialization.Encoding.PEM,
-                                                                       format=serialization.PublicFormat.SubjectPublicKeyInfo))
-                break
+                while True:
+                    print("No public key stored on file for {}:{}".format(res_ip, res_port))
+                    print("Confirm New Key Hash: " + cryptolib.public_key_hash(rs_pub))
+                    response = input("Does this look right? (y/n): ")
+                    if response.lower() == "y":
+                        rs["rs_pub"] = netlib.bytes_to_b64(rs_pub.public_bytes(encoding=serialization.Encoding.PEM,
+                                                                               format=serialization.PublicFormat.SubjectPublicKeyInfo))
+                        print("New key saved to disk for {}:{}".format(res_ip, res_port))
+                        break
+                    elif response.lower() == "n":
+                        print("Better to be safe than sorry!")
+                        return
+            else:
+                print("Public key offered matches the one stored locally")
+            break
 
     aes_key = os.urandom(32)
     encrypted_key = cryptolib.rsa_encrypt(rs_pub, aes_key)
@@ -901,9 +909,12 @@ def server_loop(res_ip, res_port):
         "signin_payload": netlib.bytes_to_b64(signin_payload),
     }
 
+    print("Attempting login...")
     netlib.send_dict_to_socket(request, sock)
-
-    nonce = cryptolib.symmetric_decrypt(aes_key, netlib.b64_to_bytes(encrpyted_nonce))
+    response = netlib.get_dict_from_socket(sock)
+    # TODO error handling if you dont get a nonce back or something
+    encrypted_nonce = response["nonce"]
+    nonce = cryptolib.symmetric_decrypt(aes_key, netlib.b64_to_bytes(encrypted_nonce))
     nonce_plus_1 = netlib.int_to_bytes(netlib.bytes_to_int(nonce) + 1)
     request = {
         "type": ResourceRequestType.NonceReply,
