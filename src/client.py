@@ -3,6 +3,8 @@ import struct
 import socket
 import base64
 from datetime import datetime
+from typing import Union
+
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
 
@@ -331,10 +333,10 @@ class RemoveUserRequest(Request):
         })
 
 
-class GetIdFromIdentityRequest(Request):
+class GetSelfID(Request):
     def __init__(self):
         super().__init__({
-            "type": ResourceRequestType.GetIdFromIdentity,
+            "type": ResourceRequestType.GetSelfID,
             "user_id": identity
         })
 
@@ -632,13 +634,13 @@ def do_remove_leaderboard(leaderboard_id):
     request.safe_print(request.make_request())
 
 
-def do_get_user_from_identity():
-    request = GetIdFromIdentityRequest()
+def do_get_self_id() -> Union[int, None]:
+    request = GetSelfID()
     response = request.make_request()
     if "success" not in response or "data" not in response:
         print("Malformed packet: " + str(response))
-        return
-    return response["data"][0]
+        return None
+    return int(response["data"][0])
 
 
 def leaderboard_options(leaderboard_id):
@@ -934,8 +936,7 @@ def server_loop(res_ip, res_port):
             "[2] Open Leaderboard\n"
             "[3] Create Leaderboard\n"
             "[4] List Users\n"
-            "[5] Open User\n"
-            "[6] Open Self\n")
+            "[5] Open Self\n")
         choice = input("Choose the corresponding number: ")
         if not choice.isdigit():
             print("Invalid input, please enter an integer")
@@ -958,15 +959,8 @@ def server_loop(res_ip, res_port):
             do_create_leaderboard()
         elif choice == 4:
             do_list_users()
-        elif choice == 5 or choice == 6:
-            # 5: open user, 6: open self
-            user_id = input("Enter the ID of the user: ") if choice == 5 else do_get_user_from_identity()
-            try:
-                user_id = int(user_id)
-            except ValueError:
-                print("Invalid user id")
-                continue
-            user_options(user_id)
+        elif choice == 5:
+            user_options(do_get_self_id())
         else:
             print("Invalid choice. Please choose from the provided list.")
 

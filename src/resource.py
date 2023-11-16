@@ -940,7 +940,7 @@ class Handler(socketserver.BaseRequestHandler):
 
         # TODO: change docs to not require identity/token on requests
         # TODO: Handle disconnect
-            # Done for timeouts, not for closure?
+        # Done for timeouts, not for closure?
         while True:
             try:
                 request = netlib.get_dict_from_socket(self.request)
