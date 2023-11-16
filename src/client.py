@@ -742,6 +742,7 @@ def main():
                 print("Invalid server selection")
                 continue
             server_loop(server["ip"], server["port"])
+            sock.close()
 
         elif choice == 'a':  # add resource server to list
             name = input("Name the server: ")[:20]
@@ -796,164 +797,169 @@ def main():
 def server_loop(res_ip, res_port):
     global identity, token, sock, session_key
 
-    # Authentication process
-    auth_server = db["auth_server"]
-    print("Trying to connect to {}:{}".format(auth_server["ip"], auth_server["port"]))
     try:
-        sock = socket.socket()
-        sock.connect((auth_server["ip"], int(auth_server["port"])))
-    except OSError as e:
-        print("Connection to authentication server failed! error: " + str(e))
-        return
-    print("Connection successful.")
+        # Authentication process
+        auth_server = db["auth_server"]
+        print("Trying to connect to {}:{}".format(auth_server["ip"], auth_server["port"]))
+        try:
+            sock = socket.socket()
+            sock.connect((auth_server["ip"], int(auth_server["port"])))
+        except OSError as e:
+            print("Connection to authentication server failed! error: " + str(e))
+            return
+        print("Connection successful.")
 
-    as_pub = request_pub_key()
-    if as_pub is None:
-        print("No public key was found.")
-        return
-    if "as_pub" not in db["auth_server"]:
-        db["auth_server"]["as_pub"] = netlib.bytes_to_b64(as_pub.public_bytes(encoding=serialization.Encoding.PEM,
-                                                                              format=serialization.PublicFormat.SubjectPublicKeyInfo))
-        write_database_to_file()
-    sock.close()
-
-    auth_server = db["auth_server"]
-    print("Trying to connect to {}:{}".format(auth_server["ip"], auth_server["port"]))
-    try:
-        sock = socket.socket()
-        sock.connect((auth_server["ip"], int(auth_server["port"])))
-    except OSError as e:
-        print("Connection to authentication server failed! error: " + str(e))
-        return
-    print("Connection successful.")
-    identity = input("Enter identity: ")
-    password = input("Enter password: ")
-    token = request_token(password, as_pub)
-    if token is None:
-        print("Incorrect username or password!")
+        as_pub = request_pub_key()
+        if as_pub is None:
+            print("No public key was found.")
+            return
+        if "as_pub" not in db["auth_server"]:
+            db["auth_server"]["as_pub"] = netlib.bytes_to_b64(as_pub.public_bytes(encoding=serialization.Encoding.PEM,
+                                                                                  format=serialization.PublicFormat.SubjectPublicKeyInfo))
+            write_database_to_file()
         sock.close()
+
+        auth_server = db["auth_server"]
+        print("Trying to connect to {}:{}".format(auth_server["ip"], auth_server["port"]))
+        try:
+            sock = socket.socket()
+            sock.connect((auth_server["ip"], int(auth_server["port"])))
+        except OSError as e:
+            print("Connection to authentication server failed! error: " + str(e))
+            return
+        print("Connection successful.")
+        identity = input("Enter identity: ")
+        password = input("Enter password: ")
+        token = request_token(password, as_pub)
+        if token is None:
+            print("Incorrect username or password!")
+            return
+
+        print("Login successful!")
+        sock.close()
+    except BrokenPipeError:
+        print("Authentication Server Closed Pipe")
         return
 
-    print("Login successful!")
-    sock.close()
-
-    # Resource server handshake
-    print("Trying to connect to {}:{}".format(res_ip, res_port))
     try:
-        sock = socket.socket()
-        sock.connect((res_ip, int(res_port)))
-    except OSError as e:
-        print("Connection to resource server failed! error: " + str(e))
-        return
-    print("Connection successful.")
+        # Resource server handshake
+        print("Trying to connect to {}:{}".format(res_ip, res_port))
+        try:
+            sock = socket.socket()
+            sock.connect((res_ip, int(res_port)))
+        except OSError as e:
+            print("Connection to resource server failed! error: " + str(e))
+            return
+        print("Connection successful.")
 
-    request = {
-        "type": ResourceRequestType.PublicKey
-    }
-    netlib.send_dict_to_socket(request, sock)
-    response = netlib.get_dict_from_socket(sock)
-    if "success" in response and response["success"] and response["data"]:
-        rs_pub_serialized = response["data"]
-    else:
-        print("RS public key request failed")
-        return
-    rs_pub: rsa.RSAPublicKey = serialization.load_ssh_public_key(rs_pub_serialized.encode())
-    for rs in db["resource_servers"]:
-        if rs["ip"] == res_ip and rs["port"] == res_port:
-            if "rs_pub" in rs and rs["rs_pub"] != netlib.bytes_to_b64(
-                    rs_pub.public_bytes(encoding=serialization.Encoding.PEM,
-                                        format=serialization.PublicFormat.SubjectPublicKeyInfo)):
-                print("Requested public key doesn't match stored public key.")
-                return
-            elif "rs_pub" not in rs:
-                while True:
-                    print("No public key stored on file for {}:{}".format(res_ip, res_port))
-                    print("Confirm New Key Hash: " + cryptolib.public_key_hash(rs_pub))
-                    response = input("Does this look right? (y/n): ")
-                    if response.lower() == "y":
-                        rs["rs_pub"] = netlib.bytes_to_b64(rs_pub.public_bytes(encoding=serialization.Encoding.PEM,
-                                                                               format=serialization.PublicFormat.SubjectPublicKeyInfo))
-                        write_database_to_file()
-                        print("New key saved to disk for {}:{}".format(res_ip, res_port))
-                        break
-                    elif response.lower() == "n":
-                        print("Better to be safe than sorry!")
-                        return
-            else:
-                print("Public key offered matches the one stored locally")
-            break
-
-    aes_key = os.urandom(32)
-    encrypted_key = cryptolib.rsa_encrypt(rs_pub, aes_key)
-    signin_dict = {
-        "identity": identity,
-        "token": netlib.bytes_to_b64(token),
-    }
-    signin_payload = cryptolib.encrypt_dict(aes_key, signin_dict)
-    request = {
-        "type": ResourceRequestType.Authenticate,
-        "encrypted_key": netlib.bytes_to_b64(encrypted_key),
-        "signin_payload": netlib.bytes_to_b64(signin_payload),
-    }
-
-    print("Attempting login...")
-    netlib.send_dict_to_socket(request, sock)
-    response = netlib.get_dict_from_socket(sock)
-    if "nonce" not in response or response["nonce"] is None:
-        print("Password authentication failed!")
-        return
-    encrypted_nonce = response["nonce"]
-    nonce = cryptolib.symmetric_decrypt(aes_key, netlib.b64_to_bytes(encrypted_nonce))
-    nonce_plus_1 = netlib.int_to_bytes(netlib.bytes_to_int(nonce) + 1)
-    request = {
-        "type": ResourceRequestType.NonceReply,
-        "nonce": netlib.bytes_to_b64(cryptolib.symmetric_encrypt(aes_key, nonce_plus_1)),
-    }
-    netlib.send_dict_to_socket(request, sock)
-    response = netlib.get_dict_from_socket(sock)
-    if response is None or not response["success"]:
-        print("Nonce authentication failed!")
-        return
-
-    print("Connected to " + res_ip + ":" + res_port + " as " + identity + "\n")
-    session_key = aes_key
-    # Resource server connection loop
-    while True:
-        print(
-            "Basic Commands:\n"
-            "[0] Quit\n"
-            "[1] List Leaderboards\n"
-            "[2] Open Leaderboard\n"
-            "[3] Create Leaderboard\n"
-            "[4] List Users\n"
-            "[5] Open Self\n")
-        choice = input("Choose the corresponding number: ")
-        if not choice.isdigit():
-            print("Invalid input, please enter an integer")
-            continue
-        choice = int(choice)
-        if choice == 0:
-            sock.close()
-            break
-        elif choice == 1:
-            do_show_leaderboards()
-        elif choice == 2:
-            leaderboard_id = input("Enter the ID of the leaderboard: ")
-            try:
-                leaderboard_id = int(leaderboard_id)
-            except ValueError:
-                print("ID must be a number")
-                continue
-            leaderboard_options(leaderboard_id)
-        elif choice == 3:
-            do_create_leaderboard()
-        elif choice == 4:
-            do_list_users()
-        elif choice == 5:
-            user_options(do_get_self_id())
+        request = {
+            "type": ResourceRequestType.PublicKey
+        }
+        netlib.send_dict_to_socket(request, sock)
+        response = netlib.get_dict_from_socket(sock)
+        if "success" in response and response["success"] and response["data"]:
+            rs_pub_serialized = response["data"]
         else:
-            print("Invalid choice. Please choose from the provided list.")
+            print("RS public key request failed")
+            return
+        rs_pub: rsa.RSAPublicKey = serialization.load_ssh_public_key(rs_pub_serialized.encode())
+        for rs in db["resource_servers"]:
+            if rs["ip"] == res_ip and rs["port"] == res_port:
+                if "rs_pub" in rs and rs["rs_pub"] != netlib.bytes_to_b64(
+                        rs_pub.public_bytes(encoding=serialization.Encoding.PEM,
+                                            format=serialization.PublicFormat.SubjectPublicKeyInfo)):
+                    print("Requested public key doesn't match stored public key.")
+                    return
+                elif "rs_pub" not in rs:
+                    while True:
+                        print("No public key stored on file for {}:{}".format(res_ip, res_port))
+                        print("Confirm New Key Hash: " + cryptolib.public_key_hash(rs_pub))
+                        response = input("Does this look right? (y/n): ")
+                        if response.lower() == "y":
+                            rs["rs_pub"] = netlib.bytes_to_b64(rs_pub.public_bytes(encoding=serialization.Encoding.PEM,
+                                                                                   format=serialization.PublicFormat.SubjectPublicKeyInfo))
+                            write_database_to_file()
+                            print("New key saved to disk for {}:{}".format(res_ip, res_port))
+                            break
+                        elif response.lower() == "n":
+                            print("Better to be safe than sorry!")
+                            return
+                else:
+                    print("Public key offered matches the one stored locally")
+                break
 
+        aes_key = os.urandom(32)
+        encrypted_key = cryptolib.rsa_encrypt(rs_pub, aes_key)
+        signin_dict = {
+            "identity": identity,
+            "token": netlib.bytes_to_b64(token),
+        }
+        signin_payload = cryptolib.encrypt_dict(aes_key, signin_dict)
+        request = {
+            "type": ResourceRequestType.Authenticate,
+            "encrypted_key": netlib.bytes_to_b64(encrypted_key),
+            "signin_payload": netlib.bytes_to_b64(signin_payload),
+        }
+
+        print("Attempting login...")
+        netlib.send_dict_to_socket(request, sock)
+        response = netlib.get_dict_from_socket(sock)
+        if "nonce" not in response or response["nonce"] is None:
+            print("Password authentication failed!")
+            return
+        encrypted_nonce = response["nonce"]
+        nonce = cryptolib.symmetric_decrypt(aes_key, netlib.b64_to_bytes(encrypted_nonce))
+        nonce_plus_1 = netlib.int_to_bytes(netlib.bytes_to_int(nonce) + 1)
+        request = {
+            "type": ResourceRequestType.NonceReply,
+            "nonce": netlib.bytes_to_b64(cryptolib.symmetric_encrypt(aes_key, nonce_plus_1)),
+        }
+        netlib.send_dict_to_socket(request, sock)
+        response = netlib.get_dict_from_socket(sock)
+        if response is None or not response["success"]:
+            print("Nonce authentication failed!")
+            return
+
+        print("Connected to " + res_ip + ":" + res_port + " as " + identity + "\n")
+        session_key = aes_key
+        # Resource server connection loop
+        while True:
+            print(
+                "Basic Commands:\n"
+                "[0] Quit\n"
+                "[1] List Leaderboards\n"
+                "[2] Open Leaderboard\n"
+                "[3] Create Leaderboard\n"
+                "[4] List Users\n"
+                "[5] Open Self\n")
+            choice = input("Choose the corresponding number: ")
+            if not choice.isdigit():
+                print("Invalid input, please enter an integer")
+                continue
+            choice = int(choice)
+            if choice == 0:
+                sock.close()
+                break
+            elif choice == 1:
+                do_show_leaderboards()
+            elif choice == 2:
+                leaderboard_id = input("Enter the ID of the leaderboard: ")
+                try:
+                    leaderboard_id = int(leaderboard_id)
+                except ValueError:
+                    print("ID must be a number")
+                    continue
+                leaderboard_options(leaderboard_id)
+            elif choice == 3:
+                do_create_leaderboard()
+            elif choice == 4:
+                do_list_users()
+            elif choice == 5:
+                user_options(do_get_self_id())
+            else:
+                print("Invalid choice. Please choose from the provided list.")
+    except BrokenPipeError:
+        print("Resource Server Closed Pipe")
     sock.close()
 
 

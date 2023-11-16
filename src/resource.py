@@ -851,110 +851,110 @@ def handle_request(request_user_id: int, request: dict):
 
 class Handler(socketserver.BaseRequestHandler):
     def handle(self):
-        self.request.settimeout(30)  # for handshake, don't wait longer than 30 seconds for a packet
-        print("Connection opened with {}".format(self.client_address[0]))
-        # Initial connection
-        request = netlib.get_dict_from_socket(self.request)
-        if not request["type"] == ResourceRequestType.PublicKey:
-            print("Initial request not for public key, exiting")
-            netlib.send_dict_to_socket(serverlib.bad_request_json(ServerErrCode.MalformedRequest), self.request)
-            return
-        response = serverlib.public_key_response(public_key)
-        netlib.send_dict_to_socket(response, self.request)
-
-        # Authentication step
         try:
+            self.request.settimeout(30)  # for handshake, don't wait longer than 30 seconds for a packet
+            print("Connection opened with {}".format(self.client_address[0]))
+            # Initial connection
             request = netlib.get_dict_from_socket(self.request)
-        except socket.timeout:
-            print("Timed out waiting for authentication, closing socket.")
-            netlib.send_dict_to_socket(serverlib.bad_request_json(ServerErrCode.SessionExpired), self.request)
-            return
-        if not request["type"] == ResourceRequestType.Authenticate:
-            print("Secondary request not for authentication, exiting")
-            netlib.send_dict_to_socket(serverlib.bad_request_json(ServerErrCode.MalformedRequest), self.request)
-            return
-        encrypted_key = netlib.b64_to_bytes(request["encrypted_key"])
-        aes_key = cryptolib.rsa_decrypt(private_key, encrypted_key)
-        signin_payload = netlib.b64_to_bytes(request["signin_payload"])
-        signin_request = cryptolib.decrypt_dict(aes_key, signin_payload)
-        socket_identity = signin_request["identity"]
-        token = netlib.b64_to_bytes(signin_request["token"])
-        if not cryptolib.rsa_verify_str(auth_public_key, token, socket_identity):
-            print("Invalid login token, exiting")
-            netlib.send_dict_to_socket(serverlib.bad_request_json(ServerErrCode.AuthenticationFailure), self.request)
-            return
-        nonce = os.urandom(32)
-        encrypted_nonce = cryptolib.symmetric_encrypt(aes_key, nonce)
-        response = {"nonce": netlib.bytes_to_b64(encrypted_nonce)}
-        netlib.send_dict_to_socket(response, self.request)
+            if not request["type"] == ResourceRequestType.PublicKey:
+                print("Initial request not for public key, exiting")
+                netlib.send_dict_to_socket(serverlib.bad_request_json(ServerErrCode.MalformedRequest), self.request)
+                return
+            response = serverlib.public_key_response(public_key)
+            netlib.send_dict_to_socket(response, self.request)
 
-        # verification
-        try:
-            request = netlib.get_dict_from_socket(self.request)
-        except socket.timeout:
-            print("Timed out waiting for nonce reply, closing socket.")
-            netlib.send_dict_to_socket(serverlib.bad_request_json(ServerErrCode.SessionExpired), self.request)
-            return
-        if not request["type"] == ResourceRequestType.NonceReply:
-            print("request type not a nonce reply, exiting")
-            netlib.send_dict_to_socket(serverlib.bad_request_json(ServerErrCode.MalformedRequest), self.request)
-            return
-        encrypted_reply_nonce = netlib.b64_to_bytes(request["nonce"])
-        reply_nonce = cryptolib.symmetric_decrypt(aes_key, encrypted_reply_nonce)
-        if not netlib.bytes_to_int(nonce) + 1 == netlib.bytes_to_int(reply_nonce):
-            print("Invalid nonce reply, exiting")
-            netlib.send_dict_to_socket(serverlib.bad_request_json(ServerErrCode.AuthenticationFailure), self.request)
-            return
-
-        # verified
-        netlib.send_dict_to_socket({"success": True, "data": None}, self.request)
-        self.request.settimeout(300)
-        # Register user if not registered
-        print("User {} successfully connected".format(socket_identity))
-        cursor = db.cursor()
-        register_command = """
-            insert into users(identity, class, registration_date) values(?, ?, strftime('%s'))
-            on conflict do nothing
-            """
-        register_params = (socket_identity, UserClass.User)
-        cursor.execute(register_command, register_params)
-        db.commit()
-
-        # add admin if none exist
-        get_admins_command = "select * from users where class = ?"
-        get_admins_params = (UserClass.Administrator,)
-        cursor.execute(get_admins_command, get_admins_params)
-        admins = cursor.fetchall()
-        if len(admins) == 0:
-            print("No admins found, setting {} as admin.".format(socket_identity))
-            add_admin_command = "update users set class = ? where identity = ?"
-            add_admin_params = (UserClass.Administrator, socket_identity)
-            cursor.execute(add_admin_command, add_admin_params)
-            db.commit()
-
-        # Get requesting user ID
-        get_id_command = "select id from users where identity = ?"
-        get_id_params = (socket_identity,)
-        cursor.execute(get_id_command, get_id_params)
-        (socket_user_id,) = cursor.fetchone()
-
-        # TODO: change docs to not require identity/token on requests
-        # TODO: Handle disconnect
-        # Done for timeouts, not for closure?
-        while True:
+            # Authentication step
             try:
                 request = netlib.get_dict_from_socket(self.request)
             except socket.timeout:
-                print("Timed out waiting for packet, closing socket.")
+                print("Timed out waiting for authentication, closing socket.")
                 netlib.send_dict_to_socket(serverlib.bad_request_json(ServerErrCode.SessionExpired), self.request)
                 return
-            print("received {} from {}".format(request, self.client_address[0]))
-            encrypted_request = netlib.b64_to_bytes(request["encrypted_request"])
-            real_request = cryptolib.decrypt_dict(aes_key, encrypted_request)
-            response = handle_request(socket_user_id, real_request)
-            real_response = {"encrypted_response": netlib.bytes_to_b64(cryptolib.encrypt_dict(aes_key, response))}
-            print("sending {} to {}".format(response, self.client_address[0]))
-            netlib.send_dict_to_socket(real_response, self.request)
+            if not request["type"] == ResourceRequestType.Authenticate:
+                print("Secondary request not for authentication, exiting")
+                netlib.send_dict_to_socket(serverlib.bad_request_json(ServerErrCode.MalformedRequest), self.request)
+                return
+            encrypted_key = netlib.b64_to_bytes(request["encrypted_key"])
+            aes_key = cryptolib.rsa_decrypt(private_key, encrypted_key)
+            signin_payload = netlib.b64_to_bytes(request["signin_payload"])
+            signin_request = cryptolib.decrypt_dict(aes_key, signin_payload)
+            socket_identity = signin_request["identity"]
+            token = netlib.b64_to_bytes(signin_request["token"])
+            if not cryptolib.rsa_verify_str(auth_public_key, token, socket_identity):
+                print("Invalid login token, exiting")
+                netlib.send_dict_to_socket(serverlib.bad_request_json(ServerErrCode.AuthenticationFailure), self.request)
+                return
+            nonce = os.urandom(32)
+            encrypted_nonce = cryptolib.symmetric_encrypt(aes_key, nonce)
+            response = {"nonce": netlib.bytes_to_b64(encrypted_nonce)}
+            netlib.send_dict_to_socket(response, self.request)
+
+            # verification
+            try:
+                request = netlib.get_dict_from_socket(self.request)
+            except socket.timeout:
+                print("Timed out waiting for nonce reply, closing socket.")
+                netlib.send_dict_to_socket(serverlib.bad_request_json(ServerErrCode.SessionExpired), self.request)
+                return
+            if not request["type"] == ResourceRequestType.NonceReply:
+                print("request type not a nonce reply, exiting")
+                netlib.send_dict_to_socket(serverlib.bad_request_json(ServerErrCode.MalformedRequest), self.request)
+                return
+            encrypted_reply_nonce = netlib.b64_to_bytes(request["nonce"])
+            reply_nonce = cryptolib.symmetric_decrypt(aes_key, encrypted_reply_nonce)
+            if not netlib.bytes_to_int(nonce) + 1 == netlib.bytes_to_int(reply_nonce):
+                print("Invalid nonce reply, exiting")
+                netlib.send_dict_to_socket(serverlib.bad_request_json(ServerErrCode.AuthenticationFailure), self.request)
+                return
+
+            # verified
+            netlib.send_dict_to_socket({"success": True, "data": None}, self.request)
+            self.request.settimeout(300)
+            # Register user if not registered
+            print("User {} successfully connected".format(socket_identity))
+            cursor = db.cursor()
+            register_command = """
+                insert into users(identity, class, registration_date) values(?, ?, strftime('%s'))
+                on conflict do nothing
+                """
+            register_params = (socket_identity, UserClass.User)
+            cursor.execute(register_command, register_params)
+            db.commit()
+
+            # add admin if none exist
+            get_admins_command = "select * from users where class = ?"
+            get_admins_params = (UserClass.Administrator,)
+            cursor.execute(get_admins_command, get_admins_params)
+            admins = cursor.fetchall()
+            if len(admins) == 0:
+                print("No admins found, setting {} as admin.".format(socket_identity))
+                add_admin_command = "update users set class = ? where identity = ?"
+                add_admin_params = (UserClass.Administrator, socket_identity)
+                cursor.execute(add_admin_command, add_admin_params)
+                db.commit()
+
+            # Get requesting user ID
+            get_id_command = "select id from users where identity = ?"
+            get_id_params = (socket_identity,)
+            cursor.execute(get_id_command, get_id_params)
+            (socket_user_id,) = cursor.fetchone()
+
+            while True:
+                try:
+                    request = netlib.get_dict_from_socket(self.request)
+                except socket.timeout:
+                    print("Timed out waiting for packet, closing socket.")
+                    netlib.send_dict_to_socket(serverlib.bad_request_json(ServerErrCode.SessionExpired), self.request)
+                    return
+                print("received {} from {}".format(request, self.client_address[0]))
+                encrypted_request = netlib.b64_to_bytes(request["encrypted_request"])
+                real_request = cryptolib.decrypt_dict(aes_key, encrypted_request)
+                response = handle_request(socket_user_id, real_request)
+                real_response = {"encrypted_response": netlib.bytes_to_b64(cryptolib.encrypt_dict(aes_key, response))}
+                print("sending {} to {}".format(response, self.client_address[0]))
+                netlib.send_dict_to_socket(real_response, self.request)
+        except BrokenPipeError:
+            print("Client Broke Pipe")
 
 
 # noinspection PyUnusedLocal
