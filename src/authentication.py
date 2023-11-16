@@ -67,7 +67,11 @@ def generate_response(request: dict):
 class Handler(socketserver.BaseRequestHandler):
     def handle(self):
         print("socket opened with {}".format(self.client_address[0]))
-        request = netlib.get_dict_from_socket(self.request)
+        try:
+            request = netlib.get_dict_from_socket(self.request)
+        except BrokenPipeError:
+            print("Client Broke Pipe")
+            return
         print("received {}".format(request))
         response = generate_response(request)
         print("sending {}".format(response))

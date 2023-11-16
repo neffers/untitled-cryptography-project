@@ -742,6 +742,7 @@ def main():
                 print("Invalid server selection")
                 continue
             server_loop(server["ip"], server["port"])
+            sock.close()
 
         elif choice == 'a':  # add resource server to list
             name = input("Name the server: ")[:20]
@@ -807,7 +808,11 @@ def server_loop(res_ip, res_port):
         return
     print("Connection successful.")
 
-    as_pub = request_pub_key()
+    try:
+        as_pub = request_pub_key()
+    except BrokenPipeError:
+        print("Authentication Server Closed Pipe")
+        return
     if as_pub is None:
         print("No public key was found.")
         return
@@ -828,10 +833,13 @@ def server_loop(res_ip, res_port):
     print("Connection successful.")
     identity = input("Enter identity: ")
     password = input("Enter password: ")
-    token = request_token(password, as_pub)
+    try:
+        token = request_token(password, as_pub)
+    except BrokenPipeError:
+        print("Authentication Server Closed Pipe")
+        return
     if token is None:
         print("Incorrect username or password!")
-        sock.close()
         return
 
     print("Login successful!")
@@ -851,7 +859,11 @@ def server_loop(res_ip, res_port):
         "type": ResourceRequestType.PublicKey
     }
     netlib.send_dict_to_socket(request, sock)
-    response = netlib.get_dict_from_socket(sock)
+    try:
+        response = netlib.get_dict_from_socket(sock)
+    except BrokenPipeError:
+        print("Resource Server Broke Pipe")
+        return
     if "success" in response and response["success"] and response["data"]:
         rs_pub_serialized = response["data"]
     else:
@@ -898,7 +910,11 @@ def server_loop(res_ip, res_port):
 
     print("Attempting login...")
     netlib.send_dict_to_socket(request, sock)
-    response = netlib.get_dict_from_socket(sock)
+    try:
+        response = netlib.get_dict_from_socket(sock)
+    except BrokenPipeError:
+        print("Resource Server Broke Pipe")
+        return
     if "nonce" not in response or response["nonce"] is None:
         print("Password authentication failed!")
         return
@@ -910,7 +926,11 @@ def server_loop(res_ip, res_port):
         "nonce": netlib.bytes_to_b64(cryptolib.symmetric_encrypt(aes_key, nonce_plus_1)),
     }
     netlib.send_dict_to_socket(request, sock)
-    response = netlib.get_dict_from_socket(sock)
+    try:
+        response = netlib.get_dict_from_socket(sock)
+    except BrokenPipeError:
+        print("Resource Server Broke Pipe")
+        return
     if response is None or not response["success"]:
         print("Nonce authentication failed!")
         return
@@ -932,27 +952,31 @@ def server_loop(res_ip, res_port):
             print("Invalid input, please enter an integer")
             continue
         choice = int(choice)
-        if choice == 0:
-            sock.close()
-            break
-        elif choice == 1:
-            do_show_leaderboards()
-        elif choice == 2:
-            leaderboard_id = input("Enter the ID of the leaderboard: ")
-            try:
-                leaderboard_id = int(leaderboard_id)
-            except ValueError:
-                print("ID must be a number")
-                continue
-            leaderboard_options(leaderboard_id)
-        elif choice == 3:
-            do_create_leaderboard()
-        elif choice == 4:
-            do_list_users()
-        elif choice == 5:
-            user_options(do_get_self_id())
-        else:
-            print("Invalid choice. Please choose from the provided list.")
+        try:
+            if choice == 0:
+                sock.close()
+                break
+            elif choice == 1:
+                do_show_leaderboards()
+            elif choice == 2:
+                leaderboard_id = input("Enter the ID of the leaderboard: ")
+                try:
+                    leaderboard_id = int(leaderboard_id)
+                except ValueError:
+                    print("ID must be a number")
+                    continue
+                leaderboard_options(leaderboard_id)
+            elif choice == 3:
+                do_create_leaderboard()
+            elif choice == 4:
+                do_list_users()
+            elif choice == 5:
+                user_options(do_get_self_id())
+            else:
+                print("Invalid choice. Please choose from the provided list.")
+        except BrokenPipeError:
+            print("Resource Server Closed Pipe")
+            return
 
     sock.close()
 

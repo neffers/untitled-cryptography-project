@@ -5,8 +5,12 @@ import socket
 
 def get_dict_from_socket(sock: socket.socket) -> dict:
     buf_len = sock.recv(4)
+    if buf_len == b'':
+        raise BrokenPipeError
     buf_len = int.from_bytes(buf_len, 'big', signed=False)
     raw_json = sock.recv(buf_len)
+    if raw_json == b'':
+        raise BrokenPipeError
     to_return = None
     try:
         to_return = json.loads(raw_json)

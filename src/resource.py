@@ -854,7 +854,11 @@ class Handler(socketserver.BaseRequestHandler):
         self.request.settimeout(30)  # for handshake, don't wait longer than 30 seconds for a packet
         print("Connection opened with {}".format(self.client_address[0]))
         # Initial connection
-        request = netlib.get_dict_from_socket(self.request)
+        try:
+            request = netlib.get_dict_from_socket(self.request)
+        except BrokenPipeError:
+            print("Client Broke Pipe")
+            return
         if not request["type"] == ResourceRequestType.PublicKey:
             print("Initial request not for public key, exiting")
             netlib.send_dict_to_socket(serverlib.bad_request_json(ServerErrCode.MalformedRequest), self.request)
@@ -868,6 +872,9 @@ class Handler(socketserver.BaseRequestHandler):
         except socket.timeout:
             print("Timed out waiting for authentication, closing socket.")
             netlib.send_dict_to_socket(serverlib.bad_request_json(ServerErrCode.SessionExpired), self.request)
+            return
+        except BrokenPipeError:
+            print("Client Broke Pipe")
             return
         if not request["type"] == ResourceRequestType.Authenticate:
             print("Secondary request not for authentication, exiting")
@@ -894,6 +901,9 @@ class Handler(socketserver.BaseRequestHandler):
         except socket.timeout:
             print("Timed out waiting for nonce reply, closing socket.")
             netlib.send_dict_to_socket(serverlib.bad_request_json(ServerErrCode.SessionExpired), self.request)
+            return
+        except BrokenPipeError:
+            print("Client Broke Pipe")
             return
         if not request["type"] == ResourceRequestType.NonceReply:
             print("request type not a nonce reply, exiting")
@@ -938,15 +948,15 @@ class Handler(socketserver.BaseRequestHandler):
         cursor.execute(get_id_command, get_id_params)
         (socket_user_id,) = cursor.fetchone()
 
-        # TODO: change docs to not require identity/token on requests
-        # TODO: Handle disconnect
-        # Done for timeouts, not for closure?
         while True:
             try:
                 request = netlib.get_dict_from_socket(self.request)
             except socket.timeout:
                 print("Timed out waiting for packet, closing socket.")
                 netlib.send_dict_to_socket(serverlib.bad_request_json(ServerErrCode.SessionExpired), self.request)
+                return
+            except BrokenPipeError:
+                print("Client Broke Pipe")
                 return
             print("received {} from {}".format(request, self.client_address[0]))
             encrypted_request = netlib.b64_to_bytes(request["encrypted_request"])
