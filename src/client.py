@@ -14,7 +14,7 @@ import cryptolib
 from enums import AuthRequestType, ResourceRequestType, Permissions
 
 identity: str = ""
-token: str = ""
+token: bytes = bytes()
 sock: socket.socket = socket.socket()
 
 # formatting lookup tables
@@ -727,7 +727,7 @@ def main():
         ip = input("Enter the ip of the server: ")
         port = input("Enter the port of the server: ")
         db["auth_server"] = {"name": name, "ip": ip, "port": port, "key": ""}
-        write_database_to_file(db, "client_db")
+        write_database_to_file()
 
     while True:
         display()
@@ -757,7 +757,7 @@ def main():
             ip = input("Enter the ip of the server: ")
             port = input("Enter the port of the server: ")
             db["resource_servers"].append({"name": name, "ip": ip, "port": port, "key": ""})
-            write_database_to_file(db, "client_db")
+            write_database_to_file()
 
         elif choice == 'e':  # edit resource server
             choice = input("Enter server number to edit (0 for auth. server): ")
@@ -782,7 +782,7 @@ def main():
             port = input("Enter new port (empty to leave as \"{}\"): ".format(server["port"]))
             if port != "":
                 server["port"] = port
-            write_database_to_file(db, "client_db")
+            write_database_to_file()
 
         elif choice == 'r':  # remove a resource server
             choice = input("Enter server number to remove: ")
@@ -908,7 +908,9 @@ def server_loop(res_ip, res_port):
     print("Attempting login...")
     netlib.send_dict_to_socket(request, sock)
     response = netlib.get_dict_from_socket(sock)
-    # TODO error handling if you dont get a nonce back or something
+    if "nonce" not in response or response["nonce"] is None:
+        print("Password authentication failed!")
+        return
     encrypted_nonce = response["nonce"]
     nonce = cryptolib.symmetric_decrypt(aes_key, netlib.b64_to_bytes(encrypted_nonce))
     nonce_plus_1 = netlib.int_to_bytes(netlib.bytes_to_int(nonce) + 1)
