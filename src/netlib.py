@@ -11,7 +11,7 @@ def get_dict_from_socket(sock: socket.socket) -> dict:
     try:
         to_return = json.loads(raw_json)
     except json.decoder.JSONDecodeError:
-        print("Could not interpret packet.")
+        print("Could not interpret packet. Len: {} Received: {}".format(buf_len, raw_json))
     return to_return
 
 

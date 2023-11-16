@@ -1,5 +1,4 @@
 import json
-import struct
 import socket
 import base64
 from datetime import datetime
@@ -16,6 +15,7 @@ from enums import AuthRequestType, ResourceRequestType, Permissions
 identity: str = ""
 token: bytes = bytes()
 sock: socket.socket = socket.socket()
+session_key: bytes = bytes()
 
 # formatting lookup tables
 perms = ["No Access", "Read Access", "Write Access", "Mod", "Admin"]
@@ -30,21 +30,14 @@ class Request:
         request = self.request
         request["identity"] = identity
         request["token"] = netlib.bytes_to_b64(token)
-        request = bytes(json.dumps(self.request), "utf-8")
-        buffer = struct.pack("!I", len(request))
-        buffer += request
-        sock.send(buffer)
-        buffer_len = struct.unpack("!I", sock.recv(4))[0]
-        response_data = sock.recv(buffer_len)
-        try:
-            response = json.loads(response_data.decode())
-            return response
-        except json.JSONDecodeError:
-            print("Can't decode packet! packet: " + str(response_data))
-            return dict()
+        encrypted_request = {"encrypted_request": netlib.bytes_to_b64(cryptolib.encrypt_dict(session_key, request))}
+        netlib.send_dict_to_socket(encrypted_request, sock)
+        encrypted_response = netlib.get_dict_from_socket(sock)
+        response = cryptolib.decrypt_dict(session_key, netlib.b64_to_bytes(encrypted_response["encrypted_response"]))
+        return response
 
     def safe_print(self, response: dict) -> None:
-        if "success" not in response or "data" not in response:
+        if response is None or "success" not in response or "data" not in response:
             print("Malformed packet: " + str(response))
             return
         if response["success"]:
@@ -803,7 +796,7 @@ def main():
 
 
 def server_loop(res_ip, res_port):
-    global identity, token, sock
+    global identity, token, sock, session_key
 
     # Authentication process
     auth_server = db["auth_server"]
@@ -925,7 +918,7 @@ def server_loop(res_ip, res_port):
         return
 
     print("Connected to " + res_ip + ":" + res_port + " as " + identity + "\n")
-
+    session_key = aes_key
     # Resource server connection loop
     while True:
         print(

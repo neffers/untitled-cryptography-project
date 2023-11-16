@@ -952,7 +952,7 @@ class Handler(socketserver.BaseRequestHandler):
             encrypted_request = netlib.b64_to_bytes(request["encrypted_request"])
             real_request = cryptolib.decrypt_dict(aes_key, encrypted_request)
             response = handle_request(socket_user_id, real_request)
-            real_response = {"encrypted_response": cryptolib.encrypt_dict(aes_key, response)}
+            real_response = {"encrypted_response": netlib.bytes_to_b64(cryptolib.encrypt_dict(aes_key, response))}
             print("sending {} to {}".format(response, self.client_address[0]))
             netlib.send_dict_to_socket(real_response, self.request)
 
