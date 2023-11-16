@@ -23,7 +23,7 @@ def send_dict_to_socket(packet: dict, sock: socket.socket):
 
 
 def bytes_to_int(b: bytes) -> int:
-    return int.from_bytes(input, 'big')
+    return int.from_bytes(b, 'big')
 
 
 def int_to_bytes(i: int) -> bytes:

@@ -1,10 +1,10 @@
 import os
+import socket
 import socketserver
 import sqlite3
 import signal
 import sys
 from os import path
-import time
 
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
@@ -13,8 +13,6 @@ import serverlib
 import cryptolib
 import netlib
 from enums import ResourceRequestType, Permissions, UserClass, ServerErrCode
-
-TIMEOUT_SECONDS = 300
 
 
 def get_leaderboard_perms(userid: int) -> dict:
@@ -853,6 +851,7 @@ def handle_request(request_user_id: int, request: dict):
 
 class Handler(socketserver.BaseRequestHandler):
     def handle(self):
+        self.request.settimeout(30)  # for handshake, don't wait longer than 30 seconds for a packet
         print("Connection opened with {}".format(self.client_address[0]))
         # Initial connection
         request = netlib.get_dict_from_socket(self.request)
@@ -864,7 +863,12 @@ class Handler(socketserver.BaseRequestHandler):
         netlib.send_dict_to_socket(response, self.request)
 
         # Authentication step
-        request = netlib.get_dict_from_socket(self.request)
+        try:
+            request = netlib.get_dict_from_socket(self.request)
+        except socket.timeout:
+            print("Timed out waiting for authentication, closing socket.")
+            netlib.send_dict_to_socket(serverlib.bad_request_json(ServerErrCode.SessionExpired), self.request)
+            return
         if not request["type"] == ResourceRequestType.Authenticate:
             print("Secondary request not for authentication, exiting")
             netlib.send_dict_to_socket(serverlib.bad_request_json(ServerErrCode.MalformedRequest), self.request)
@@ -885,19 +889,26 @@ class Handler(socketserver.BaseRequestHandler):
         netlib.send_dict_to_socket(response, self.request)
 
         # verification
+        try:
+            request = netlib.get_dict_from_socket(self.request)
+        except socket.timeout:
+            print("Timed out waiting for nonce reply, closing socket.")
+            netlib.send_dict_to_socket(serverlib.bad_request_json(ServerErrCode.SessionExpired), self.request)
+            return
         if not request["type"] == ResourceRequestType.NonceReply:
             print("request type not a nonce reply, exiting")
             netlib.send_dict_to_socket(serverlib.bad_request_json(ServerErrCode.MalformedRequest), self.request)
             return
-        request = netlib.get_dict_from_socket(self.request)
-        reply_nonce = cryptolib.symmetric_decrypt(aes_key, request["nonce"])
+        encrypted_reply_nonce = netlib.b64_to_bytes(request["nonce"])
+        reply_nonce = cryptolib.symmetric_decrypt(aes_key, encrypted_reply_nonce)
         if not netlib.bytes_to_int(nonce) + 1 == netlib.bytes_to_int(reply_nonce):
             print("Invalid nonce reply, exiting")
             netlib.send_dict_to_socket(serverlib.bad_request_json(ServerErrCode.AuthenticationFailure), self.request)
             return
 
         # verified
-        last_request_time = int(time.time())
+        netlib.send_dict_to_socket({"success": True, "data": None}, self.request)
+        self.request.settimeout(300)
         # Register user if not registered
         print("User {} successfully connected".format(socket_identity))
         cursor = db.cursor()
@@ -927,26 +938,23 @@ class Handler(socketserver.BaseRequestHandler):
         cursor.execute(get_id_command, get_id_params)
         (socket_user_id,) = cursor.fetchone()
 
-        encrypted_request = request["encrypted_request"]
-        further_request = cryptolib.decrypt_dict(aes_key, encrypted_request)
-        response = handle_request(socket_user_id, further_request)
-        netlib.send_dict_to_socket(response, self.request)
-
-        # TODO: make this loop use encrypted stuff
         # TODO: change docs to not require identity/token on requests
         # TODO: Handle disconnect
+        # Done for timeouts, not for closure?
         while True:
-            request = netlib.get_dict_from_socket(self.request)
-            if last_request_time + TIMEOUT_SECONDS > int(time.time()):
-                print("Received request on timed out session, exiting.")
+            try:
+                request = netlib.get_dict_from_socket(self.request)
+            except socket.timeout:
+                print("Timed out waiting for packet, closing socket.")
                 netlib.send_dict_to_socket(serverlib.bad_request_json(ServerErrCode.SessionExpired), self.request)
                 return
-            else:
-                last_request_time = int(time.time())
             print("received {} from {}".format(request, self.client_address[0]))
-            response = handle_request(socket_user_id, request)
+            encrypted_request = netlib.b64_to_bytes(request["encrypted_request"])
+            real_request = cryptolib.decrypt_dict(aes_key, encrypted_request)
+            response = handle_request(socket_user_id, real_request)
+            real_response = {"encrypted_response": cryptolib.encrypt_dict(aes_key, response)}
             print("sending {} to {}".format(response, self.client_address[0]))
-            netlib.send_dict_to_socket(response, self.request)
+            netlib.send_dict_to_socket(real_response, self.request)
 
 
 # noinspection PyUnusedLocal
