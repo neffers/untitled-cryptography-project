@@ -503,7 +503,7 @@ def do_modify_entry_verification(entry_id, verify):
 
 def do_remove_entry(entry_id):
     request = RemoveEntryRequest(entry_id)
-    request.safe_print(request.print_response())
+    request.safe_print(request.make_request())
 
 
 def entry_options(entry_id):
