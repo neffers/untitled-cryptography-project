@@ -86,7 +86,7 @@ def request_pub_key() -> rsa.RSAPublicKey:
     netlib.send_dict_to_socket(request, sock)
     response = netlib.get_dict_from_socket(sock)
     if "success" in response and response["success"]:
-        return serialization.load_ssh_public_key(netlib.b64_to_bytes(response["data"]))
+        return serialization.load_ssh_public_key(response["data"])
     return None
 
 class ShowLeaderboardsRequest(Request):
@@ -878,7 +878,7 @@ def server_loop(res_ip, res_port):
     if rs_pub is None:
         print("No public key was found.")
         return
-    rs_pub = serialization.load_ssh_public_key(netlib.b64_to_bytes(rs_pub))
+    rs_pub = serialization.load_ssh_public_key(rs_pub)
     for rs in db["resource_servers"]:
         if rs["ip"] == res_ip and rs["port"] == res_port:
             if "rs_pub" in rs and rs["rs_pub"] != netlib.bytes_to_b64(rs_pub.public_bytes(encoding=serialization.Encoding.PEM,format=serialization.PublicFormat.SubjectPublicKeyInfo)):
