@@ -29,7 +29,7 @@ class Request:
     def make_request(self) -> dict:
         request = self.request
         request["identity"] = identity
-        request["token"] = token
+        request["token"] = netlib.bytes_to_b64(token)
         request = bytes(json.dumps(self.request), "utf-8")
         buffer = struct.pack("!I", len(request))
         buffer += request
