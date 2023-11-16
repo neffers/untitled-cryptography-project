@@ -820,16 +820,10 @@ def server_loop(res_ip, res_port):
     if as_pub is None:
         print("No public key was found.")
         return
-    if "as_pub" in db["auth_server"]:
-        if db["auth_server"]["as_pub"] != netlib.bytes_to_b64(as_pub.public_bytes(encoding=serialization.Encoding.PEM,
-                                                                                  format=serialization.PublicFormat.SubjectPublicKeyInfo)):
-            print("Requested public key doesn't match stored public key.")
-            return
-    else:
+    if "as_pub" not in db["auth_server"]:
         db["auth_server"]["as_pub"] = netlib.bytes_to_b64(as_pub.public_bytes(encoding=serialization.Encoding.PEM,
                                                                               format=serialization.PublicFormat.SubjectPublicKeyInfo))
         write_database_to_file()
-    print("AS public key checks out")
     sock.close()
 
     auth_server = db["auth_server"]
