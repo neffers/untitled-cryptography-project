@@ -28,8 +28,6 @@ class Request:
 
     def make_request(self) -> dict:
         request = self.request
-        request["identity"] = identity
-        request["token"] = netlib.bytes_to_b64(token)
         encrypted_request = {"encrypted_request": netlib.bytes_to_b64(cryptolib.encrypt_dict(session_key, request))}
         netlib.send_dict_to_socket(encrypted_request, sock)
         encrypted_response = netlib.get_dict_from_socket(sock)
