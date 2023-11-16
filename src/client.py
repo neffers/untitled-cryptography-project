@@ -700,12 +700,12 @@ def display():
         server_count += 1
 
 
-def write_database_to_file(database, db_filename):
+def write_database_to_file():
     with open(db_filename, "w") as db_file:
-        json.dump(database, db_file)
+        json.dump(db, db_file)
 
 
-def initialize_database(db_filename) -> dict:
+def initialize_database() -> dict:
     try:
         with open(db_filename, "r") as db_file:
             db_to_return = json.load(db_file)
@@ -828,6 +828,7 @@ def server_loop(res_ip, res_port):
     else:
         db["auth_server"]["as_pub"] = netlib.bytes_to_b64(as_pub.public_bytes(encoding=serialization.Encoding.PEM,
                                                                               format=serialization.PublicFormat.SubjectPublicKeyInfo))
+        write_database_to_file()
     print("AS public key checks out")
     sock.close()
 
@@ -887,6 +888,7 @@ def server_loop(res_ip, res_port):
                     if response.lower() == "y":
                         rs["rs_pub"] = netlib.bytes_to_b64(rs_pub.public_bytes(encoding=serialization.Encoding.PEM,
                                                                                format=serialization.PublicFormat.SubjectPublicKeyInfo))
+                        write_database_to_file()
                         print("New key saved to disk for {}:{}".format(res_ip, res_port))
                         break
                     elif response.lower() == "n":
@@ -969,5 +971,6 @@ def server_loop(res_ip, res_port):
 
 
 if __name__ == "__main__":
-    db = initialize_database("client_db")
+    db_filename = "client_db"
+    db = initialize_database()
     main()
