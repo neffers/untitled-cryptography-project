@@ -4,10 +4,15 @@ from enum import IntEnum, auto
 # An enum for Request types to the Resource Server
 # Should hopefully simplify adding request types as well as determining if all cases are handled
 class ResourceRequestType(IntEnum):
+    # These happen in order for the handshake
+    PublicKey = 0
+    Authenticate = 1
+    NonceReply = 2
+
+    # These are the actual server functionality
     AddComment = auto()
     AddEntry = auto()
     AddProof = auto()
-    Authenticate = auto()
     ChangeScoreOrder = auto()
     CreateLeaderboard = auto()
     DownloadProof = auto()
@@ -18,8 +23,6 @@ class ResourceRequestType(IntEnum):
     ListUnverified = auto()
     ListUsers = auto()
     ModifyEntryVerification = auto()
-    NonceReply = auto()
-    PublicKey = auto()
     RemoveEntry = auto()
     RemoveLeaderboard = auto()
     RemoveProof = auto()
