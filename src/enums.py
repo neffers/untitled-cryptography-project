@@ -4,37 +4,41 @@ from enum import IntEnum, auto
 # An enum for Request types to the Resource Server
 # Should hopefully simplify adding request types as well as determining if all cases are handled
 class ResourceRequestType(IntEnum):
-    PublicKey = auto()
-    Authenticate = auto()
-    NonceReply = auto()
-    ListLeaderboards = auto()
-    ShowOneLeaderboard = auto()
-    CreateLeaderboard = auto()
-    AddEntry = auto()
-    ListUsers = auto()
-    ListUnverified = auto()
-    ListAccessGroups = auto()
-    GetEntry = auto()
-    ViewUser = auto()
-    ViewPermissions = auto()
-    ModifyEntryVerification = auto()
-    RemoveLeaderboard = auto()
+    # These happen in order for the handshake
+    PublicKey = 0
+    Authenticate = 1
+    NonceReply = 2
+
+    # These are the actual server functionality
     AddComment = auto()
-    RemoveEntry = auto()
-    SetPermission = auto()
-    RemoveUser = auto()
-    ChangeScoreOrder = auto()
+    AddEntry = auto()
     AddProof = auto()
+    ChangeScoreOrder = auto()
+    CreateLeaderboard = auto()
     DownloadProof = auto()
-    RemoveProof = auto()
+    GetEntry = auto()
     GetSelfID = auto()
+    ListAccessGroups = auto()
+    ListLeaderboards = auto()
+    ListUnverified = auto()
+    ListUsers = auto()
+    ModifyEntryVerification = auto()
+    RemoveEntry = auto()
+    RemoveLeaderboard = auto()
+    RemoveProof = auto()
+    RemoveUser = auto()
+    SetPermission = auto()
+    ShowOneLeaderboard = auto()
+    ViewPermissions = auto()
+    ViewUser = auto()
 
 
 class ServerErrCode(IntEnum):
     AuthenticationFailure = auto()
-    InsufficientPermission = auto()
     DoesNotExist = auto()
+    InsufficientPermission = auto()
     MalformedRequest = auto()
+    SessionExpired = auto()
 
 
 class Permissions(IntEnum):

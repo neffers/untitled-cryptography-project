@@ -15,7 +15,7 @@ def public_key_response(public_key: rsa.RSAPublicKey):
     )
     response = {
         "success": True,
-        "data": netlib.bytes_to_b64(pubkey_bytes)
+        "data": pubkey_bytes.decode()
     }
     return response
 

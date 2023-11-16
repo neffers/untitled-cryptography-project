@@ -3,10 +3,18 @@ import struct
 import socket
 import base64
 from datetime import datetime
-from enums import ResourceRequestType, Permissions
+from typing import Union
+
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric import rsa
+
+import os
+import netlib
+import cryptolib
+from enums import AuthRequestType, ResourceRequestType, Permissions
 
 identity: str = ""
-token: str = ""
+token: bytes = bytes()
 sock: socket.socket = socket.socket()
 
 # formatting lookup tables
@@ -21,7 +29,7 @@ class Request:
     def make_request(self) -> dict:
         request = self.request
         request["identity"] = identity
-        request["token"] = token
+        request["token"] = netlib.bytes_to_b64(token)
         request = bytes(json.dumps(self.request), "utf-8")
         buffer = struct.pack("!I", len(request))
         buffer += request
@@ -48,30 +56,40 @@ class Request:
         print("Operation successful.")
 
 
-# currently the only auth server request, so a special case
-def request_token() -> str:
-    request = {
-        "type": "token",
-        "identity": identity
+# Auth server request
+def request_token(password, as_pub) -> Union[bytes, None]:
+    aes_key = os.urandom(32)
+    encrypted_key = cryptolib.rsa_encrypt(as_pub, aes_key)
+    signin_dict = {
+        "identity": identity,
+        "password": password,
     }
-    request = bytes(json.dumps(request), "utf-8")
-    buffer = struct.pack("!I", len(request))
-    buffer += request
-    sock.send(buffer)
-    buffer_len = struct.unpack("!I", sock.recv(4))[0]
-    response_data = sock.recv(buffer_len)
-    try:
-        response = json.loads(response_data.decode())
-        if "success" not in response or "data" not in response:
-            print("Malformed packet: " + str(response))
-            return ""
+    signin_payload = cryptolib.encrypt_dict(aes_key, signin_dict)
+    request = {
+        "type": AuthRequestType.Token,
+        "encrypted_key": netlib.bytes_to_b64(encrypted_key),
+        "signin_payload": netlib.bytes_to_b64(signin_payload),
+    }
+    netlib.send_dict_to_socket(request, sock)
+    response = netlib.get_dict_from_socket(sock)
+    if "success" in response:
         if response["success"]:
-            return response["token"]
-        else:
-            print(response["data"])
-    except json.JSONDecodeError:
-        print("Can't decode packet! packet: " + str(response_data))
-        return ""
+            return cryptolib.symmetric_decrypt(aes_key, netlib.b64_to_bytes(response["data"]))
+
+    return None
+
+
+# Auth server request
+def request_pub_key() -> Union[rsa.RSAPublicKey, None]:
+    request = {
+        "type": AuthRequestType.PublicKey,
+    }
+    netlib.send_dict_to_socket(request, sock)
+    response = netlib.get_dict_from_socket(sock)
+    if "success" in response and response["success"]:
+        return serialization.load_ssh_public_key(response["data"].encode())
+
+    return None
 
 
 class ShowLeaderboardsRequest(Request):
@@ -144,6 +162,7 @@ class ListUsersRequest(Request):
         print("{:<4}{:<21.21}".format("ID", "Username"))
         for user in response["data"]:
             print("{:<4}{:<21.21}".format(user[0], user[1]))
+
 
 class ListUnverifiedRequest(Request):
     def __init__(self, leaderboard_id):
@@ -314,10 +333,10 @@ class RemoveUserRequest(Request):
         })
 
 
-class GetIdFromIdentityRequest(Request):
+class GetSelfID(Request):
     def __init__(self):
         super().__init__({
-            "type": ResourceRequestType.GetIdFromIdentity,
+            "type": ResourceRequestType.GetSelfID,
             "user_id": identity
         })
 
@@ -419,7 +438,7 @@ def do_add_proof(entry_id):
         print("IO error occurred!")
 
 
-def do_get_proof(entry_id):
+def do_get_proof():
     remote_fileid = input("Enter id of remote file to download: ")
     if not remote_fileid.isdigit():
         print("Invalid input, please enter an integer")
@@ -445,7 +464,7 @@ def do_get_proof(entry_id):
         print("IO error occurred!")
 
 
-def do_remove_proof(entry_id):
+def do_remove_proof():
     remote_fileid = input("Enter id of remote file to remove: ")
     if not remote_fileid.isdigit():
         print("Invalid input, please enter an integer")
@@ -484,7 +503,7 @@ def do_modify_entry_verification(entry_id, verify):
 
 def do_remove_entry(entry_id):
     request = RemoveEntryRequest(entry_id)
-    request.safe_print(request.print_response())
+    request.safe_print(request.make_request())
 
 
 def entry_options(entry_id):
@@ -513,9 +532,9 @@ def entry_options(entry_id):
         elif choice == 2:
             do_add_proof(entry_id)
         elif choice == 3:
-            do_get_proof(entry_id)
+            do_get_proof()
         elif choice == 4:
-            do_remove_proof(entry_id)
+            do_remove_proof()
         elif choice == 5:
             do_view_comments(entry_id)
         elif choice == 6:
@@ -563,7 +582,7 @@ def do_create_leaderboard():
         return
     leaderboard_ascending = int(leaderboard_ascending) == 1
     request = CreateLeaderboardRequest(leaderboard_name, leaderboard_permission,
-                                         leaderboard_ascending)
+                                       leaderboard_ascending)
     request.safe_print(request.make_request())
 
 
@@ -615,13 +634,13 @@ def do_remove_leaderboard(leaderboard_id):
     request.safe_print(request.make_request())
 
 
-def do_get_user_from_identity():
-    request = GetIdFromIdentityRequest()
+def do_get_self_id() -> Union[int, None]:
+    request = GetSelfID()
     response = request.make_request()
     if "success" not in response or "data" not in response:
         print("Malformed packet: " + str(response))
-        return
-    return response["data"][0]
+        return None
+    return int(response["data"][0])
 
 
 def leaderboard_options(leaderboard_id):
@@ -668,16 +687,7 @@ def leaderboard_options(leaderboard_id):
             print("Invalid choice. Please choose from the provided list.")
 
 
-""" def clear_screen():
-    if os.name == 'nt':
-        os.system('cls')
-    else:
-        os.system('clear') """
-
-
 def display():
-    # clear_screen()
-
     print("Authentication Server")
     print("{:<21.21}{:<16}{:<6}".format("Name", "IP", "Port"))
     auth_server = db["auth_server"]
@@ -690,12 +700,12 @@ def display():
         server_count += 1
 
 
-def write_database_to_file(database, db_filename):
+def write_database_to_file():
     with open(db_filename, "w") as db_file:
-        json.dump(database, db_file)
+        json.dump(db, db_file)
 
 
-def initialize_database(db_filename) -> dict:
+def initialize_database() -> dict:
     try:
         with open(db_filename, "r") as db_file:
             db_to_return = json.load(db_file)
@@ -704,13 +714,8 @@ def initialize_database(db_filename) -> dict:
         print("Could not read db from file. Exiting to avoid corrupting!")
     except FileNotFoundError:
         print("No database found! Initializing new database.")
-        str = ""
-        if db_filename == "client_db":
-            str = "resource servers"
-        #else:
-        #    str = "stored keys"
         db_to_return = {
-            str: [],
+            "resource_servers": [],
         }
     return db_to_return
 
@@ -722,7 +727,7 @@ def main():
         ip = input("Enter the ip of the server: ")
         port = input("Enter the port of the server: ")
         db["auth_server"] = {"name": name, "ip": ip, "port": port, "key": ""}
-        write_database_to_file(db, "client_db")
+        write_database_to_file()
 
     while True:
         display()
@@ -752,7 +757,7 @@ def main():
             ip = input("Enter the ip of the server: ")
             port = input("Enter the port of the server: ")
             db["resource_servers"].append({"name": name, "ip": ip, "port": port, "key": ""})
-            write_database_to_file(db, "client_db")
+            write_database_to_file()
 
         elif choice == 'e':  # edit resource server
             choice = input("Enter server number to edit (0 for auth. server): ")
@@ -777,7 +782,7 @@ def main():
             port = input("Enter new port (empty to leave as \"{}\"): ".format(server["port"]))
             if port != "":
                 server["port"] = port
-            write_database_to_file(db, "client_db")
+            write_database_to_file()
 
         elif choice == 'r':  # remove a resource server
             choice = input("Enter server number to remove: ")
@@ -799,7 +804,27 @@ def main():
 
 def server_loop(res_ip, res_port):
     global identity, token, sock
-    # clear_screen()
+
+    # Authentication process
+    auth_server = db["auth_server"]
+    print("Trying to connect to {}:{}".format(auth_server["ip"], auth_server["port"]))
+    try:
+        sock = socket.socket()
+        sock.connect((auth_server["ip"], int(auth_server["port"])))
+    except OSError as e:
+        print("Connection to authentication server failed! error: " + str(e))
+        return
+    print("Connection successful.")
+
+    as_pub = request_pub_key()
+    if as_pub is None:
+        print("No public key was found.")
+        return
+    if "as_pub" not in db["auth_server"]:
+        db["auth_server"]["as_pub"] = netlib.bytes_to_b64(as_pub.public_bytes(encoding=serialization.Encoding.PEM,
+                                                                              format=serialization.PublicFormat.SubjectPublicKeyInfo))
+        write_database_to_file()
+    sock.close()
 
     auth_server = db["auth_server"]
     print("Trying to connect to {}:{}".format(auth_server["ip"], auth_server["port"]))
@@ -811,18 +836,98 @@ def server_loop(res_ip, res_port):
         return
     print("Connection successful.")
     identity = input("Enter identity: ")
-    token = request_token()
+    password = input("Enter password: ")
+    token = request_token(password, as_pub)
+    if token is None:
+        print("Incorrect username or password!")
+        sock.close()
+        return
+
+    print("Login successful!")
     sock.close()
 
+    # Resource server handshake
+    print("Trying to connect to {}:{}".format(res_ip, res_port))
     try:
         sock = socket.socket()
         sock.connect((res_ip, int(res_port)))
     except OSError as e:
         print("Connection to resource server failed! error: " + str(e))
         return
+    print("Connection successful.")
+
+    request = {
+        "type": ResourceRequestType.PublicKey
+    }
+    netlib.send_dict_to_socket(request, sock)
+    response = netlib.get_dict_from_socket(sock)
+    if "success" in response and response["success"] and response["data"]:
+        rs_pub_serialized = response["data"]
+    else:
+        print("RS public key request failed")
+        return
+    rs_pub: rsa.RSAPublicKey = serialization.load_ssh_public_key(rs_pub_serialized.encode())
+    for rs in db["resource_servers"]:
+        if rs["ip"] == res_ip and rs["port"] == res_port:
+            if "rs_pub" in rs and rs["rs_pub"] != netlib.bytes_to_b64(
+                    rs_pub.public_bytes(encoding=serialization.Encoding.PEM,
+                                        format=serialization.PublicFormat.SubjectPublicKeyInfo)):
+                print("Requested public key doesn't match stored public key.")
+                return
+            elif "rs_pub" not in rs:
+                while True:
+                    print("No public key stored on file for {}:{}".format(res_ip, res_port))
+                    print("Confirm New Key Hash: " + cryptolib.public_key_hash(rs_pub))
+                    response = input("Does this look right? (y/n): ")
+                    if response.lower() == "y":
+                        rs["rs_pub"] = netlib.bytes_to_b64(rs_pub.public_bytes(encoding=serialization.Encoding.PEM,
+                                                                               format=serialization.PublicFormat.SubjectPublicKeyInfo))
+                        write_database_to_file()
+                        print("New key saved to disk for {}:{}".format(res_ip, res_port))
+                        break
+                    elif response.lower() == "n":
+                        print("Better to be safe than sorry!")
+                        return
+            else:
+                print("Public key offered matches the one stored locally")
+            break
+
+    aes_key = os.urandom(32)
+    encrypted_key = cryptolib.rsa_encrypt(rs_pub, aes_key)
+    signin_dict = {
+        "identity": identity,
+        "token": netlib.bytes_to_b64(token),
+    }
+    signin_payload = cryptolib.encrypt_dict(aes_key, signin_dict)
+    request = {
+        "type": ResourceRequestType.Authenticate,
+        "encrypted_key": netlib.bytes_to_b64(encrypted_key),
+        "signin_payload": netlib.bytes_to_b64(signin_payload),
+    }
+
+    print("Attempting login...")
+    netlib.send_dict_to_socket(request, sock)
+    response = netlib.get_dict_from_socket(sock)
+    if "nonce" not in response or response["nonce"] is None:
+        print("Password authentication failed!")
+        return
+    encrypted_nonce = response["nonce"]
+    nonce = cryptolib.symmetric_decrypt(aes_key, netlib.b64_to_bytes(encrypted_nonce))
+    nonce_plus_1 = netlib.int_to_bytes(netlib.bytes_to_int(nonce) + 1)
+    request = {
+        "type": ResourceRequestType.NonceReply,
+        "nonce": netlib.bytes_to_b64(cryptolib.symmetric_encrypt(aes_key, nonce_plus_1)),
+    }
+    netlib.send_dict_to_socket(request, sock)
+    response = netlib.get_dict_from_socket(sock)
+    if response is None or not response["success"]:
+        print("Nonce authentication failed!")
+        return
+
     print("Connected to " + res_ip + ":" + res_port + " as " + identity + "\n")
+
+    # Resource server connection loop
     while True:
-        # clear_screen()
         print(
             "Basic Commands:\n"
             "[0] Quit\n"
@@ -830,8 +935,7 @@ def server_loop(res_ip, res_port):
             "[2] Open Leaderboard\n"
             "[3] Create Leaderboard\n"
             "[4] List Users\n"
-            "[5] Open User\n"
-            "[6] Open Self\n")
+            "[5] Open Self\n")
         choice = input("Choose the corresponding number: ")
         if not choice.isdigit():
             print("Invalid input, please enter an integer")
@@ -854,15 +958,8 @@ def server_loop(res_ip, res_port):
             do_create_leaderboard()
         elif choice == 4:
             do_list_users()
-        elif choice == 5 or choice == 6:
-            # 5: open user, 6: open self
-            user_id = input("Enter the ID of the user: ") if choice == 5 else do_get_user_from_identity()
-            try:
-                user_id = int(user_id)
-            except ValueError:
-                print("Invalid user id")
-                continue
-            user_options(user_id)
+        elif choice == 5:
+            user_options(do_get_self_id())
         else:
             print("Invalid choice. Please choose from the provided list.")
 
@@ -870,5 +967,6 @@ def server_loop(res_ip, res_port):
 
 
 if __name__ == "__main__":
-    db = initialize_database("client_db")
+    db_filename = "client_db"
+    db = initialize_database()
     main()
