@@ -631,7 +631,7 @@ def do_get_self_id() -> Union[int, None]:
     if "success" not in response or "data" not in response:
         print("Malformed packet: " + str(response))
         return None
-    return int(response["data"][0])
+    return int(response["data"])
 
 
 def leaderboard_options(leaderboard_id):
