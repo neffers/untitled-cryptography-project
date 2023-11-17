@@ -946,7 +946,8 @@ def server_loop(res_ip, res_port):
             "[2] Open Leaderboard\n"
             "[3] Create Leaderboard\n"
             "[4] List Users\n"
-            "[5] Open Self\n")
+            "[5] Open User\n"
+            "[6] Open Self\n")
         choice = input("Choose the corresponding number: ")
         if not choice.isdigit():
             print("Invalid input, please enter an integer")
@@ -971,6 +972,14 @@ def server_loop(res_ip, res_port):
             elif choice == 4:
                 do_list_users()
             elif choice == 5:
+                user_id = input("Enter the ID of the user: ")
+                try:
+                    user_id = int(user_id)
+                except ValueError:
+                    print("Invalid choice. Please choose from the provided list.")
+                    continue
+                user_options(user_id)
+            elif choice == 6:
                 user_options(do_get_self_id())
             else:
                 print("Invalid choice. Please choose from the provided list.")
