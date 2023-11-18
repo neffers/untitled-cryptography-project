@@ -10,7 +10,7 @@ from cryptography.hazmat.primitives.asymmetric import rsa
 import os
 import netlib
 import cryptolib
-from enums import AuthRequestType, ResourceRequestType, Permissions
+from enums import AuthRequestType, ResourceRequestType, Permissions, ServerErrCode
 
 identity: str = ""
 token: bytes = bytes()
@@ -21,6 +21,17 @@ session_key: bytes = bytes()
 perms = ["No Access", "Read Access", "Write Access", "Mod", "Admin"]
 bools = ["False", "True"]
 
+def print_err(type):
+    if type == ServerErrCode.AuthenticationFailure:
+        print("Error: Authentication failed!")
+    if type == ServerErrCode.DoesNotExist:
+        print("Error: The desired data does not exist!")
+    if type == ServerErrCode.InsufficientPermission:
+        print("Error: You do not have permission to run this command!")
+    if type == ServerErrCode.MalformedRequest:
+        print("Error: Request was incorrectly formatted!")
+    if type == ServerErrCode.SessionExpired:
+        print("Error: The current session has expired!")
 
 class Request:
     def __init__(self, request: dict):
@@ -41,7 +52,8 @@ class Request:
         if response["success"]:
             self.print_response(response)
         else:
-            print(response["data"])
+            print_err(response["data"])
+            #print(response["data"])
 
     def print_response(self, response):
         print("Operation successful.")
