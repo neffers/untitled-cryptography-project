@@ -10,7 +10,7 @@ from cryptography.hazmat.primitives.asymmetric import rsa
 import os
 import netlib
 import cryptolib
-from enums import AuthRequestType, ResourceRequestType, Permissions
+from enums import AuthRequestType, ResourceRequestType, Permissions, ServerErrCode
 
 identity: str = ""
 token: bytes = bytes()
@@ -21,6 +21,17 @@ session_key: bytes = bytes()
 perms = ["No Access", "Read Access", "Write Access", "Mod", "Admin"]
 bools = ["False", "True"]
 
+def print_err(type):
+    if type == ServerErrCode.AuthenticationFailure:
+        print("Error: Authentication failed!")
+    if type == ServerErrCode.DoesNotExist:
+        print("Error: The desired data does not exist!")
+    if type == ServerErrCode.InsufficientPermission:
+        print("Error: You do not have permission to run this command!")
+    if type == ServerErrCode.MalformedRequest:
+        print("Error: Request was incorrectly formatted!")
+    if type == ServerErrCode.SessionExpired:
+        print("Error: The current session has expired!")
 
 class Request:
     def __init__(self, request: dict):
@@ -41,7 +52,8 @@ class Request:
         if response["success"]:
             self.print_response(response)
         else:
-            print(response["data"])
+            print_err(response["data"])
+            #print(response["data"])
 
     def print_response(self, response):
         print("Operation successful.")
@@ -631,7 +643,7 @@ def do_get_self_id() -> Union[int, None]:
     if "success" not in response or "data" not in response:
         print("Malformed packet: " + str(response))
         return None
-    return int(response["data"][0])
+    return int(response["data"])
 
 
 def leaderboard_options(leaderboard_id):
@@ -946,7 +958,8 @@ def server_loop(res_ip, res_port):
             "[2] Open Leaderboard\n"
             "[3] Create Leaderboard\n"
             "[4] List Users\n"
-            "[5] Open Self\n")
+            "[5] Open User\n"
+            "[6] Open Self\n")
         choice = input("Choose the corresponding number: ")
         if not choice.isdigit():
             print("Invalid input, please enter an integer")
@@ -971,6 +984,14 @@ def server_loop(res_ip, res_port):
             elif choice == 4:
                 do_list_users()
             elif choice == 5:
+                user_id = input("Enter the ID of the user: ")
+                try:
+                    user_id = int(user_id)
+                except ValueError:
+                    print("Invalid choice. Please choose from the provided list.")
+                    continue
+                user_options(user_id)
+            elif choice == 6:
                 user_options(do_get_self_id())
             else:
                 print("Invalid choice. Please choose from the provided list.")
