@@ -77,4 +77,4 @@ These commands are all related to a user which has been opened by the logged in 
 - READ: open submission [entry ID]
   - opens "Commands Associated With an Entry" with entry ID as the argument.
 - ADMIN: remove user
-  - deletes user and all associated content from database (with confirmation)
+  - deletes user and all associated content from database
