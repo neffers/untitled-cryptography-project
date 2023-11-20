@@ -925,7 +925,7 @@ class Handler(socketserver.BaseRequestHandler):
         cursor = db.cursor()
         cur_time = time.strftime("%s")
         register_command = """
-            insert ignore into users(identity, class, registration_date) values(?, ?, ?)
+            insert or ignore into users(identity, class, registration_date) values(?, ?, ?)
             """
         register_params = (socket_identity, UserClass.User, cur_time)
         cursor.execute(register_command, register_params)
