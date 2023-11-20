@@ -5,7 +5,6 @@ import sqlite3
 import signal
 import sys
 from os import path
-import time
 
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
