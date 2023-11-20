@@ -42,6 +42,11 @@ class Request:
         encrypted_request = {"encrypted_request": netlib.bytes_to_b64(cryptolib.encrypt_dict(session_key, request))}
         netlib.send_dict_to_socket(encrypted_request, sock)
         encrypted_response = netlib.get_dict_from_socket(sock)
+        if encrypted_response.get("encrypted_response") is None:
+            # probably a plaintext message
+            if encrypted_response.get("success") is not None and encrypted_response.get("err") == ServerErrCode.SessionExpired:
+                return encrypted_response
+                
         response = cryptolib.decrypt_dict(session_key, netlib.b64_to_bytes(encrypted_response["encrypted_response"]))
         return response
 
