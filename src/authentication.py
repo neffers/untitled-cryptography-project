@@ -14,7 +14,7 @@ def get_token_response(request: dict):
     try:
         rsa_encrypted_aes_key = netlib.b64_to_bytes(request["encrypted_key"])
         signin_payload = netlib.b64_to_bytes(request["signin_payload"])
-    except KeyError or TypeError:
+    except (KeyError, TypeError):
         return serverlib.bad_request_json(ServerErrCode.MalformedRequest)
     aes_key = cryptolib.rsa_decrypt(private_key, rsa_encrypted_aes_key)
     signin_request = cryptolib.decrypt_dict(aes_key, signin_payload)
@@ -23,7 +23,7 @@ def get_token_response(request: dict):
         assert type(identity) is str
         password = signin_request["password"]
         assert type(password) is str
-    except KeyError or AssertionError:
+    except (KeyError, AssertionError):
         return serverlib.bad_request_json(ServerErrCode.MalformedRequest)
 
     get_user_command = """

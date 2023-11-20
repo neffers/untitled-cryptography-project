@@ -590,7 +590,7 @@ def handle_request(request_user_id: int, request: dict):
         request_type = request["type"]
         if not isinstance(request_type, int):
             raise TypeError
-    except KeyError or TypeError:
+    except (KeyError, TypeError):
         return serverlib.bad_request_json(ServerErrCode.MalformedRequest)
 
     # Get public key
@@ -608,7 +608,7 @@ def handle_request(request_user_id: int, request: dict):
             leaderboard_id = request["leaderboard_id"]
             if not isinstance(leaderboard_id, int):
                 raise TypeError
-        except KeyError or TypeError:
+        except (KeyError, TypeError):
             return serverlib.bad_request_json(ServerErrCode.MalformedRequest)
         return show_one_leaderboard_response(request_user_id, perms, leaderboard_id)
 
@@ -627,7 +627,7 @@ def handle_request(request_user_id: int, request: dict):
             new_lb_asc = request["leaderboard_ascending"]
             if not isinstance(new_lb_asc, bool):
                 raise TypeError
-        except KeyError or TypeError or ValueError:
+        except (KeyError, TypeError, ValueError):
             return serverlib.bad_request_json(ServerErrCode.MalformedRequest)
         return add_leaderboard(new_lb_name, new_lb_perm, new_lb_asc)
 
@@ -643,7 +643,7 @@ def handle_request(request_user_id: int, request: dict):
             comment = request["comment"]
             if not isinstance(comment, str):
                 raise TypeError
-        except KeyError or TypeError:
+        except (KeyError, TypeError):
             return serverlib.bad_request_json(ServerErrCode.MalformedRequest)
 
         return add_entry(request_user_id, perms, leaderboard_id, entry_score, comment)
@@ -658,7 +658,7 @@ def handle_request(request_user_id: int, request: dict):
             leaderboard_id = request["leaderboard_id"]
             if not isinstance(leaderboard_id, int):
                 raise TypeError
-        except KeyError or TypeError:
+        except (KeyError, TypeError):
             return serverlib.bad_request_json(ServerErrCode.MalformedRequest)
         return list_unverified(request_user_id, leaderboard_id)
 
@@ -671,7 +671,7 @@ def handle_request(request_user_id: int, request: dict):
             entry_id = request["entry_id"]
             if not isinstance(entry_id, int):
                 raise TypeError
-        except KeyError or TypeError:
+        except (KeyError, TypeError):
             return serverlib.bad_request_json(ServerErrCode.MalformedRequest)
         return get_entry(request_user_id, perms, entry_id)
 
@@ -683,7 +683,7 @@ def handle_request(request_user_id: int, request: dict):
             user_id = request["user_id"]
             if not isinstance(user_id, int):
                 raise TypeError
-        except KeyError or TypeError:
+        except (KeyError, TypeError):
             return serverlib.bad_request_json(ServerErrCode.MalformedRequest)
         return get_user(request_user_id, user_id)
 
@@ -704,7 +704,7 @@ def handle_request(request_user_id: int, request: dict):
             verified = request["verified"]
             if not isinstance(verified, bool):
                 raise TypeError
-        except KeyError or TypeError:
+        except (KeyError, TypeError):
             return serverlib.bad_request_json(ServerErrCode.MalformedRequest)
         return modify_verification(request_user_id, perms, entry_id, verified)
 
@@ -717,7 +717,7 @@ def handle_request(request_user_id: int, request: dict):
             content = request["content"]
             if not isinstance(content, str):
                 raise TypeError
-        except KeyError or TypeError:
+        except (KeyError, TypeError):
             return serverlib.bad_request_json(ServerErrCode.MalformedRequest)
         return add_comment(request_user_id, perms, entry_id, content)
 
@@ -729,7 +729,7 @@ def handle_request(request_user_id: int, request: dict):
             leaderboard_id = request["leaderboard_id"]
             if not isinstance(leaderboard_id, int):
                 raise TypeError
-        except KeyError or TypeError:
+        except (KeyError, TypeError):
             return serverlib.bad_request_json(ServerErrCode.MalformedRequest)
         return remove_leaderboard(leaderboard_id)
 
@@ -739,7 +739,7 @@ def handle_request(request_user_id: int, request: dict):
             entry_id = request["entry_id"]
             if not isinstance(entry_id, int):
                 raise TypeError
-        except KeyError or TypeError:
+        except (KeyError, TypeError):
             return serverlib.bad_request_json(ServerErrCode.MalformedRequest)
         return remove_entry(request_user_id, user_class, entry_id)
 
@@ -751,7 +751,7 @@ def handle_request(request_user_id: int, request: dict):
             user_id = request["user_id"]
             if not isinstance(user_id, int):
                 raise TypeError
-        except KeyError or TypeError:
+        except (KeyError, TypeError):
             return serverlib.bad_request_json(ServerErrCode.MalformedRequest)
         return view_permissions(user_id)
 
@@ -770,7 +770,7 @@ def handle_request(request_user_id: int, request: dict):
             if not isinstance(p, int):
                 raise TypeError
             p = Permissions(request["permission"])
-        except KeyError or TypeError or ValueError:
+        except (KeyError, TypeError, ValueError):
             return serverlib.bad_request_json(ServerErrCode.MalformedRequest)
         return set_permission(user_id, leaderboard_id, p)
 
@@ -782,7 +782,7 @@ def handle_request(request_user_id: int, request: dict):
             user_id = request["user_id"]
             if not isinstance(user_id, int):
                 raise TypeError
-        except KeyError or TypeError:
+        except (KeyError, TypeError):
             return serverlib.bad_request_json(ServerErrCode.MalformedRequest)
         return remove_user(user_id)
 
@@ -795,7 +795,7 @@ def handle_request(request_user_id: int, request: dict):
             ascending = request["ascending"]
             if not isinstance(ascending, bool):
                 raise TypeError
-        except KeyError or TypeError:
+        except (KeyError, TypeError):
             return serverlib.bad_request_json(ServerErrCode.MalformedRequest)
         return set_score_order(leaderboard_id, ascending)
 
@@ -809,7 +809,7 @@ def handle_request(request_user_id: int, request: dict):
             if not isinstance(filename, str):
                 raise TypeError
             file = netlib.b64_to_bytes(request["file"])
-        except KeyError or TypeError:
+        except (KeyError, TypeError):
             return serverlib.bad_request_json(ServerErrCode.MalformedRequest)
         return add_proof(request_user_id, entry_id, filename, file)
 
@@ -819,7 +819,7 @@ def handle_request(request_user_id: int, request: dict):
             file_id = request["file_id"]
             if not isinstance(file_id, int):
                 raise TypeError
-        except KeyError or TypeError:
+        except (KeyError, TypeError):
             return serverlib.bad_request_json(ServerErrCode.MalformedRequest)
         return download_proof(request_user_id, perms, file_id)
 
@@ -828,7 +828,7 @@ def handle_request(request_user_id: int, request: dict):
             leaderboard_id = request["leaderboard_id"]
             if not isinstance(leaderboard_id, int):
                 raise TypeError
-        except KeyError or TypeError:
+        except (KeyError, TypeError):
             return serverlib.bad_request_json(ServerErrCode.MalformedRequest)
         try:
             lb_perm = perms[leaderboard_id]
@@ -844,7 +844,7 @@ def handle_request(request_user_id: int, request: dict):
             file_id = request["file_id"]
             if not isinstance(file_id, int):
                 raise TypeError
-        except KeyError or TypeError:
+        except (KeyError, TypeError):
             return serverlib.bad_request_json(ServerErrCode.MalformedRequest)
         return remove_proof(request_user_id, perms, file_id)
 
@@ -923,8 +923,7 @@ class Handler(socketserver.BaseRequestHandler):
         print("User {} successfully connected".format(socket_identity))
         cursor = db.cursor()
         register_command = """
-            insert into users(identity, class, registration_date) values(?, ?, strftime('%s'))
-            on conflict do nothing
+            insert or ignore into users(identity, class, registration_date) values(?, ?, strftime('%s'))
             """
         register_params = (socket_identity, UserClass.User)
         cursor.execute(register_command, register_params)
