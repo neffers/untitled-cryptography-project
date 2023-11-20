@@ -923,8 +923,7 @@ class Handler(socketserver.BaseRequestHandler):
         print("User {} successfully connected".format(socket_identity))
         cursor = db.cursor()
         register_command = """
-            insert into users(identity, class, registration_date) values(?, ?, strftime('%s'))
-            on conflict do nothing
+            insert into users(identity, class, registration_date) values(?, ?, strftime('%s')) on conflict do nothing
             """
         register_params = (socket_identity, UserClass.User)
         cursor.execute(register_command, register_params)
