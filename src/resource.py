@@ -923,11 +923,10 @@ class Handler(socketserver.BaseRequestHandler):
         # Register user if not registered
         print("User {} successfully connected".format(socket_identity))
         cursor = db.cursor()
-        cur_time = time.strftime("%s")
         register_command = """
-            insert or ignore into users(identity, class, registration_date) values(?, ?, ?)
+            insert or ignore into users(identity, class, registration_date) values(?, ?, strftime('%s'))
             """
-        register_params = (socket_identity, UserClass.User, cur_time)
+        register_params = (socket_identity, UserClass.User)
         cursor.execute(register_command, register_params)
         db.commit()
 
