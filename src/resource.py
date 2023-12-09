@@ -1012,7 +1012,8 @@ if __name__ == "__main__":
             leaderboard INTEGER NOT NULL REFERENCES leaderboards(id) ON DELETE CASCADE,
             associated_perm INTEGER NOT NULL REFERENCES permissions(id) ON DELETE CASCADE,
             version INTEGER NOT NULL,
-            encrypted_key BLOB NOT NULL
+            encrypted_sym_key BLOB NOT NULL,
+            encrypted_priv_key BLOB NOT NULL
         );
         CREATE TABLE leaderboard_entries (
             id INTEGER PRIMARY KEY,
