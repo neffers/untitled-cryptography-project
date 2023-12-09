@@ -96,7 +96,7 @@ def symmetric_encrypt(key: bytes, message: bytes) -> bytes:
     encryptor = aes.encryptor()
     padded = pad.update(message) + pad.finalize()
     encrypted = encryptor.update(padded) + encryptor.finalize()
-    return iv+encrypted
+    return iv + encrypted
 
 
 def encrypt_dict(key: bytes, message: dict) -> bytes:

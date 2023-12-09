@@ -26,6 +26,7 @@ counter = 0
 perms = ["No Access", "Read Access", "Write Access", "Mod", "Admin"]
 bools = ["False", "True"]
 
+
 def print_err(type):
     if type == ServerErrCode.AuthenticationFailure:
         print("Error: Authentication failed!")
@@ -37,6 +38,7 @@ def print_err(type):
         print("Error: Request was incorrectly formatted!")
     if type == ServerErrCode.SessionExpired:
         print("Error: The current session has expired!")
+
 
 class Request:
     def __init__(self, request: dict):
@@ -78,7 +80,6 @@ class Request:
             self.print_response(response)
         else:
             print_err(response["data"])
-            #print(response["data"])
 
     def print_response(self, response):
         print("Operation successful.")
@@ -873,8 +874,7 @@ def server_loop(res_ip, res_port):
 
     global key_filename
     global private_key
-    key_filename = "client_"+identity+"_private_key"
-    private_key = serverlib.initialize_key(key_filename)
+    key_filename = "client_" + identity + "_private_key"
     private_key = cryptolib.initialize_key(key_filename)
 
     try:
@@ -900,7 +900,7 @@ def server_loop(res_ip, res_port):
     print("Connection successful.")
 
     request = {
-        "type": ResourceRequestType.PublicKey 
+        "type": ResourceRequestType.PublicKey
     }
     netlib.send_dict_to_socket(request, sock)
     try:

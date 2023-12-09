@@ -16,6 +16,7 @@ from enums import ResourceRequestType, Permissions, UserClass, ServerErrCode
 
 client_public_key = bytes()
 
+
 def get_leaderboard_perms(userid: int) -> dict:
     cur = db.cursor()
     get_perm_command = """
@@ -599,7 +600,8 @@ def handle_request(request_user_id: int, request: dict, encrypted_request):
         return serverlib.public_key_response(public_key)
 
     # check for signature if body request
-    check = cryptolib.rsa_verify(client_public_key, encrypted_request["signature"], encrypted_request["encrypted_request"])
+    check = cryptolib.rsa_verify(client_public_key, encrypted_request["signature"],
+                                 encrypted_request["encrypted_request"])
     if check == False:
         return "Invalid signature! Closing connection..."
         # close connection (idk how)
