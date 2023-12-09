@@ -12,6 +12,7 @@ class ResourceRequestType(IntEnum):
     # These are the actual server functionality
     AddComment = auto()
     AddEntry = auto()
+    AddPermission = auto()
     AddProof = auto()
     ChangeScoreOrder = auto()
     CreateLeaderboard = auto()
@@ -28,7 +29,6 @@ class ResourceRequestType(IntEnum):
     RemoveLeaderboard = auto()
     RemoveProof = auto()
     RemoveUser = auto()
-    SetPermission = auto()
     ShowOneLeaderboard = auto()
     ViewPermissions = auto()
     ViewUser = auto()

@@ -5,6 +5,7 @@ import sqlite3
 import signal
 import sys
 from os import path
+from typing import Union
 
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
@@ -404,16 +405,17 @@ def view_permissions(user_id: int) -> dict:
     }
 
 
-# TODO T6
-def set_permission(user_id: int, leaderboard_id: int, p: Permissions) -> dict:
+def add_permission(user_id: int, leaderboard_id: int, p: Permissions, read_keys: list, mod_keys: Union[list, None]) -> dict:
     cur = db.cursor()
-    delete_old_permissions_command = """
-        delete
+    get_old_permissions_command = """
+        select *
         from permissions
         where user = ? and leaderboard = ?
     """
-    delete_old_permissions_params = (user_id, leaderboard_id)
-    cur.execute(delete_old_permissions_command, delete_old_permissions_params)
+    get_old_permissions_params = (user_id, leaderboard_id)
+    cur.execute(get_old_permissions_command, get_old_permissions_params)
+    if cur.fetchone() is not None:
+        return serverlib.bad_request_json(ServerErrCode.MalformedRequest, "Already exists")
 
     set_permission_command = """
         insert
@@ -425,6 +427,28 @@ def set_permission(user_id: int, leaderboard_id: int, p: Permissions) -> dict:
         cur.execute(set_permission_command, set_permission_params)
     except sqlite3.IntegrityError:
         return serverlib.bad_request_json(ServerErrCode.DoesNotExist)
+    perm_id = cur.lastrowid
+
+    add_read_keys_command = """
+    insert into read_keys(user, leaderboard, associated_perm, version, encrypted_key)
+    values(?, ?, ?, ?, ?)
+    """
+    for i in range(len(read_keys)):
+        read_key = netlib.b64_to_bytes(read_keys[i])
+        add_read_keys_params = (user_id, leaderboard_id, perm_id, i, read_key)
+        cur.execute(add_read_keys_command, add_read_keys_params)
+
+    if mod_keys is not None:
+        add_mod_keys_command = """
+        insert into mod_keys(user, leaderboard, associated_perm, version, encrypted_sym_key, encrypted_priv_key)
+        values(?, ?, ?, ?, ?, ?)
+        """
+        for i in range(len(mod_keys)):
+            sym = mod_keys[i][0]
+            mod = mod_keys[i][1]
+            add_mod_keys_params = (user_id, leaderboard_id, perm_id, i, sym, mod)
+            cur.execute(add_mod_keys_command, add_mod_keys_params)
+
     db.commit()
     return {
         "success": True,
@@ -787,7 +811,7 @@ def handle_request(request_user_id: int, request: dict):
         return view_permissions(user_id)
 
     # User: Set Permission
-    if request_type == ResourceRequestType.SetPermission:
+    if request_type == ResourceRequestType.AddPermission:
         if user_class < UserClass.Administrator:
             return serverlib.bad_request_json(ServerErrCode.InsufficientPermission)
         try:
@@ -801,9 +825,15 @@ def handle_request(request_user_id: int, request: dict):
             if not isinstance(p, int):
                 raise TypeError
             p = Permissions(request["permission"])
+            read_keys = request["read_keys"]
+            if not isinstance(read_keys, list):
+                raise TypeError
+            mod_keys = request["mod_keys"]
+            if not (isinstance(mod_keys, list) or mod_keys is None):
+                raise TypeError
         except (KeyError, TypeError, ValueError):
             return serverlib.bad_request_json(ServerErrCode.MalformedRequest)
-        return set_permission(user_id, leaderboard_id, p)
+        return add_permission(user_id, leaderboard_id, p, read_keys, mod_keys)
 
     # User: Remove User
     if request_type == ResourceRequestType.RemoveUser:
