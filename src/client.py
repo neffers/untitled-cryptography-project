@@ -895,7 +895,7 @@ def server_loop(res_ip, res_port):
         print("RS public key request failed")
         return
     global rs_pub
-    rs_pub: rsa.RSAPublicKey = serialization.load_ssh_public_key(rs_pub_serialized.encode())
+    rs_pub = serialization.load_ssh_public_key(rs_pub_serialized.encode())
     for rs in db["resource_servers"]:
         if rs["ip"] == res_ip and rs["port"] == res_port:
             if "rs_pub" in rs and rs["rs_pub"] != netlib.bytes_to_b64(
@@ -926,13 +926,14 @@ def server_loop(res_ip, res_port):
     signin_dict = {
         "identity": identity,
         "token": netlib.bytes_to_b64(token),
+        "client_public_key": netlib.bytes_to_b64(private_key.public_key()),
+        # TODO expiration goes here
     }
     signin_payload = cryptolib.encrypt_dict(aes_key, signin_dict)
     request = {
         "type": ResourceRequestType.Authenticate,
         "encrypted_key": netlib.bytes_to_b64(encrypted_key),
         "signin_payload": netlib.bytes_to_b64(signin_payload),
-        "client_public_key": netlib.bytes_to_b64(private_key.public_key())
     }
 
     print("Attempting login...")
@@ -942,15 +943,27 @@ def server_loop(res_ip, res_port):
     except BrokenPipeError:
         print("Resource Server Broke Pipe")
         return
-    if "nonce" not in response or response["nonce"] is None:
+    if response.get("none") is None:
         print("Password authentication failed!")
         return
+    if response.get("signature") is None:
+        print("Signature verification failed")
+        return
     encrypted_nonce = response["nonce"]
+    signature = response["signature"]
+    if not cryptolib.rsa_verify(rs_pub, signature, encrypted_nonce):
+        print("Signature verification failed")
+        return
     nonce = cryptolib.symmetric_decrypt(aes_key, netlib.b64_to_bytes(encrypted_nonce))
     nonce_plus_1 = netlib.int_to_bytes(netlib.bytes_to_int(nonce) + 1)
+    encrypted_nonce = cryptolib.symmetric_encrypt(aes_key, nonce_plus_1)
+    signature = cryptolib.rsa_sign(private_key, encrypted_nonce)
+    base64_nonce = netlib.bytes_to_b64(encrypted_nonce)
+    base64_signature = netlib.bytes_to_b64(signature)
     request = {
         "type": ResourceRequestType.NonceReply,
-        "nonce": netlib.bytes_to_b64(cryptolib.symmetric_encrypt(aes_key, nonce_plus_1)),
+        "nonce": base64_nonce,
+        "signature": base64_signature
     }
     netlib.send_dict_to_socket(request, sock)
     try:
