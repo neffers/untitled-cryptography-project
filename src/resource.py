@@ -14,7 +14,7 @@ import cryptolib
 import netlib
 from enums import ResourceRequestType, Permissions, UserClass, ServerErrCode
 
-client_public_key = bytes()
+client_public_key: rsa.RSAPublicKey
 
 
 def get_leaderboard_perms(userid: int) -> dict:
@@ -585,7 +585,7 @@ def remove_proof(request_user_id: int, user_perms: dict, file_id: int) -> dict:
     }
 
 
-def handle_request(request_user_id: int, request: dict, encrypted_request):
+def handle_request(request_user_id: int, request: dict):
     perms = get_leaderboard_perms(request_user_id)
     user_class = get_user_class(request_user_id)
     # Every request needs to have these
@@ -599,13 +599,6 @@ def handle_request(request_user_id: int, request: dict, encrypted_request):
     # Get public key
     if request_type == ResourceRequestType.PublicKey:
         return serverlib.public_key_response(public_key)
-
-    # check for signature if body request
-    check = cryptolib.rsa_verify(client_public_key, encrypted_request["signature"],
-                                 encrypted_request["encrypted_request"])
-    if check == False:
-        return "Invalid signature! Closing connection..."
-        # close connection (idk how)
 
     # Basic: List Leaderboards
     if request_type == ResourceRequestType.ListLeaderboards:
@@ -887,7 +880,8 @@ class Handler(socketserver.BaseRequestHandler):
             netlib.send_dict_to_socket(serverlib.bad_request_json(ServerErrCode.MalformedRequest), self.request)
             return
         global client_public_key
-        client_public_key = netlib.b64_to_bytes(request["client_public_key"])
+        client_public_key_bytes = netlib.b64_to_bytes(request["client_public_key"])
+        client_public_key = serialization.load_pem_public_key(client_public_key_bytes)
         encrypted_key = netlib.b64_to_bytes(request["encrypted_key"])
         aes_key = cryptolib.rsa_decrypt(private_key, encrypted_key)
         signin_payload = netlib.b64_to_bytes(request["signin_payload"])
@@ -914,10 +908,15 @@ class Handler(socketserver.BaseRequestHandler):
             print("Client Broke Pipe")
             return
         if not request["type"] == ResourceRequestType.NonceReply:
-            print("request type not a nonce reply, exiting")
+            print("Request type not a NonceReply, exiting")
             netlib.send_dict_to_socket(serverlib.bad_request_json(ServerErrCode.MalformedRequest), self.request)
             return
         encrypted_reply_nonce = netlib.b64_to_bytes(request["nonce"])
+        signature = request["signature"]
+        if not cryptolib.rsa_verify(client_public_key, signature, encrypted_reply_nonce):
+            # TODO we may want a new error code for this, up to jordan
+            netlib.send_dict_to_socket(serverlib.bad_request_json(ServerErrCode.AuthenticationFailure), self.request)
+            return
         reply_nonce = cryptolib.symmetric_decrypt(aes_key, encrypted_reply_nonce)
         if not netlib.bytes_to_int(nonce) + 1 == netlib.bytes_to_int(reply_nonce):
             print("Invalid nonce reply, exiting")
@@ -967,12 +966,16 @@ class Handler(socketserver.BaseRequestHandler):
                 return
             print("received {} from {}".format(request, self.client_address[0]))
             encrypted_request = netlib.b64_to_bytes(request["encrypted_request"])
-            real_request = cryptolib.decrypt_dict(aes_key, encrypted_request)
-            response = handle_request(socket_user_id, real_request, encrypted_request)
-            stdrep = netlib.bytes_to_b64(cryptolib.encrypt_dict(aes_key, response))
-            real_response = {"encrypted_response": stdrep, "signature": cryptolib.rsa_sign(private_key, stdrep)}
+            request = cryptolib.decrypt_dict(aes_key, encrypted_request)
+            if not cryptolib.rsa_verify(client_public_key, request["signature"], encrypted_request):
+                # TODO as above, maybe need a new error code for this
+                return serverlib.bad_request_json(ServerErrCode.AuthenticationFailure)
+            response = handle_request(socket_user_id, request)
+            response_bytes = cryptolib.encrypt_dict(aes_key, response)
+            base64_response = netlib.bytes_to_b64(response_bytes)
+            response = {"encrypted_response": base64_response, "signature": cryptolib.rsa_sign(private_key, response_bytes)}
             print("sending {} to {}".format(response, self.client_address[0]))
-            netlib.send_dict_to_socket(real_response, self.request)
+            netlib.send_dict_to_socket(response, self.request)
 
 
 # noinspection PyUnusedLocal

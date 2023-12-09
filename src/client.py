@@ -923,10 +923,13 @@ def server_loop(res_ip, res_port):
 
     aes_key = os.urandom(32)
     encrypted_key = cryptolib.rsa_encrypt(rs_pub, aes_key)
+    public_key = private_key.public_key()
+    public_key_bytes = public_key.public_bytes(encoding=serialization.Encoding.PEM,
+                                               format=serialization.PublicFormat.SubjectPublicKeyInfo)
     signin_dict = {
         "identity": identity,
         "token": netlib.bytes_to_b64(token),
-        "client_public_key": netlib.bytes_to_b64(private_key.public_key()),
+        "client_public_key": netlib.bytes_to_b64(public_key_bytes),
         # TODO expiration goes here
     }
     signin_payload = cryptolib.encrypt_dict(aes_key, signin_dict)
