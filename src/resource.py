@@ -56,6 +56,7 @@ def list_leaderboards_response(requesting_user_id: int):
     }
 
 
+# TODO T6
 def show_one_leaderboard_response(requesting_user_id: int, user_perms: dict, leaderboard_id: int):
     cursor = db.cursor()
     # make sure leaderboard should be visible by user
@@ -106,6 +107,7 @@ def show_one_leaderboard_response(requesting_user_id: int, user_perms: dict, lea
     }
 
 
+# TODO T6
 def add_leaderboard(new_lb_name: str, new_lb_asc: bool) -> dict:
     cur = db.cursor()
     new_lb_command = """
@@ -121,6 +123,7 @@ def add_leaderboard(new_lb_name: str, new_lb_asc: bool) -> dict:
     }
 
 
+# TODO T6
 def add_entry(requesting_user_id: int, user_perms: dict, leaderboard_id: int, entry_score: float, comment: str) -> dict:
     # error if leaderboard id doesn't exist
     try:
@@ -166,6 +169,7 @@ def list_users() -> dict:
     }
 
 
+# TODO T6
 def list_unverified(requesting_user_id: int, leaderboard_id: int) -> dict:
     cursor = db.cursor()
     list_unverified_command = """
@@ -190,6 +194,7 @@ def list_unverified(requesting_user_id: int, leaderboard_id: int) -> dict:
     }
 
 
+# TODO T6
 def get_entry(requesting_user_id: int, user_perms: dict, entry_id: int) -> dict:
     cursor = db.cursor()
     # Check permissions by first getting leaderboard id and then getting requesting user's perms for it
@@ -292,6 +297,7 @@ def get_user(requesting_user_id: int, user_id: int) -> dict:
     }
 
 
+# TODO T6
 def modify_verification(request_user_id: int, user_perms: dict, entry_id: int, verified: bool) -> dict:
     cur = db.cursor()
     get_entry_command = "select leaderboard from leaderboard_entries where id = ?"
@@ -320,6 +326,7 @@ def modify_verification(request_user_id: int, user_perms: dict, entry_id: int, v
     }
 
 
+# TODO T6
 def add_comment(request_user_id: int, user_perms: dict, entry_id: int, content: str) -> dict:
     cur = db.cursor()
     # Check permissions by first getting leaderboard id and then getting requesting user's perms for it
@@ -397,6 +404,7 @@ def view_permissions(user_id: int) -> dict:
     }
 
 
+# TODO T6
 def set_permission(user_id: int, leaderboard_id: int, p: Permissions) -> dict:
     cur = db.cursor()
     delete_old_permissions_command = """
@@ -456,6 +464,7 @@ def set_score_order(leaderboard_id: int, ascending: bool) -> dict:
     }
 
 
+# TODO T6
 def add_proof(request_user_id: int, entry_id: int, filename: str, file: bytes) -> dict:
     cur = db.cursor()
     get_submitter_command = """
@@ -485,6 +494,7 @@ def add_proof(request_user_id: int, entry_id: int, filename: str, file: bytes) -
     }
 
 
+# TODO T6
 def download_proof(request_user_id: int, user_perms: dict, file_id: int) -> dict:
     cur = db.cursor()
     # make sure the user should be able to see the associated entry
