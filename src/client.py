@@ -40,6 +40,36 @@ def print_err(type):
         print("Error: The current session has expired!")
 
 
+def decrypt_resource(encrypted_resource: dict) -> bytes:
+    """
+    {
+        resource: resource bytes
+        resource_symkey: symkey to decrypt resource, encrypted by client pubkey or mod pubkey
+        optional mod_privkey: {mod group private key in PEM format}mod group symmetric key
+        optional mod_symkey: {mod group symmetric key}client pubkey
+    }
+    """
+    resource = netlib.b64_to_bytes(encrypted_resource.get("resource"))
+    resource_symkey = netlib.b64_to_bytes(encrypted_resource.get("resource_symkey"))
+    mod_privkey = netlib.b64_to_bytes(encrypted_resource.get("mod_privkey"))
+    mod_symkey = netlib.b64_to_bytes(encrypted_resource.get("mod_symkey"))
+
+    if resource == None or resource_symkey == None:
+        return bytes()
+    if mod_privkey == None or mod_symkey == None:
+        # try to decrypt as client
+        resource_symkey = cryptolib.rsa_decrypt(private_key, resource_symkey)
+    else:
+        # try to decrypt as mod
+        mod_symkey = cryptolib.rsa_decrypt(private_key, mod_symkey)
+        mod_privkey = cryptolib.symmetric_decrypt(mod_symkey, mod_privkey)
+        mod_privkey = serialization.load_pem_private_key(mod_privkey, None)
+        resource_symkey = cryptolib.rsa_decrypt(mod_privkey, resource_symkey)
+
+    resource = cryptolib.symmetric_decrypt(resource_symkey, resource)
+    return resource
+
+
 class Request:
     def __init__(self, request: dict):
         self.request = request
