@@ -419,6 +419,7 @@ def do_view_permissions(user_id):
 
 
 def do_set_permission(user_id):
+    # TODO modify keys
     leaderboard_id = input("Enter the leaderboard id where the permission will be changed: ")
     if not leaderboard_id.isdigit():
         print("Invalid input, please enter an integer")
@@ -493,6 +494,7 @@ def do_get_entry(entry_id):
 
 
 def do_add_proof(entry_id):
+    # TODO encrypt
     filename = input("Enter name of local file to upload: ")
     try:
         with open(filename, 'rb') as file:
@@ -561,12 +563,14 @@ def do_view_comments(entry_id):
 
 
 def do_add_comment(entry_id):
+    # TODO encrypt
     content = input("Enter your comment to the entry: ")
     request = AddCommentRequest(entry_id, content)
     request.safe_print(request.make_request())
 
 
 def do_modify_entry_verification(entry_id, verify):
+    # TODO re encrypt
     request = ModifyEntryVerificationRequest(entry_id, verify)
     request.safe_print(request.make_request())
 
@@ -653,6 +657,7 @@ def do_list_unverified(leaderboard_id):
 
 
 def do_add_entry(leaderboard_id):
+    # TODO encrypt
     score = input("Enter your score: ")
     try:
         score = float(score)
