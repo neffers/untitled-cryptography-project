@@ -134,11 +134,10 @@ class ShowLeaderboardsRequest(Request):
 
 
 class CreateLeaderboardRequest(Request):
-    def __init__(self, leaderboard_name, leaderboard_permission, leaderboard_ascending):
+    def __init__(self, leaderboard_name, leaderboard_ascending):
         super().__init__({
             "type": ResourceRequestType.CreateLeaderboard,
             "leaderboard_name": leaderboard_name,
-            "leaderboard_permission": leaderboard_permission,
             "leaderboard_ascending": leaderboard_ascending,
         })
 
