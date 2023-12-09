@@ -880,24 +880,24 @@ class Handler(socketserver.BaseRequestHandler):
             netlib.send_dict_to_socket(serverlib.bad_request_json(ServerErrCode.MalformedRequest), self.request)
             return
         global client_public_key
-        client_public_key_bytes = netlib.b64_to_bytes(request["client_public_key"])
-        client_public_key = serialization.load_pem_public_key(client_public_key_bytes)
         encrypted_key = netlib.b64_to_bytes(request["encrypted_key"])
         aes_key = cryptolib.rsa_decrypt(private_key, encrypted_key)
         signin_payload = netlib.b64_to_bytes(request["signin_payload"])
         signin_request = cryptolib.decrypt_dict(aes_key, signin_payload)
         socket_identity = signin_request["identity"]
         token = netlib.b64_to_bytes(signin_request["token"])
+        client_public_key_bytes = netlib.b64_to_bytes(signin_request["pubkey"])
+        client_public_key = serialization.load_pem_public_key(client_public_key_bytes)
         if not cryptolib.rsa_verify_str(auth_public_key, token, socket_identity):
             print("Invalid login token, exiting")
             netlib.send_dict_to_socket(serverlib.bad_request_json(ServerErrCode.AuthenticationFailure), self.request)
             return
-        nonce = os.urandom(32)
-        encrypted_nonce = cryptolib.symmetric_encrypt(aes_key, nonce)
-        response = {"nonce": netlib.bytes_to_b64(encrypted_nonce)}
-        netlib.send_dict_to_socket(response, self.request)
 
         # verification
+        nonce = os.urandom(32)
+        encrypted_nonce = cryptolib.symmetric_encrypt(aes_key, nonce)
+        response = {"nonce": netlib.bytes_to_b64(encrypted_nonce), "signature": netlib.bytes_to_b64(cryptolib.rsa_sign(private_key, encrypted_nonce))}
+        netlib.send_dict_to_socket(response, self.request)
         try:
             request = netlib.get_dict_from_socket(self.request)
         except socket.timeout:
@@ -912,9 +912,10 @@ class Handler(socketserver.BaseRequestHandler):
             netlib.send_dict_to_socket(serverlib.bad_request_json(ServerErrCode.MalformedRequest), self.request)
             return
         encrypted_reply_nonce = netlib.b64_to_bytes(request["nonce"])
-        signature = request["signature"]
+        signature = netlib.b64_to_bytes(request["signature"])
         if not cryptolib.rsa_verify(client_public_key, signature, encrypted_reply_nonce):
             # TODO we may want a new error code for this, up to jordan
+            print("Signature verification failed")
             netlib.send_dict_to_socket(serverlib.bad_request_json(ServerErrCode.AuthenticationFailure), self.request)
             return
         reply_nonce = cryptolib.symmetric_decrypt(aes_key, encrypted_reply_nonce)
@@ -966,14 +967,14 @@ class Handler(socketserver.BaseRequestHandler):
                 return
             print("received {} from {}".format(request, self.client_address[0]))
             encrypted_request = netlib.b64_to_bytes(request["encrypted_request"])
-            request = cryptolib.decrypt_dict(aes_key, encrypted_request)
-            if not cryptolib.rsa_verify(client_public_key, request["signature"], encrypted_request):
+            if not cryptolib.rsa_verify(client_public_key, netlib.b64_to_bytes(request["signature"]), encrypted_request):
                 # TODO as above, maybe need a new error code for this
                 return serverlib.bad_request_json(ServerErrCode.AuthenticationFailure)
+            request = cryptolib.decrypt_dict(aes_key, encrypted_request)
             response = handle_request(socket_user_id, request)
             response_bytes = cryptolib.encrypt_dict(aes_key, response)
             base64_response = netlib.bytes_to_b64(response_bytes)
-            response = {"encrypted_response": base64_response, "signature": cryptolib.rsa_sign(private_key, response_bytes)}
+            response = {"encrypted_response": base64_response, "signature": netlib.bytes_to_b64(cryptolib.rsa_sign(private_key, response_bytes))}
             print("sending {} to {}".format(response, self.client_address[0]))
             netlib.send_dict_to_socket(response, self.request)
 

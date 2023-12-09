@@ -62,7 +62,8 @@ class Request:
                 return dict_response
 
         # handle bad signature
-        if not cryptolib.rsa_verify(rs_pub, dict_response.get("signature"), dict_response.get("encrypted_response")):
+        if not cryptolib.rsa_verify(rs_pub, netlib.b64_to_bytes(dict_response.get("signature")),
+                                    netlib.b64_to_bytes(dict_response.get("encrypted_response"))):
             response = {
                 "success": False,
                 "data": "Invalid signature"
@@ -928,7 +929,7 @@ def server_loop(res_ip, res_port):
     signin_dict = {
         "identity": identity,
         "token": netlib.bytes_to_b64(token),
-        "client_public_key": netlib.bytes_to_b64(public_key_bytes),
+        "pubkey": netlib.bytes_to_b64(public_key_bytes),
         # TODO expiration goes here
     }
     signin_payload = cryptolib.encrypt_dict(aes_key, signin_dict)
@@ -945,18 +946,18 @@ def server_loop(res_ip, res_port):
     except BrokenPipeError:
         print("Resource Server Broke Pipe")
         return
-    if response.get("none") is None:
+    if response.get("nonce") is None:
         print("Password authentication failed!")
         return
     if response.get("signature") is None:
         print("Signature verification failed")
         return
-    encrypted_nonce = response["nonce"]
-    signature = response["signature"]
+    encrypted_nonce = netlib.b64_to_bytes(response["nonce"])
+    signature = netlib.b64_to_bytes(response["signature"])
     if not cryptolib.rsa_verify(rs_pub, signature, encrypted_nonce):
         print("Signature verification failed")
         return
-    nonce = cryptolib.symmetric_decrypt(aes_key, netlib.b64_to_bytes(encrypted_nonce))
+    nonce = cryptolib.symmetric_decrypt(aes_key,encrypted_nonce)
     nonce_plus_1 = netlib.int_to_bytes(netlib.bytes_to_int(nonce) + 1)
     encrypted_nonce = cryptolib.symmetric_encrypt(aes_key, nonce_plus_1)
     signature = cryptolib.rsa_sign(private_key, encrypted_nonce)
