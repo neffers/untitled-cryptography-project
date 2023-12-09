@@ -11,11 +11,17 @@ import os
 import netlib
 import cryptolib
 from enums import AuthRequestType, ResourceRequestType, Permissions, ServerErrCode
+import serverlib
 
 identity: str = ""
 token: bytes = bytes()
 sock: socket.socket = socket.socket()
 session_key: bytes = bytes()
+
+key_filename = str()
+private_key = bytes()
+rs_pub = bytes()
+counter = 0
 
 # formatting lookup tables
 perms = ["No Access", "Read Access", "Write Access", "Mod", "Admin"]
@@ -39,13 +45,22 @@ class Request:
 
     def make_request(self) -> dict:
         request = self.request
-        encrypted_request = {"encrypted_request": netlib.bytes_to_b64(cryptolib.encrypt_dict(session_key, request))}
+        stdreq = netlib.bytes_to_b64(cryptolib.encrypt_dict(session_key, request))
+        signature = cryptolib.rsa_sign(private_key, stdreq)
+        encrypted_request = {"encrypted_request": stdreq,
+                             "signature": signature}
         netlib.send_dict_to_socket(encrypted_request, sock)
         encrypted_response = netlib.get_dict_from_socket(sock)
         if encrypted_response.get("encrypted_response") is None:
             # handle plaintext timeout message
             if encrypted_response.get("success") is not None and encrypted_response.get("data") == ServerErrCode.SessionExpired:
                 return encrypted_response
+            
+        # handle bad signature
+        check = cryptolib.rsa_verify(rs_pub, encrypted_response.get("signature"), encrypted_response.get("encrypted_response"))
+        if check == False:
+            return "Invalid signature! Closing connection..."
+            # close connection (idk how)
                 
         response = cryptolib.decrypt_dict(session_key, netlib.b64_to_bytes(encrypted_response["encrypted_response"]))
         return response
@@ -850,6 +865,12 @@ def server_loop(res_ip, res_port):
     print("Connection successful.")
     identity = input("Enter identity: ")
     password = input("Enter password: ")
+
+    global key_filename
+    global private_key
+    key_filename = "client_"+identity+"_private_key"
+    private_key = serverlib.initialize_key(key_filename)
+
     try:
         token = request_token(password, as_pub)
     except BrokenPipeError:
@@ -873,7 +894,7 @@ def server_loop(res_ip, res_port):
     print("Connection successful.")
 
     request = {
-        "type": ResourceRequestType.PublicKey
+        "type": ResourceRequestType.PublicKey 
     }
     netlib.send_dict_to_socket(request, sock)
     try:
@@ -886,6 +907,7 @@ def server_loop(res_ip, res_port):
     else:
         print("RS public key request failed")
         return
+    global rs_pub
     rs_pub: rsa.RSAPublicKey = serialization.load_ssh_public_key(rs_pub_serialized.encode())
     for rs in db["resource_servers"]:
         if rs["ip"] == res_ip and rs["port"] == res_port:
@@ -923,6 +945,7 @@ def server_loop(res_ip, res_port):
         "type": ResourceRequestType.Authenticate,
         "encrypted_key": netlib.bytes_to_b64(encrypted_key),
         "signin_payload": netlib.bytes_to_b64(signin_payload),
+        "client_public_key": netlib.bytes_to_b64(private_key.public_key())
     }
 
     print("Attempting login...")
