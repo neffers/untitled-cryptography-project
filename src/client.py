@@ -18,8 +18,8 @@ sock: socket.socket = socket.socket()
 session_key: bytes = bytes()
 
 key_filename = str()
-private_key = bytes()
-rs_pub = bytes()
+private_key: rsa.RSAPrivateKey
+rs_pub: rsa.RSAPublicKey
 counter = 0
 
 # formatting lookup tables
@@ -44,24 +44,30 @@ class Request:
 
     def make_request(self) -> dict:
         request = self.request
-        stdreq = netlib.bytes_to_b64(cryptolib.encrypt_dict(session_key, request))
-        signature = cryptolib.rsa_sign(private_key, stdreq)
-        encrypted_request = {"encrypted_request": stdreq,
-                             "signature": signature}
+        encrypted_bytes = cryptolib.encrypt_dict(session_key, request)
+        signature = cryptolib.rsa_sign(private_key, encrypted_bytes)
+        base64_request = netlib.bytes_to_b64(encrypted_bytes)
+        base64_signature = netlib.bytes_to_b64(signature)
+        encrypted_request = {"encrypted_request": base64_request,
+                             "signature": base64_signature}
         netlib.send_dict_to_socket(encrypted_request, sock)
-        encrypted_response = netlib.get_dict_from_socket(sock)
-        if encrypted_response.get("encrypted_response") is None:
+
+        dict_response = netlib.get_dict_from_socket(sock)
+        if dict_response.get("encrypted_response") is None:
             # handle plaintext timeout message
-            if encrypted_response.get("success") is not None and encrypted_response.get("data") == ServerErrCode.SessionExpired:
-                return encrypted_response
-            
+            if dict_response.get("success") is not None and dict_response.get(
+                    "data") == ServerErrCode.SessionExpired:
+                return dict_response
+
         # handle bad signature
-        check = cryptolib.rsa_verify(rs_pub, encrypted_response.get("signature"), encrypted_response.get("encrypted_response"))
-        if check == False:
-            return "Invalid signature! Closing connection..."
-            # close connection (idk how)
-                
-        response = cryptolib.decrypt_dict(session_key, netlib.b64_to_bytes(encrypted_response["encrypted_response"]))
+        if not cryptolib.rsa_verify(rs_pub, dict_response.get("signature"), dict_response.get("encrypted_response")):
+            response = {
+                "success": False,
+                "data": "Invalid signature"
+            }
+            return response
+
+        response = cryptolib.decrypt_dict(session_key, netlib.b64_to_bytes(dict_response["encrypted_response"]))
         return response
 
     def safe_print(self, response: dict) -> None:
