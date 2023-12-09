@@ -464,8 +464,7 @@ def set_score_order(leaderboard_id: int, ascending: bool) -> dict:
     }
 
 
-# TODO T6
-def add_proof(request_user_id: int, entry_id: int, filename: str, file: bytes) -> dict:
+def add_proof(request_user_id: int, entry_id: int, filename: str, file: bytes, uploader_key: bytes, mod_key: bytes, mod_key_ver: int) -> dict:
     cur = db.cursor()
     get_submitter_command = """
         select user
@@ -483,9 +482,10 @@ def add_proof(request_user_id: int, entry_id: int, filename: str, file: bytes) -
         return serverlib.bad_request_json(ServerErrCode.InsufficientPermission)
 
     add_file_command = """
-        insert into files (entry, name, submission_date, data) values (?, ?, strftime('%s'), ?)
+        insert into files (entry, name, submission_date, data, uploader_key, mod_key, mod_key_ver)
+        values (?, ?, strftime('%s'), ?, ?, ?, ?)
     """
-    add_file_params = (entry_id, filename, file)
+    add_file_params = (entry_id, filename, file, uploader_key, mod_key, mod_key_ver)
     cur.execute(add_file_command, add_file_params)
     db.commit()
     return {
@@ -839,10 +839,15 @@ def handle_request(request_user_id: int, request: dict):
             filename = request["filename"]
             if not isinstance(filename, str):
                 raise TypeError
+            uploader_key = netlib.b64_to_bytes(request["uploader_key"])
+            mod_key = netlib.b64_to_bytes(request["mod_key"])
+            mod_key_ver = request["mod_key_ver"]
+            if not isinstance(mod_key_ver, int):
+                raise TypeError
             file = netlib.b64_to_bytes(request["file"])
         except (KeyError, TypeError):
             return serverlib.bad_request_json(ServerErrCode.MalformedRequest)
-        return add_proof(request_user_id, entry_id, filename, file)
+        return add_proof(request_user_id, entry_id, filename, file, uploader_key, mod_key, mod_key_ver)
 
     # Entry: Download Proof
     if request_type == ResourceRequestType.DownloadProof:
