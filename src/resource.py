@@ -573,6 +573,33 @@ def remove_proof(request_user_id: int, user_perms: dict, file_id: int) -> dict:
     }
 
 
+def get_keys(user_id: int, lb_id: int) -> dict:
+    cur = db.cursor()
+    get_mod_keys_command = """
+        select version, encrypted_key
+        from read_keys
+        where user = ? and leaderboard = ?
+    """
+    get_mod_keys_params = (user_id, lb_id)
+    cur.execute(get_mod_keys_command, get_mod_keys_params)
+    mod_keys = cur.fetchall()
+    get_read_keys_command = """
+        select version, encrypted_priv_key, encrypted_sym_key
+        from mod_keys
+        where user = ? and leaderboard = ?
+    """
+    get_read_keys_params = (user_id, lb_id)
+    cur.execute(get_read_keys_command, get_read_keys_params)
+    read_keys = cur.fetchall()
+    return {
+        "success": True,
+        "data": {
+            "read": read_keys,
+            "mod": mod_keys
+        }
+    }
+
+
 def handle_request(request_user_id: int, request: dict):
     perms = get_leaderboard_perms(request_user_id)
     user_class = get_user_class(request_user_id)
@@ -834,6 +861,18 @@ def handle_request(request_user_id: int, request: dict):
         except (KeyError, TypeError):
             return serverlib.bad_request_json(ServerErrCode.MalformedRequest)
         return remove_proof(request_user_id, perms, file_id)
+
+    if request_type == ResourceRequestType.GetKeys:
+        try:
+            user_id = request["user_id"]
+            if not isinstance(user_id, int):
+                raise TypeError
+            lb_id = request["leaderboard_id"]
+            if not isinstance(lb_id, int):
+                raise TypeError
+        except (KeyError, TypeError):
+            return serverlib.bad_request_json(ServerErrCode.MalformedRequest)
+        return get_keys(user_id, lb_id)
 
 
 class Handler(socketserver.BaseRequestHandler):

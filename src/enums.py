@@ -17,6 +17,7 @@ class ResourceRequestType(IntEnum):
     CreateLeaderboard = auto()
     DownloadProof = auto()
     GetEntry = auto()
+    GetKeys = auto()
     GetSelfID = auto()
     ListAccessGroups = auto()
     ListLeaderboards = auto()
