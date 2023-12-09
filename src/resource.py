@@ -494,7 +494,6 @@ def add_proof(request_user_id: int, entry_id: int, filename: str, file: bytes) -
     }
 
 
-# TODO T6
 def download_proof(request_user_id: int, user_perms: dict, file_id: int) -> dict:
     cur = db.cursor()
     # make sure the user should be able to see the associated entry
@@ -519,16 +518,23 @@ def download_proof(request_user_id: int, user_perms: dict, file_id: int) -> dict
         return serverlib.bad_request_json(ServerErrCode.InsufficientPermission)
 
     get_file_command = """
-        select data
+        select data, uploader_key, mod_key, mod_key_ver, read_key_ver
         from files
         where id = ?
     """
     get_file_params = (file_id,)
     cur.execute(get_file_command, get_file_params)
-    (file,) = cur.fetchone()
+    (file, uploader_key, mod_key, mod_key_ver, read_key_ver) = cur.fetchone()
+    return_dict = {
+        "file": netlib.bytes_to_b64(file),
+        "uploader_key": netlib.bytes_to_b64(uploader_key),
+        "mod_key": netlib.bytes_to_b64(mod_key),
+        "mod_key_ver": mod_key_ver,
+        "read_key_ver": read_key_ver
+    }
     return {
         "success": True,
-        "data": netlib.bytes_to_b64(file)
+        "data": return_dict
     }
 
 
