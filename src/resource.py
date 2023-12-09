@@ -983,25 +983,48 @@ if __name__ == "__main__":
             id INTEGER PRIMARY KEY,
             identity TEXT UNIQUE NOT NULL,
             class INTEGER NOT NULL,
-            registration_date INTEGER NOT NULL
+            registration_date INTEGER NOT NULL,
+            pub_key BLOB NOT NULL
         );
         CREATE TABLE leaderboards (
             id INTEGER PRIMARY KEY,
             name TEXT NOT NULL,
             creation_date INTEGER NOT NULL,
-            ascending BOOLEAN NOT NULL
+            ascending BOOLEAN NOT NULL,
+            mod_pubkey BLOB NOT NULL,
+            read_key_version INTEGER NOT NULL,
+            mod_key_version INTEGER NOT NULL
         );
         CREATE TABLE permissions (
-            user INTEGER NOT NULL REFERENCES users(id),
+            id INTEGER PRIMARY KEY,
+            user INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
             leaderboard INTEGER NOT NULL REFERENCES  leaderboards(id) ON DELETE CASCADE,
             permission INTEGER NOT NULL,
             change_date INTEGER NOT NULL
+        );
+        CREATE TABLE read_keys (
+            user INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            leaderboard INTEGER NOT NULL REFERENCES leaderboards(id) ON DELETE CASCADE,
+            associated_perm INTEGER NOT NULL REFERENCES permissions(id) ON DELETE CASCADE,
+            version INTEGER NOT NULL,
+            encrypted_key BLOB NOT NULL
+        );
+        CREATE TABLE mod_keys (
+            user INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            leaderboard INTEGER NOT NULL REFERENCES leaderboards(id) ON DELETE CASCADE,
+            associated_perm INTEGER NOT NULL REFERENCES permissions(id) ON DELETE CASCADE,
+            version INTEGER NOT NULL,
+            encrypted_key BLOB NOT NULL
         );
         CREATE TABLE leaderboard_entries (
             id INTEGER PRIMARY KEY,
             user INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
             leaderboard INTEGER NOT NULL REFERENCES leaderboards(id) ON DELETE CASCADE,
-            score REAL NOT NULL,
+            score BLOB NOT NULL,
+            uploader_key BLOB,
+            mod_key BLOB,
+            mod_key_ver INTEGER,
+            read_key_ver INTEGER,
             submission_date INTEGER NOT NULL,
             verified INTEGER NOT NULL,
             verification_date INTEGER,
@@ -1012,14 +1035,22 @@ if __name__ == "__main__":
             user INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
             entry INTEGER NOT NULL REFERENCES leaderboard_entries(id) ON DELETE CASCADE,
             date INTEGER NOT NULL,
-            content TEXT NOT NULL
+            content BLOB NOT NULL,
+            uploader_key BLOB,
+            mod_key BLOB,
+            mod_key_ver INTEGER,
+            read_key_ver INTEGER,
         );
         CREATE TABLE files (
             id INTEGER PRIMARY KEY,
             entry INTEGER NOT NULL REFERENCES leaderboard_entries(id) ON DELETE CASCADE,
             name TEXT NOT NULL,
             submission_date INTEGER NOT NULL,
-            data BLOB NOT NULL
+            data BLOB NOT NULL,
+            uploader_key BLOB,
+            mod_key BLOB,
+            mod_key_ver INTEGER,
+            read_key_ver INTEGER,
         );
     """
 
