@@ -234,6 +234,8 @@ class ListUnverifiedRequest(Request):
         print("{:<9}{:<8}{:<21.21}{:<15}{:<20}".format("Entry ID", "User ID", "Username", "Score", "Date"))
         for entry in response["data"]:
             date = datetime.fromtimestamp(entry[4])
+            entry[3] = decrypt_resource(entry[3])
+            entry[3] = netlib.bytes_to_int(entry[3])
             print("{:<9}{:<8}{:<21.21}{:<15}{:<20}".format(entry[0], entry[1], entry[2], entry[3], str(date)))
 
 
@@ -246,6 +248,8 @@ class GetEntryRequest(Request):
 
     def print_response(self, response):
         entry = response["data"]["entry"]
+        entry[3] = decrypt_resource(entry[3])
+        entry[3] = netlib.bytes_to_int(entry[3])
         print("{:<9}{:<8}{:<21.21}{:<15}{:<20}{:<9}{:<7}{:<21.21}"
               .format("Entry ID", "User ID", "Username", "Score", "Date", "Verified", "Mod ID", "Mod Name"))
         date = datetime.fromtimestamp(entry[4])
@@ -306,6 +310,8 @@ class ViewUserRequest(Request):
               .format("ID", "LB ID", "Score", "Verified", "Registration Date"))
         for entry in entries:
             date = datetime.fromtimestamp(entry[4])
+            entry[2] = decrypt_resource(entry[2])
+            entry[2] = netlib.bytes_to_int(entry[2])
             print("{:<4}{:<5}{:<15}{:<9}{:<20}"
                   .format(entry[0], entry[1], entry[2], bools[entry[3]], str(date)))
 
@@ -323,6 +329,8 @@ class OneLeaderboardRequest(Request):
               .format("Entry ID", "User ID", "Username", "Score", "Date", "Verified"))
         for entry in response["data"]["entries"]:
             date = datetime.fromtimestamp(entry[4])
+            entry[3] = decrypt_resource(entry[3])
+            entry[3] = netlib.bytes_to_int(entry[3])
             print("{:<9}{:<8}{:<21.21}{:<15}{:<20}{:<6}"
                   .format(entry[0], entry[1], entry[2], entry[3], str(date), bools[entry[5]]))
 
@@ -513,7 +521,8 @@ def do_get_proof():
                 return
             if response["success"]:
                 data = response["data"]
-                file.write(base64.b64decode(data))
+                data = decrypt_resource(data)
+                file.write(data)
                 print("Operation successful.")
             else:
                 print(response["data"])
@@ -544,6 +553,8 @@ def do_view_comments(entry_id):
         print("{:<21.21}{:<20}{}".format("Commenter", "Date", "Comment"))
         for comment in comments:
             date = datetime.fromtimestamp(comment[1])
+            comment[2] = decrypt_resource(comment[2])
+            comment[2] = comment[2].decode()
             print("{:<21.21}{:<20}{}".format(comment[0], str(date), comment[2]))
     else:
         print(response["data"])
