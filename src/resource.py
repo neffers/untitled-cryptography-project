@@ -110,12 +110,13 @@ def show_one_leaderboard_response(requesting_user_id: int, user_perms: dict, lea
     }
 
 
-def add_leaderboard(new_lb_name: str, new_lb_perm: Permissions, new_lb_asc: bool) -> dict:
+def add_leaderboard(new_lb_name: str, new_lb_asc: bool) -> dict:
     cur = db.cursor()
     new_lb_command = """
         insert into leaderboards(name, creation_date, default_permission, ascending) values(?, strftime('%s'), ?, ?)
     """
-    new_lb_params = (new_lb_name, new_lb_perm, new_lb_asc)
+    # TODO jordan should just remove the permission column but this hack works for now.
+    new_lb_params = (new_lb_name, Permissions.NoAccess, new_lb_asc)
     cur.execute(new_lb_command, new_lb_params)
     db.commit()
     new_lb_id = cur.lastrowid
@@ -629,16 +630,12 @@ def handle_request(request_user_id: int, request: dict, encrypted_request):
             new_lb_name = request["leaderboard_name"]
             if not isinstance(new_lb_name, str):
                 raise TypeError
-            new_lb_perm = request["leaderboard_permission"]
-            if not isinstance(new_lb_perm, int):
-                raise TypeError
-            new_lb_perm = Permissions(new_lb_perm)
             new_lb_asc = request["leaderboard_ascending"]
             if not isinstance(new_lb_asc, bool):
                 raise TypeError
         except (KeyError, TypeError, ValueError):
             return serverlib.bad_request_json(ServerErrCode.MalformedRequest)
-        return add_leaderboard(new_lb_name, new_lb_perm, new_lb_asc)
+        return add_leaderboard(new_lb_name, new_lb_asc)
 
     # Leaderboard: Submit Entry
     if request_type == ResourceRequestType.AddEntry:

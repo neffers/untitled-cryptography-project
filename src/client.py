@@ -586,32 +586,13 @@ def do_show_leaderboards():
 
 def do_create_leaderboard():
     leaderboard_name = input("Enter the name for the new leaderboard: ")
-    leaderboard_permission = input(
-        "[0] None\n"
-        "[1] Read\n"
-        "[2] Write\n"
-        "[3] Moderator\n"
-        "Enter default permissions for leaderboard: ")
-    if not leaderboard_permission.isdigit() or int(leaderboard_permission) > 3:
-        print("Invalid input, please enter an integer listed above")
-        return
-    leaderboard_permission = int(leaderboard_permission)
-    if leaderboard_permission == 0:
-        leaderboard_permission = Permissions.NoAccess
-    elif leaderboard_permission == 1:
-        leaderboard_permission = Permissions.Read
-    elif leaderboard_permission == 2:
-        leaderboard_permission = Permissions.Write
-    elif leaderboard_permission == 3:
-        leaderboard_permission = Permissions.Moderate
     leaderboard_ascending = input("Score ascending [1] or descending [2]: ")
     if not leaderboard_ascending.isdigit() or int(leaderboard_ascending) > 2 \
             or int(leaderboard_ascending) < 1:
         print("Invalid input, please enter an integer listed")
         return
     leaderboard_ascending = int(leaderboard_ascending) == 1
-    request = CreateLeaderboardRequest(leaderboard_name, leaderboard_permission,
-                                       leaderboard_ascending)
+    request = CreateLeaderboardRequest(leaderboard_name, leaderboard_ascending)
     request.safe_print(request.make_request())
 
 
