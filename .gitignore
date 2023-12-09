@@ -8,3 +8,4 @@ venv
 **/auth_private_key
 **/auth_public_key
 **/res_private_key
+**/client_*_private_key
