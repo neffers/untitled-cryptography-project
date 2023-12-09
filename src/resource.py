@@ -456,6 +456,77 @@ def add_permission(user_id: int, leaderboard_id: int, p: Permissions, read_keys:
     }
 
 
+def remove_permission(user_id: int, leaderboard_id: int, new_read_keys: dict, new_mod_pubkey: Union[bytes, None],
+                      new_mod_keys: Union[dict, None]) -> dict:
+    update_mod = False
+    cur = db.cursor()
+    get_perm_command = """
+    select permission from permissions
+    where user_id = ? and leaderboard = ?
+    """
+    get_perm_params = (user_id, leaderboard_id)
+    cur.execute(get_perm_command, get_perm_params)
+    (old_perm,) = cur.fetchone()
+    if old_perm == Permissions.Moderate and (new_mod_pubkey is None or new_mod_keys is None):
+        return serverlib.bad_request_json(ServerErrCode.MalformedRequest)
+    if old_perm == Permissions.Moderate:
+        update_mod = True
+
+    delete_permission_command = """
+    delete from permissions
+    where user_id = ? and leaderboard = ?
+    """
+    delete_permission_params = (user_id, leaderboard_id)
+    cur.execute(delete_permission_command, delete_permission_params)
+
+    get_current_key_versions_command = """
+    select read_key_version, mod_pubkey, mod_key_version
+    from leaderboards
+    where id = ?
+    """
+    get_current_key_versions_params = (leaderboard_id,)
+    cur.execute(get_current_key_versions_command, get_current_key_versions_params)
+    (read_key_ver, mod_pubkey, mod_key_ver) = cur.fetchone()
+    read_key_ver += 1
+
+    add_new_read_perms_command = """
+    insert into read_keys(user, leaderboard, associated_perm, version, encrypted_key)
+    select ?, ?, associated_perm, ?, ?
+    from read_keys
+    where user = ? and leaderboard = ?
+    """
+    for user in new_read_keys:
+        add_new_read_perms_params = (user, leaderboard_id, read_key_ver, new_read_keys[user], user, leaderboard_id)
+        cur.execute(add_new_read_perms_command, add_new_read_perms_params)
+
+    if update_mod:
+        mod_pubkey = new_mod_pubkey
+        mod_key_ver += 1
+        add_new_mod_perms_command = """
+        insert into mod_keys (user, leaderboard, associated_perm, version, encrypted_sym_key, encrypted_priv_key)
+        select ?, ?, associated_perm, ?, ?, ?
+        from mod_keys
+        where user = ? and leaderboard = ?
+        """
+        for user in new_mod_keys:
+            add_new_mod_perms_params = (user, leaderboard_id, mod_key_ver, new_mod_keys[user][0], new_mod_keys[user][1], user, leaderboard_id)
+            cur.execute(add_new_mod_perms_command, add_new_mod_perms_params)
+
+    update_leaderboard_command = """
+    update leaderboards
+    set read_key_version = ?, mod_pubkey = ?, mod_key_version = ?
+    where id = ?
+    """
+    update_leaderboard_params = (read_key_ver, mod_pubkey, mod_key_ver, leaderboard_id)
+    cur.execute(update_leaderboard_command, update_leaderboard_params)
+    db.commit()
+
+    return {
+        "success": True,
+        "data": None
+    }
+
+
 def remove_user(user_id: int) -> dict:
     cur = db.cursor()
     delete_user_command = """
@@ -834,6 +905,29 @@ def handle_request(request_user_id: int, request: dict):
         except (KeyError, TypeError, ValueError):
             return serverlib.bad_request_json(ServerErrCode.MalformedRequest)
         return add_permission(user_id, leaderboard_id, p, read_keys, mod_keys)
+
+    if request_type == ResourceRequestType.RemovePermission:
+        if user_class < UserClass.Administrator:
+            return serverlib.bad_request_json(ServerErrCode.InsufficientPermission)
+        try:
+            user_id = request["user_id"]
+            if not isinstance(user_id, int):
+                raise TypeError
+            leaderboard_id = request["leaderboard_id"]
+            if not isinstance(leaderboard_id, int):
+                raise TypeError
+            new_read_keys = request["new_read_keys"]
+            if not isinstance(new_read_keys, dict):
+                raise TypeError
+            new_mod_pub_key = request["new_mod_pubkey"]
+            if new_mod_pub_key is not None:
+                netlib.b64_to_bytes(new_mod_pub_key)
+            new_mod_keys = request["new_mod_keys"]
+            if not (isinstance(new_mod_keys, dict) or new_mod_keys is None):
+                raise TypeError
+        except (KeyError, TypeError):
+            return serverlib.bad_request_json(ServerErrCode.MalformedRequest)
+        return remove_permission(user_id, leaderboard_id, new_read_keys, new_mod_pub_key, new_mod_keys)
 
     # User: Remove User
     if request_type == ResourceRequestType.RemoveUser:

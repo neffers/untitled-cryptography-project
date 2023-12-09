@@ -27,6 +27,7 @@ class ResourceRequestType(IntEnum):
     ModifyEntryVerification = auto()
     RemoveEntry = auto()
     RemoveLeaderboard = auto()
+    RemovePermission = auto()
     RemoveProof = auto()
     RemoveUser = auto()
     ShowOneLeaderboard = auto()
