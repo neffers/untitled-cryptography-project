@@ -20,12 +20,11 @@ client_public_key: rsa.RSAPublicKey
 def get_leaderboard_perms(userid: int) -> dict:
     cur = db.cursor()
     get_perm_command = """
-        select l.id, max(l.default_permission, coalesce(p.permission, 0), class) as perm
+        select l.id, coalesce(p.permission, 0) as perm
         from leaderboards l
             left join (select * from permissions where user = ?) p on l.id = p.leaderboard
-            inner join (select class from users where id = ?)
     """
-    get_perm_params = (userid, userid)
+    get_perm_params = (userid,)
     cur.execute(get_perm_command, get_perm_params)
     perm_tuples = cur.fetchall()
     return {entry[0]: entry[1] for entry in perm_tuples}
@@ -43,13 +42,12 @@ def get_user_class(userid: int) -> UserClass:
 def list_leaderboards_response(requesting_user_id: int):
     cursor = db.cursor()
     get_leaderboards_command = """
-        select l.id, l.name, max(l.default_permission, coalesce(p.permission, 0), class) as perm
+        select l.id, l.name, coalesce(p.permission, 0) as perm
         from leaderboards l
             left join (select * from permissions where user = ?) p on l.id = p.leaderboard
-            inner join (select class from users where id = ?)
         where perm >= ?
     """
-    get_leaderboards_params = (requesting_user_id, requesting_user_id, Permissions.Read)
+    get_leaderboards_params = (requesting_user_id, Permissions.Read)
     cursor.execute(get_leaderboards_command, get_leaderboards_params)
     leaderboards_to_return = cursor.fetchall()
     return {
@@ -113,10 +111,9 @@ def show_one_leaderboard_response(requesting_user_id: int, user_perms: dict, lea
 def add_leaderboard(new_lb_name: str, new_lb_asc: bool) -> dict:
     cur = db.cursor()
     new_lb_command = """
-        insert into leaderboards(name, creation_date, default_permission, ascending) values(?, strftime('%s'), ?, ?)
+        insert into leaderboards(name, creation_date, ascending) values(?, strftime('%s'), ?)
     """
-    # TODO jordan should just remove the permission column but this hack works for now.
-    new_lb_params = (new_lb_name, Permissions.NoAccess, new_lb_asc)
+    new_lb_params = (new_lb_name, new_lb_asc)
     cur.execute(new_lb_command, new_lb_params)
     db.commit()
     new_lb_id = cur.lastrowid
@@ -177,18 +174,15 @@ def list_unverified(requesting_user_id: int, leaderboard_id: int) -> dict:
         select e.id, user, identity, score, submission_date
         from leaderboard_entries e
                  left outer join leaderboards l on e.leaderboard = l.id
-                 left outer join (select u.class, u.identity
-                                  from users u
-                                  where u.id = ?)
                  left outer join (select p.permission, p.leaderboard
                                   from users u
                                            left join permissions p on p.user = u.id
                                   where u.id = ?) x
                                  on e.leaderboard = x.leaderboard
-        where (user = ? or max(default_permission, class, coalesce(permission, 0)) >= 3) and not verified
+        where (user = ? or coalesce(permission, 0) >= 3) and not verified
           and e.leaderboard = ?
     """
-    list_unverified_params = (requesting_user_id, requesting_user_id, requesting_user_id, leaderboard_id)
+    list_unverified_params = (requesting_user_id, requesting_user_id, leaderboard_id)
     cursor.execute(list_unverified_command, list_unverified_params)
 
     entries = cursor.fetchall()
@@ -278,15 +272,12 @@ def get_user(requesting_user_id: int, user_id: int) -> dict:
         select e.id, e.leaderboard, e.score, e.verified, e.submission_date
         from leaderboard_entries e
         left outer join leaderboards l on e.leaderboard = l.id
-        left outer join (select u.class
-                         from users u
-                         where u.id = ?)
         left outer join (select p.permission, p.leaderboard
                          from users u
                          left join permissions p on p.user = u.id
                          where u.id = ?) x
             on e.leaderboard = x.leaderboard
-        where (verified or (max(default_permission, class, coalesce(permission, 0)) >= ?) or e.user = ?)
+        where (verified or (coalesce(permission, 0) >= ?) or e.user = ?)
             and (e.user = ?)
     """
     get_entries_params = (requesting_user_id, requesting_user_id, Permissions.Moderate, requesting_user_id, user_id)
@@ -536,11 +527,10 @@ def download_proof(request_user_id: int, user_perms: dict, file_id: int) -> dict
 def list_access_groups(leaderboard_id: int) -> dict:
     cur = db.cursor()
     list_user_perms_command = """
-        select u.id, u.identity, max(default_permission, class, coalesce(permission, 0)) as perm
+        select u.id, u.identity, coalesce(permission, 0) as perm
         from users u
         left join (select * from permissions where leaderboard = ?) p
             on p.user = u.id
-        left join (select default_permission from leaderboards where id = ?)
         order by perm
     """
     list_user_perms_params = (leaderboard_id, leaderboard_id)
@@ -999,7 +989,6 @@ if __name__ == "__main__":
             id INTEGER PRIMARY KEY,
             name TEXT NOT NULL,
             creation_date INTEGER NOT NULL,
-            default_permission INTEGER NOT NULL,
             ascending BOOLEAN NOT NULL
         );
         CREATE TABLE permissions (
