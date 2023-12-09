@@ -78,7 +78,6 @@ def show_one_leaderboard_response(requesting_user_id: int, user_perms: dict, lea
                 join main.leaderboards l on e.leaderboard = l.id
                 join main.users u on e.user = u.id
             where l.id = ?
-            order by score desc
         """
         get_entries_params = (leaderboard_id,)
     else:
@@ -89,7 +88,6 @@ def show_one_leaderboard_response(requesting_user_id: int, user_perms: dict, lea
                 join main.leaderboards l on e.leaderboard = l.id
                 join main.users u on e.user = u.id
             where (verified or user = ?) and l.id = ?
-            order by score desc
         """
         get_entries_params = (requesting_user_id, leaderboard_id)
 
