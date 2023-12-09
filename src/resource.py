@@ -535,7 +535,7 @@ def download_proof(request_user_id: int, user_perms: dict, file_id: int) -> dict
 def list_access_groups(leaderboard_id: int) -> dict:
     cur = db.cursor()
     list_user_perms_command = """
-        select u.id, u.identity, coalesce(permission, 0) as perm
+        select u.id, u.identity, coalesce(permission, 0) as perm, pub_key
         from users u
         left join (select * from permissions where leaderboard = ?) p
             on p.user = u.id
@@ -544,9 +544,10 @@ def list_access_groups(leaderboard_id: int) -> dict:
     list_user_perms_params = (leaderboard_id, leaderboard_id)
     cur.execute(list_user_perms_command, list_user_perms_params)
     user_list = cur.fetchall()
+    returnable_user_list = [(e[0], e[1], e[2], netlib.bytes_to_b64(e[3])) for e in user_list]
     return {
         "success": True,
-        "data": user_list
+        "data": returnable_user_list
     }
 
 
