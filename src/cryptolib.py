@@ -1,5 +1,5 @@
 import json
-from os import urandom
+from os import urandom, path
 
 from cryptography.exceptions import InvalidSignature
 from cryptography.hazmat.primitives import serialization, hashes, padding
@@ -7,6 +7,28 @@ from cryptography.hazmat.primitives.asymmetric import rsa, padding as asym_pad
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 
 import netlib
+
+
+def initialize_key(key_filename):
+    if path.exists(key_filename):
+        print("Found existing private key, using that.")
+        with open(key_filename, "rb") as key_file:
+            key: rsa.RSAPrivateKey = serialization.load_ssh_private_key(
+                key_file.read(),
+                None
+            )
+    else:
+        print("No existing private key found, generating...")
+        key = rsa.generate_private_key(65537, 4096)
+        to_write = key.private_bytes(
+            serialization.Encoding.PEM,
+            serialization.PrivateFormat.OpenSSH,
+            serialization.NoEncryption()
+        )
+        with open(key_filename, "wb") as key_file:
+            key_file.write(to_write)
+    print("Key Hash: " + public_key_hash(key.public_key()))
+    return key
 
 
 def public_key_hash(key: rsa.RSAPublicKey):
@@ -74,7 +96,7 @@ def symmetric_encrypt(key: bytes, message: bytes) -> bytes:
     encryptor = aes.encryptor()
     padded = pad.update(message) + pad.finalize()
     encrypted = encryptor.update(padded) + encryptor.finalize()
-    return iv+encrypted
+    return iv + encrypted
 
 
 def encrypt_dict(key: bytes, message: dict) -> bytes:

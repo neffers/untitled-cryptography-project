@@ -14,7 +14,8 @@ import cryptolib
 import netlib
 from enums import ResourceRequestType, Permissions, UserClass, ServerErrCode
 
-client_public_key = bytes()
+client_public_key: rsa.RSAPublicKey
+
 
 def get_leaderboard_perms(userid: int) -> dict:
     cur = db.cursor()
@@ -109,12 +110,13 @@ def show_one_leaderboard_response(requesting_user_id: int, user_perms: dict, lea
     }
 
 
-def add_leaderboard(new_lb_name: str, new_lb_perm: Permissions, new_lb_asc: bool) -> dict:
+def add_leaderboard(new_lb_name: str, new_lb_asc: bool) -> dict:
     cur = db.cursor()
     new_lb_command = """
         insert into leaderboards(name, creation_date, default_permission, ascending) values(?, strftime('%s'), ?, ?)
     """
-    new_lb_params = (new_lb_name, new_lb_perm, new_lb_asc)
+    # TODO jordan should just remove the permission column but this hack works for now.
+    new_lb_params = (new_lb_name, Permissions.NoAccess, new_lb_asc)
     cur.execute(new_lb_command, new_lb_params)
     db.commit()
     new_lb_id = cur.lastrowid
@@ -583,7 +585,7 @@ def remove_proof(request_user_id: int, user_perms: dict, file_id: int) -> dict:
     }
 
 
-def handle_request(request_user_id: int, request: dict, encrypted_request):
+def handle_request(request_user_id: int, request: dict):
     perms = get_leaderboard_perms(request_user_id)
     user_class = get_user_class(request_user_id)
     # Every request needs to have these
@@ -597,12 +599,6 @@ def handle_request(request_user_id: int, request: dict, encrypted_request):
     # Get public key
     if request_type == ResourceRequestType.PublicKey:
         return serverlib.public_key_response(public_key)
-
-    # check for signature if body request
-    check = cryptolib.rsa_verify(client_public_key, encrypted_request["signature"], encrypted_request["encrypted_request"])
-    if check == False:
-        return "Invalid signature! Closing connection..."
-        # close connection (idk how)
 
     # Basic: List Leaderboards
     if request_type == ResourceRequestType.ListLeaderboards:
@@ -627,16 +623,12 @@ def handle_request(request_user_id: int, request: dict, encrypted_request):
             new_lb_name = request["leaderboard_name"]
             if not isinstance(new_lb_name, str):
                 raise TypeError
-            new_lb_perm = request["leaderboard_permission"]
-            if not isinstance(new_lb_perm, int):
-                raise TypeError
-            new_lb_perm = Permissions(new_lb_perm)
             new_lb_asc = request["leaderboard_ascending"]
             if not isinstance(new_lb_asc, bool):
                 raise TypeError
         except (KeyError, TypeError, ValueError):
             return serverlib.bad_request_json(ServerErrCode.MalformedRequest)
-        return add_leaderboard(new_lb_name, new_lb_perm, new_lb_asc)
+        return add_leaderboard(new_lb_name, new_lb_asc)
 
     # Leaderboard: Submit Entry
     if request_type == ResourceRequestType.AddEntry:
@@ -888,23 +880,24 @@ class Handler(socketserver.BaseRequestHandler):
             netlib.send_dict_to_socket(serverlib.bad_request_json(ServerErrCode.MalformedRequest), self.request)
             return
         global client_public_key
-        client_public_key = netlib.b64_to_bytes(request["client_public_key"])
         encrypted_key = netlib.b64_to_bytes(request["encrypted_key"])
         aes_key = cryptolib.rsa_decrypt(private_key, encrypted_key)
         signin_payload = netlib.b64_to_bytes(request["signin_payload"])
         signin_request = cryptolib.decrypt_dict(aes_key, signin_payload)
         socket_identity = signin_request["identity"]
         token = netlib.b64_to_bytes(signin_request["token"])
+        client_public_key_bytes = netlib.b64_to_bytes(signin_request["pubkey"])
+        client_public_key = serialization.load_pem_public_key(client_public_key_bytes)
         if not cryptolib.rsa_verify_str(auth_public_key, token, socket_identity):
             print("Invalid login token, exiting")
             netlib.send_dict_to_socket(serverlib.bad_request_json(ServerErrCode.AuthenticationFailure), self.request)
             return
-        nonce = os.urandom(32)
-        encrypted_nonce = cryptolib.symmetric_encrypt(aes_key, nonce)
-        response = {"nonce": netlib.bytes_to_b64(encrypted_nonce)}
-        netlib.send_dict_to_socket(response, self.request)
 
         # verification
+        nonce = os.urandom(32)
+        encrypted_nonce = cryptolib.symmetric_encrypt(aes_key, nonce)
+        response = {"nonce": netlib.bytes_to_b64(encrypted_nonce), "signature": netlib.bytes_to_b64(cryptolib.rsa_sign(private_key, encrypted_nonce))}
+        netlib.send_dict_to_socket(response, self.request)
         try:
             request = netlib.get_dict_from_socket(self.request)
         except socket.timeout:
@@ -915,10 +908,16 @@ class Handler(socketserver.BaseRequestHandler):
             print("Client Broke Pipe")
             return
         if not request["type"] == ResourceRequestType.NonceReply:
-            print("request type not a nonce reply, exiting")
+            print("Request type not a NonceReply, exiting")
             netlib.send_dict_to_socket(serverlib.bad_request_json(ServerErrCode.MalformedRequest), self.request)
             return
         encrypted_reply_nonce = netlib.b64_to_bytes(request["nonce"])
+        signature = netlib.b64_to_bytes(request["signature"])
+        if not cryptolib.rsa_verify(client_public_key, signature, encrypted_reply_nonce):
+            # TODO we may want a new error code for this, up to jordan
+            print("Signature verification failed")
+            netlib.send_dict_to_socket(serverlib.bad_request_json(ServerErrCode.AuthenticationFailure), self.request)
+            return
         reply_nonce = cryptolib.symmetric_decrypt(aes_key, encrypted_reply_nonce)
         if not netlib.bytes_to_int(nonce) + 1 == netlib.bytes_to_int(reply_nonce):
             print("Invalid nonce reply, exiting")
@@ -968,12 +967,16 @@ class Handler(socketserver.BaseRequestHandler):
                 return
             print("received {} from {}".format(request, self.client_address[0]))
             encrypted_request = netlib.b64_to_bytes(request["encrypted_request"])
-            real_request = cryptolib.decrypt_dict(aes_key, encrypted_request)
-            response = handle_request(socket_user_id, real_request, encrypted_request)
-            stdrep = netlib.bytes_to_b64(cryptolib.encrypt_dict(aes_key, response))
-            real_response = {"encrypted_response": stdrep, "signature": cryptolib.rsa_sign(private_key, stdrep)}
+            if not cryptolib.rsa_verify(client_public_key, netlib.b64_to_bytes(request["signature"]), encrypted_request):
+                # TODO as above, maybe need a new error code for this
+                return serverlib.bad_request_json(ServerErrCode.AuthenticationFailure)
+            request = cryptolib.decrypt_dict(aes_key, encrypted_request)
+            response = handle_request(socket_user_id, request)
+            response_bytes = cryptolib.encrypt_dict(aes_key, response)
+            base64_response = netlib.bytes_to_b64(response_bytes)
+            response = {"encrypted_response": base64_response, "signature": netlib.bytes_to_b64(cryptolib.rsa_sign(private_key, response_bytes))}
             print("sending {} to {}".format(response, self.client_address[0]))
-            netlib.send_dict_to_socket(real_response, self.request)
+            netlib.send_dict_to_socket(response, self.request)
 
 
 # noinspection PyUnusedLocal
@@ -1037,7 +1040,7 @@ if __name__ == "__main__":
     auth_public_key_filename = "auth_public_key"
 
     # Init Cryptography stuff
-    private_key = serverlib.initialize_key(key_filename)
+    private_key = cryptolib.initialize_key(key_filename)
     public_key = private_key.public_key()
     if not path.exists(auth_public_key_filename):
         print("No Auth server public key found! Please provide an authentication server public key.")

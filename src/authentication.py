@@ -98,7 +98,7 @@ if __name__ == "__main__":
     db = serverlib.initialize_database(db_location, db_init_command)
 
     private_key_file = "auth_private_key"
-    private_key: rsa.RSAPrivateKey = serverlib.initialize_key(private_key_file)
+    private_key: rsa.RSAPrivateKey = cryptolib.initialize_key(private_key_file)
     public_key = private_key.public_key()
 
     public_key_file = "auth_public_key"
