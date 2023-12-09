@@ -11,7 +11,6 @@ import os
 import netlib
 import cryptolib
 from enums import AuthRequestType, ResourceRequestType, Permissions, ServerErrCode
-import serverlib
 
 identity: str = ""
 token: bytes = bytes()
@@ -870,6 +869,7 @@ def server_loop(res_ip, res_port):
     global private_key
     key_filename = "client_"+identity+"_private_key"
     private_key = serverlib.initialize_key(key_filename)
+    private_key = cryptolib.initialize_key(key_filename)
 
     try:
         token = request_token(password, as_pub)

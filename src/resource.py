@@ -1037,7 +1037,7 @@ if __name__ == "__main__":
     auth_public_key_filename = "auth_public_key"
 
     # Init Cryptography stuff
-    private_key = serverlib.initialize_key(key_filename)
+    private_key = cryptolib.initialize_key(key_filename)
     public_key = private_key.public_key()
     if not path.exists(auth_public_key_filename):
         print("No Auth server public key found! Please provide an authentication server public key.")
