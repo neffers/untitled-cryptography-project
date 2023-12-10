@@ -27,16 +27,16 @@ perms = ["No Access", "Read Access", "Write Access", "Mod", "Admin"]
 bools = ["False", "True"]
 
 
-def print_err(type):
-    if type == ServerErrCode.AuthenticationFailure:
+def print_err(err_type):
+    if err_type == ServerErrCode.AuthenticationFailure:
         print("Error: Authentication failed!")
-    if type == ServerErrCode.DoesNotExist:
+    if err_type == ServerErrCode.DoesNotExist:
         print("Error: The desired data does not exist!")
-    if type == ServerErrCode.InsufficientPermission:
+    if err_type == ServerErrCode.InsufficientPermission:
         print("Error: You do not have permission to run this command!")
-    if type == ServerErrCode.MalformedRequest:
+    if err_type == ServerErrCode.MalformedRequest:
         print("Error: Request was incorrectly formatted!")
-    if type == ServerErrCode.SessionExpired:
+    if err_type == ServerErrCode.SessionExpired:
         print("Error: The current session has expired!")
 
 
