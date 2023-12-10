@@ -15,7 +15,7 @@ identity: str = ""
 token: bytes = bytes()
 sock: socket.socket = socket.socket()
 session_key: bytes = bytes()
-
+seqnum: int
 key_filename = str()
 private_key: rsa.RSAPrivateKey
 rs_pub: rsa.RSAPublicKey
@@ -44,6 +44,7 @@ class Request:
         self.request = request
 
     def make_request(self) -> dict:
+        global seqnum
         request = self.request
         request["seqnum"] = seqnum
         encrypted_bytes = cryptolib.encrypt_dict(session_key, request)
@@ -53,7 +54,7 @@ class Request:
         encrypted_request = {"encrypted_request": base64_request,
                              "signature": base64_signature}
         netlib.send_dict_to_socket(encrypted_request, sock)
-
+        seqnum += 1
         dict_response = netlib.get_dict_from_socket(sock)
         if dict_response.get("encrypted_response") is None:
             # handle plaintext timeout message
@@ -70,6 +71,7 @@ class Request:
             }
             return response
 
+        # handle bad seqnum
         response = cryptolib.decrypt_dict(session_key, netlib.b64_to_bytes(dict_response["encrypted_response"]))
         if response["seqnum"] != seqnum:
             response = {
@@ -77,6 +79,7 @@ class Request:
                 "data": "Incorrect seqnum"
             }
             return response
+        seqnum += 1
         return response
 
     def safe_print(self, response: dict) -> None:
@@ -1040,7 +1043,6 @@ def server_loop(res_ip, res_port):
         except BrokenPipeError:
             print("Resource Server Closed Pipe")
             return
-        seqnum += 1
 
     sock.close()
 

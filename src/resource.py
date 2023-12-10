@@ -971,12 +971,13 @@ class Handler(socketserver.BaseRequestHandler):
             print("received {} from {}".format(request, self.client_address[0]))
             encrypted_request = netlib.b64_to_bytes(request["encrypted_request"])
             if not cryptolib.rsa_verify(client_public_key, netlib.b64_to_bytes(request["signature"]), encrypted_request):
-                # TODO as above, maybe need a new error code for this
-                return serverlib.bad_request_json(ServerErrCode.AuthenticationFailure)
+                print("Signature did not verify")
+                return serverlib.bad_request_json(ServerErrCode.MalformedRequest)
             request = cryptolib.decrypt_dict(aes_key, encrypted_request)
             if request["seqnum"] != seqnum:
-                # TODO as above, maybe need a new error code for this
-                return serverlib.bad_request_json(ServerErrCode.AuthenticationFailure)
+                print("Sequence number wrong, received: {}, expected: {}".format(request["seqnum"], seqnum + 1))
+                return serverlib.bad_request_json(ServerErrCode.MalformedRequest)
+            seqnum += 1
             response = handle_request(socket_user_id, request)
             response["seqnum"] = seqnum
             response_bytes = cryptolib.encrypt_dict(aes_key, response)
