@@ -196,7 +196,7 @@ def list_unverified(requesting_user_id: int, leaderboard_id: int) -> dict:
         select e.id, user, identity, submission_date
         from leaderboard_entries e
                  left outer join leaderboards l on e.leaderboard = l.id
-                 left outer join (select p.permission, p.leaderboard
+                 left outer join (select p.permission, p.leaderboard, identity
                                   from users u
                                            left join permissions p on p.user = u.id
                                   where u.id = ?) x
@@ -500,7 +500,7 @@ def remove_permission(user_id: int, leaderboard_id: int, new_read_keys: dict, ne
     cur = db.cursor()
     get_perm_command = """
     select permission from permissions
-    where user_id = ? and leaderboard = ?
+    where user = ? and leaderboard = ?
     """
     get_perm_params = (user_id, leaderboard_id)
     cur.execute(get_perm_command, get_perm_params)
@@ -512,7 +512,7 @@ def remove_permission(user_id: int, leaderboard_id: int, new_read_keys: dict, ne
 
     delete_permission_command = """
     delete from permissions
-    where user_id = ? and leaderboard = ?
+    where user = ? and leaderboard = ?
     """
     delete_permission_params = (user_id, leaderboard_id)
     cur.execute(delete_permission_command, delete_permission_params)
@@ -739,7 +739,7 @@ def get_keys(user_id: int, lb_id: int) -> dict:
     get_mod_keys_command = """
         select version, encrypted_priv_key, encrypted_sym_key
         from mod_keys
-        left join permission p on p.id = associated_perm
+        left join permissions p on p.id = associated_perm
         where user = ? and leaderboard = ?
     """
     get_mod_keys_params = (user_id, lb_id)
