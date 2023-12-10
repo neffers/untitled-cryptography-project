@@ -729,24 +729,24 @@ def remove_proof(request_user_id: int, user_perms: dict, file_id: int) -> dict:
 
 def get_keys(user_id: int, lb_id: int) -> dict:
     cur = db.cursor()
-    get_mod_keys_command = """
+    get_read_keys_command = """
         select version, encrypted_key
         from read_keys
         left join permissions p on p.id = associated_perm
         where user = ? and leaderboard = ?
     """
-    get_mod_keys_params = (user_id, lb_id)
-    cur.execute(get_mod_keys_command, get_mod_keys_params)
-    mod_keys = cur.fetchall()
-    get_read_keys_command = """
+    get_read_keys_params = (user_id, lb_id)
+    cur.execute(get_read_keys_command, get_read_keys_params)
+    read_keys = cur.fetchall()
+    get_mod_keys_command = """
         select version, encrypted_priv_key, encrypted_sym_key
         from mod_keys
         left join permission p on p.id = associated_perm
         where user = ? and leaderboard = ?
     """
-    get_read_keys_params = (user_id, lb_id)
+    get_mod_keys_params = (user_id, lb_id)
     cur.execute(get_read_keys_command, get_read_keys_params)
-    read_keys = cur.fetchall()
+    mod_keys = cur.fetchall()
     return {
         "success": True,
         "data": {
