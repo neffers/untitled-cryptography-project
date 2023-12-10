@@ -13,8 +13,6 @@ import cryptolib
 import netlib
 from enums import ResourceRequestType, Permissions, UserClass, ServerErrCode
 
-client_public_key: rsa.RSAPublicKey
-
 
 def get_leaderboard_perms(userid: int) -> dict:
     cur = db.cursor()
@@ -878,7 +876,6 @@ class Handler(socketserver.BaseRequestHandler):
             print("Secondary request not for authentication, exiting")
             netlib.send_dict_to_socket(serverlib.bad_request_json(ServerErrCode.MalformedRequest), self.request)
             return
-        global client_public_key
         encrypted_key = netlib.b64_to_bytes(request["encrypted_key"])
         aes_key = cryptolib.rsa_decrypt(private_key, encrypted_key)
         signin_payload = netlib.b64_to_bytes(request["signin_payload"])
