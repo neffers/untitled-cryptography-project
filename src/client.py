@@ -924,7 +924,7 @@ def server_loop(res_ip, res_port):
         "identity": identity,
         "token": token,
         "expiration_time": expiration_time,
-        "client_key": serverlib.public_key_response(c_key.public_key())["data"],
+        "client_key": netlib.bytes_to_b64(c_key.public_key().public_bytes(serialization.Encoding.OpenSSH, serialization.PublicFormat.OpenSSH)),
     }
     signin_payload = cryptolib.encrypt_dict(aes_key, signin_dict)
     request = {
@@ -933,7 +933,6 @@ def server_loop(res_ip, res_port):
         "signin_payload": netlib.bytes_to_b64(signin_payload),
     }
 
-    print("Attempting login...")
     netlib.send_dict_to_socket(request, sock)
     try:
         response = netlib.get_dict_from_socket(sock)
@@ -944,11 +943,17 @@ def server_loop(res_ip, res_port):
         print("Password authentication failed!")
         return
     encrypted_nonce = response["nonce"]
+    signature = response["signature"]
+    if not cryptolib.rsa_verify(rs_pub, netlib.b64_to_bytes(signature), netlib.b64_to_bytes(encrypted_nonce)):
+        print("Signature failed!")
+        return
     nonce = cryptolib.symmetric_decrypt(aes_key, netlib.b64_to_bytes(encrypted_nonce))
     nonce_plus_1 = netlib.int_to_bytes(netlib.bytes_to_int(nonce) + 1)
+    encrypted_nonce_plus_1 = cryptolib.symmetric_encrypt(aes_key, nonce_plus_1)
     request = {
         "type": ResourceRequestType.NonceReply,
-        "nonce": netlib.bytes_to_b64(cryptolib.symmetric_encrypt(aes_key, nonce_plus_1)),
+        "nonce": netlib.bytes_to_b64(encrypted_nonce_plus_1),
+        "signature": netlib.bytes_to_b64(cryptolib.rsa_sign(c_key, encrypted_nonce_plus_1))
     }
     netlib.send_dict_to_socket(request, sock)
     try:

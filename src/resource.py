@@ -887,6 +887,7 @@ class Handler(socketserver.BaseRequestHandler):
         signin_request = cryptolib.decrypt_dict(aes_key, signin_payload)
         socket_identity = signin_request["identity"]
         expiration_time = signin_request["expiration_time"]
+        client_key = serialization.load_ssh_public_key(netlib.b64_to_bytes(signin_request["client_key"]))
         if (time.time() > float(expiration_time)):
             print("Token is expired!")
             netlib.send_dict_to_socket(serverlib.bad_request_json(ServerErrCode.MalformedRequest), self.request)
@@ -898,7 +899,7 @@ class Handler(socketserver.BaseRequestHandler):
             return
         nonce = os.urandom(32)
         encrypted_nonce = cryptolib.symmetric_encrypt(aes_key, nonce)
-        response = {"nonce": netlib.bytes_to_b64(encrypted_nonce)}
+        response = {"nonce": netlib.bytes_to_b64(encrypted_nonce), "signature": netlib.bytes_to_b64(cryptolib.rsa_sign(private_key, encrypted_nonce))}
         netlib.send_dict_to_socket(response, self.request)
 
         # verification
@@ -916,6 +917,10 @@ class Handler(socketserver.BaseRequestHandler):
             netlib.send_dict_to_socket(serverlib.bad_request_json(ServerErrCode.MalformedRequest), self.request)
             return
         encrypted_reply_nonce = netlib.b64_to_bytes(request["nonce"])
+        signature = request["signature"]
+        if not cryptolib.rsa_verify(client_key, netlib.b64_to_bytes(signature), encrypted_reply_nonce):
+            print("Signature Failed")
+            return
         reply_nonce = cryptolib.symmetric_decrypt(aes_key, encrypted_reply_nonce)
         if not netlib.bytes_to_int(nonce) + 1 == netlib.bytes_to_int(reply_nonce):
             print("Invalid nonce reply, exiting")
