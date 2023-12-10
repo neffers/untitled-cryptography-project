@@ -1,13 +1,18 @@
 # Clientside Commands
-These are a list of commands that can be executed by the client. Each subsection contains a different menu which can be accessed from the client. Additionally, the Basic Commands contains an option to quit the application, and the other menus offer an option to go back to the menu accessed previously. Any inputs from a user are specified using brackets.
+These are a list of commands that can be executed by the client. Each subsection contains a 
+different menu which can be accessed from the client. Additionally, the Basic Commands contains 
+an option to quit the application, and the other menus offer an option to go back to the menu 
+accessed previously. Any inputs from a user are specified using brackets.
 ## Basic Commands
-These commands are accessed when first using the application. These commands do not have a specific argument unless otherwise specified.
+These commands are accessed when first using the application. These 
+commands do not have a specific argument unless otherwise specified.
 - READ: list leaderboards
   - shows all leaderboard names on this server
 - READ: open leaderboard [leaderboard name]
   - opens "Commands Associated With a Leaderboard" with leaderboard name as the argument.
 - ADMIN: create leaderboard [leaderboard name]
   - adds a leaderboard with the specified name
+  - created leaderboard has default permission NoAccess
 - READ: list users
   - outputs a list of all users with ID and identity
   - Additional client request fields:
@@ -58,8 +63,6 @@ These commands are all related to an entry which has been opened by the user.
   - add a comment containing your message
 - MOD: verify entry
   - mark the entry as verified
-- MOD: unverify entry
-  - mark the entry as unverified
 - WRITE/MOD: remove entry
   - Must be owner of submission or moderator
   - take the entry out of the database

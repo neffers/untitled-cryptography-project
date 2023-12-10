@@ -86,6 +86,13 @@ The cryptolib module is used for all of the methods regarding the encryption pro
       - `bytes`
     - Description:
       - Encrypts the `dict` with the `AES` key in `CBC` block mode and returns the resulting ciphertext.
+  - initialize_key
+    - Parameters:
+      - `str` key_filename
+    - Return Type:
+      - `RSAPrivateKey`
+    - Description:
+      - If a key exists at key_filename, loads and returns the `RSAPrivateKey`, otherwise generates a new `RSAPrivateKey`, stores it at key_filename and returns it.
 ## Netlib
 The netlib module is used for all of the methods involving sending and receiving data from a socket and converting data types.
   - get_dict_from_socket
@@ -130,6 +137,34 @@ The netlib module is used for all of the methods involving sending and receiving
       - `bytes`
     - Description:
       - Converts a base 64 `str` object to its equivalent `bytes` representation.
+  - serialize_public_key
+    - Parameters:
+      - `RSAPublicKey` key
+    - Return Type:
+      - `bytes`
+    - Description:
+      - Serializes RSA public key using `OpenSSH` encoding, and `OpenSSH` Public Format.
+  - deserialize_public_key
+    - Parameters:
+      - `bytes` data
+    - Return Type:
+      - `RSAPublicKey`
+    - Description:
+      - Inverse of `serialize_public_key`. Extracts and returns `RSAPublicKey` from serialized bytes in `data`
+  - serialize_private_key
+    - Parameters:
+      - `RSAPrivateKey` key
+    - Return Type:
+      - `bytes`
+    - Description:
+      - Serializes RSA private key using `PEM` encoding, and `OpenSSH` Private Format.
+  - deserialize_private_key
+    - Parameters:
+      - `bytes` data
+    - Return Type:
+      - `RSAPrivateKey`
+    - Description:
+      - Inverse of `serialize_private_key`. Extracts and returns `RSAPrivateKey` from serialized bytes in `data`
 ## Serverlib
 The serverlib modules is used for all of the methods involving only the authentication and resource servers.
   - public_key_response
@@ -146,13 +181,6 @@ The serverlib modules is used for all of the methods involving only the authenti
       - `Connection`
     - Description:
       - If a database at db_filename doesn't exist, creates a new database at that location with the SQL schema and returns it, otherwise returns the database at db_filename.
-  - initialize_key
-    - Parameters:
-      - `str` key_filename
-    - Return Type:
-      - `RSAPrivateKey`
-    - Description:
-      - If a key exists at key_filename, loads and returns the `RSAPrivateKey`, otherwise generates a new `RSAPrivateKey`, stores it at key_filename and returns it.
   - bad_request_json
     - Parameters:
       - `ServerErrCode` err, `str` comment
