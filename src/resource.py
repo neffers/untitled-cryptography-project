@@ -216,7 +216,6 @@ def list_unverified(requesting_user_id: int, leaderboard_id: int) -> dict:
     }
 
 
-# TODO T6
 def get_entry(requesting_user_id: int, user_perms: dict, entry_id: int) -> dict:
     cursor = db.cursor()
     # Check permissions by first getting leaderboard id and then getting requesting user's perms for it
@@ -239,7 +238,7 @@ def get_entry(requesting_user_id: int, user_perms: dict, entry_id: int) -> dict:
         return serverlib.bad_request_json(ServerErrCode.InsufficientPermission)
 
     get_entry_command = """
-        select e.id, user, u.identity, score, submission_date, verified, verifier, v.identity, verification_date
+        select e.id, user, u.identity, score, submission_date, uploader_key, mod_key, mod_key_ver, read_key_ver, verified, verifier, v.identity, verification_date
         from leaderboard_entries e
         left join main.users u on e.user = u.id
         left join main.users v on e.verifier = v.id
@@ -250,7 +249,7 @@ def get_entry(requesting_user_id: int, user_perms: dict, entry_id: int) -> dict:
     entry = cursor.fetchone()
 
     get_comments_command = """
-        select u.identity, date, content
+        select u.identity, date, content, uploader_key, mod_key, mod_key_ver, read_key_ver
         from entry_comments c
         left join main.users u on u.id = c.user
         where c.entry = ?
@@ -261,7 +260,7 @@ def get_entry(requesting_user_id: int, user_perms: dict, entry_id: int) -> dict:
     comments = cursor.fetchall()
 
     get_files_command = """
-        select id, name, submission_date
+        select id, name, submission_date, uploader_key, mod_key, mod_key_ver, read_key_ver
         from files
         where entry = ?
     """
