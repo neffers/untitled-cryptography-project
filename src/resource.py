@@ -4,6 +4,7 @@ import socketserver
 import sqlite3
 import signal
 import sys
+import time
 from os import path
 
 from cryptography.hazmat.primitives import serialization
@@ -885,8 +886,13 @@ class Handler(socketserver.BaseRequestHandler):
         signin_payload = netlib.b64_to_bytes(request["signin_payload"])
         signin_request = cryptolib.decrypt_dict(aes_key, signin_payload)
         socket_identity = signin_request["identity"]
-        token = netlib.b64_to_bytes(signin_request["token"])
-        if not cryptolib.rsa_verify_str(auth_public_key, token, socket_identity):
+        expiration_time = signin_request["expiration_time"]
+        if (time.time() > float(expiration_time)):
+            print("Token is expired!")
+            netlib.send_dict_to_socket(serverlib.bad_request_json(ServerErrCode.MalformedRequest), self.request)
+            return
+        token = signin_request["token"]
+        if not cryptolib.rsa_verify_str(auth_public_key, netlib.b64_to_bytes(token), cryptolib.public_key_hash(public_key) + socket_identity + expiration_time):
             print("Invalid login token, exiting")
             netlib.send_dict_to_socket(serverlib.bad_request_json(ServerErrCode.AuthenticationFailure), self.request)
             return

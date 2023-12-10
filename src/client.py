@@ -10,6 +10,7 @@ from cryptography.hazmat.primitives.asymmetric import rsa
 import os
 import netlib
 import cryptolib
+import serverlib
 from enums import AuthRequestType, ResourceRequestType, Permissions, ServerErrCode
 
 identity: str = ""
@@ -914,13 +915,16 @@ def server_loop(res_ip, res_port):
         return
 
     print("Login successful!")
-    sock.close()
+    as_sock.close()
 
     aes_key = os.urandom(32)
+    c_key = rsa.generate_private_key(65537, 4096)
     encrypted_key = cryptolib.rsa_encrypt(rs_pub, aes_key)
     signin_dict = {
         "identity": identity,
         "token": token,
+        "expiration_time": expiration_time,
+        "client_key": serverlib.public_key_response(c_key.public_key())["data"],
     }
     signin_payload = cryptolib.encrypt_dict(aes_key, signin_dict)
     request = {
