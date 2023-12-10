@@ -4,7 +4,6 @@ import base64
 from datetime import datetime
 from typing import Union
 
-from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
 
 import os
@@ -117,7 +116,7 @@ def request_pub_key() -> Union[rsa.RSAPublicKey, None]:
     netlib.send_dict_to_socket(request, sock)
     response = netlib.get_dict_from_socket(sock)
     if "success" in response and response["success"]:
-        return serialization.load_ssh_public_key(response["data"].encode())
+        return netlib.deserialize_public_key(response["data"].encode())
 
     return None
 
@@ -836,8 +835,7 @@ def server_loop(res_ip, res_port):
         print("No public key was found.")
         return
     if "as_pub" not in db["auth_server"]:
-        db["auth_server"]["as_pub"] = netlib.bytes_to_b64(as_pub.public_bytes(encoding=serialization.Encoding.PEM,
-                                                                              format=serialization.PublicFormat.SubjectPublicKeyInfo))
+        db["auth_server"]["as_pub"] = netlib.bytes_to_b64(netlib.serialize_public_key(as_pub))
         write_database_to_file()
     sock.close()
 
@@ -895,12 +893,10 @@ def server_loop(res_ip, res_port):
         print("RS public key request failed")
         return
     global rs_pub
-    rs_pub = serialization.load_ssh_public_key(rs_pub_serialized.encode())
+    rs_pub = netlib.deserialize_public_key(rs_pub_serialized.encode())
     for rs in db["resource_servers"]:
         if rs["ip"] == res_ip and rs["port"] == res_port:
-            if "rs_pub" in rs and rs["rs_pub"] != netlib.bytes_to_b64(
-                    rs_pub.public_bytes(encoding=serialization.Encoding.PEM,
-                                        format=serialization.PublicFormat.SubjectPublicKeyInfo)):
+            if "rs_pub" in rs and rs["rs_pub"] != netlib.bytes_to_b64(netlib.serialize_public_key(rs_pub)):
                 print("Requested public key doesn't match stored public key.")
                 return
             elif "rs_pub" not in rs:
@@ -909,8 +905,7 @@ def server_loop(res_ip, res_port):
                     print("Confirm New Key Hash: " + cryptolib.public_key_hash(rs_pub))
                     response = input("Does this look right? (y/n): ")
                     if response.lower() == "y":
-                        rs["rs_pub"] = netlib.bytes_to_b64(rs_pub.public_bytes(encoding=serialization.Encoding.PEM,
-                                                                               format=serialization.PublicFormat.SubjectPublicKeyInfo))
+                        rs["rs_pub"] = netlib.bytes_to_b64(netlib.serialize_public_key(rs_pub))
                         write_database_to_file()
                         print("New key saved to disk for {}:{}".format(res_ip, res_port))
                         break
@@ -924,8 +919,7 @@ def server_loop(res_ip, res_port):
     aes_key = os.urandom(32)
     encrypted_key = cryptolib.rsa_encrypt(rs_pub, aes_key)
     public_key = private_key.public_key()
-    public_key_bytes = public_key.public_bytes(encoding=serialization.Encoding.PEM,
-                                               format=serialization.PublicFormat.SubjectPublicKeyInfo)
+    public_key_bytes = netlib.serialize_public_key(public_key)
     signin_dict = {
         "identity": identity,
         "token": netlib.bytes_to_b64(token),

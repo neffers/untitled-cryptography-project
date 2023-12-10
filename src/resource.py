@@ -6,7 +6,6 @@ import signal
 import sys
 from os import path
 
-from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
 
 import serverlib
@@ -887,7 +886,7 @@ class Handler(socketserver.BaseRequestHandler):
         socket_identity = signin_request["identity"]
         token = netlib.b64_to_bytes(signin_request["token"])
         client_public_key_bytes = netlib.b64_to_bytes(signin_request["pubkey"])
-        client_public_key = serialization.load_pem_public_key(client_public_key_bytes)
+        client_public_key = netlib.deserialize_public_key(client_public_key_bytes)
         if not cryptolib.rsa_verify_str(auth_public_key, token, socket_identity):
             print("Invalid login token, exiting")
             netlib.send_dict_to_socket(serverlib.bad_request_json(ServerErrCode.AuthenticationFailure), self.request)
@@ -1046,7 +1045,7 @@ if __name__ == "__main__":
         print("No Auth server public key found! Please provide an authentication server public key.")
         sys.exit(1)
     with open(auth_public_key_filename, "rb") as key_file:
-        auth_public_key: rsa.RSAPublicKey = serialization.load_ssh_public_key(key_file.read())
+        auth_public_key: rsa.RSAPublicKey = netlib.deserialize_public_key(key_file.read())
         print("Found Auth server public key.")
         print("Key Hash: " + cryptolib.public_key_hash(auth_public_key))
 

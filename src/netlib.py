@@ -2,6 +2,9 @@ import base64
 import json
 import socket
 
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric.rsa import RSAPublicKey, RSAPrivateKey
+
 
 def get_dict_from_socket(sock: socket.socket) -> dict:
     buf_len = sock.recv(4)
@@ -40,3 +43,24 @@ def bytes_to_b64(b: bytes) -> str:
 
 def b64_to_bytes(s: str) -> bytes:
     return base64.b64decode(s)
+
+
+def serialize_public_key(key: RSAPublicKey) -> bytes:
+    return key.public_bytes(
+        serialization.Encoding.OpenSSH,
+        serialization.PublicFormat.OpenSSH)
+
+
+def deserialize_public_key(data: bytes) -> RSAPublicKey:
+    return serialization.load_ssh_public_key(data)
+
+
+def serialize_private_key(key: RSAPrivateKey) -> bytes:
+    return key.private_bytes(
+        serialization.Encoding.PEM,
+        serialization.PrivateFormat.OpenSSH,
+        serialization.NoEncryption())
+
+
+def deserialize_private_key(data: bytes) -> RSAPrivateKey:
+    return serialization.load_ssh_private_key(data, None)
