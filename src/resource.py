@@ -192,11 +192,10 @@ def list_users() -> dict:
     }
 
 
-# TODO T6
 def list_unverified(requesting_user_id: int, leaderboard_id: int) -> dict:
     cursor = db.cursor()
     list_unverified_command = """
-        select e.id, user, identity, score, submission_date
+        select e.id, user, identity, submission_date
         from leaderboard_entries e
                  left outer join leaderboards l on e.leaderboard = l.id
                  left outer join (select p.permission, p.leaderboard
