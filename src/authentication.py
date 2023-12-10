@@ -1,6 +1,7 @@
 import socketserver
 import signal
 import sys
+import time
 from cryptography.hazmat.primitives.asymmetric import rsa
 
 from enums import AuthRequestType, ServerErrCode
@@ -22,6 +23,8 @@ def get_token_response(request: dict):
         assert type(identity) is str
         password = signin_request["password"]
         assert type(password) is str
+        rs_keyhash = signin_request["rs_keyhash"]
+        assert type(rs_keyhash) is str
     except (KeyError, AssertionError):
         return serverlib.bad_request_json(ServerErrCode.MalformedRequest)
 
@@ -45,11 +48,16 @@ def get_token_response(request: dict):
     if not db_pw == password:
         return serverlib.bad_request_json(ServerErrCode.AuthenticationFailure)
     else:
-        token = cryptolib.rsa_sign_string(private_key, identity)
-        encrypted_token = cryptolib.symmetric_encrypt(aes_key, token)
+        expiration_time = str(time.time() + 3600)
+        token = cryptolib.rsa_sign_string(private_key, rs_keyhash + identity + expiration_time)
+        response = {
+            "token": netlib.bytes_to_b64(token),
+            "expiration_time": expiration_time,
+        }
+        encrypted_data = cryptolib.encrypt_dict(aes_key, response)
         response = {
             "success": True,
-            "data": netlib.bytes_to_b64(encrypted_token)
+            "data": netlib.bytes_to_b64(encrypted_data)
         }
     return response
 

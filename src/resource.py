@@ -4,6 +4,7 @@ import socketserver
 import sqlite3
 import signal
 import sys
+import time
 from os import path
 
 from cryptography.hazmat.primitives.asymmetric import rsa
@@ -882,9 +883,14 @@ class Handler(socketserver.BaseRequestHandler):
         signin_request = cryptolib.decrypt_dict(aes_key, signin_payload)
         socket_identity = signin_request["identity"]
         token = netlib.b64_to_bytes(signin_request["token"])
+        expiration_time = signin_request["expiration_time"]
+        if time.time() > float(expiration_time):
+            print("Token is expired!")
+            netlib.send_dict_to_socket(serverlib.bad_request_json(ServerErrCode.MalformedRequest), self.request)
+            return
         client_public_key_bytes = netlib.b64_to_bytes(signin_request["pubkey"])
         client_public_key = netlib.deserialize_public_key(client_public_key_bytes)
-        if not cryptolib.rsa_verify_str(auth_public_key, token, socket_identity):
+        if not cryptolib.rsa_verify_str(auth_public_key, token, cryptolib.public_key_hash(public_key) + socket_identity + expiration_time):
             print("Invalid login token, exiting")
             netlib.send_dict_to_socket(serverlib.bad_request_json(ServerErrCode.AuthenticationFailure), self.request)
             return
@@ -910,9 +916,8 @@ class Handler(socketserver.BaseRequestHandler):
         encrypted_reply_nonce = netlib.b64_to_bytes(request["nonce"])
         signature = netlib.b64_to_bytes(request["signature"])
         if not cryptolib.rsa_verify(client_public_key, signature, encrypted_reply_nonce):
-            # TODO we may want a new error code for this, up to jordan
             print("Signature verification failed")
-            netlib.send_dict_to_socket(serverlib.bad_request_json(ServerErrCode.AuthenticationFailure), self.request)
+            netlib.send_dict_to_socket(serverlib.bad_request_json(ServerErrCode.MalformedRequest), self.request)
             return
         reply_nonce = cryptolib.symmetric_decrypt(aes_key, encrypted_reply_nonce)
         if not netlib.bytes_to_int(nonce) + 1 == netlib.bytes_to_int(reply_nonce):
