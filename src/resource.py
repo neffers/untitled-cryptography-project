@@ -1198,8 +1198,7 @@ class Handler(socketserver.BaseRequestHandler):
             print("received {} from {}".format(request, self.client_address[0]))
             encrypted_request = netlib.b64_to_bytes(request["encrypted_request"])
             if not cryptolib.rsa_verify(client_public_key, netlib.b64_to_bytes(request["signature"]), encrypted_request):
-                # TODO as above, maybe need a new error code for this
-                return serverlib.bad_request_json(ServerErrCode.AuthenticationFailure)
+                return serverlib.bad_request_json(ServerErrCode.MalformedRequest)
             request = cryptolib.decrypt_dict(aes_key, encrypted_request)
             response = handle_request(socket_user_id, request)
             response_bytes = cryptolib.encrypt_dict(aes_key, response)
