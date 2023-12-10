@@ -318,8 +318,8 @@ def get_user(requesting_user_id: int, user_id: int) -> dict:
     }
 
 
-# TODO T6
-def modify_verification(request_user_id: int, user_perms: dict, entry_id: int, verified: bool) -> dict:
+def verify_entry(request_user_id: int, user_perms: dict, entry_id: int,
+                 score: bytes, read_key_ver: int, comments: dict, files: dict) -> dict:
     cur = db.cursor()
     get_entry_command = "select leaderboard from leaderboard_entries where id = ?"
     get_entry_params = (entry_id,)
@@ -335,11 +335,31 @@ def modify_verification(request_user_id: int, user_perms: dict, entry_id: int, v
 
     modify_entry_command = """
         update leaderboard_entries
-        set verified = ?, verifier = ?, verification_date = strftime('%s')
+        set score = ?, verified = ?, verifier = ?, verification_date = strftime('%s'), uploader_key = ?, mod_key = ?,
+        mod_key_ver = ?, read_key_ver = ?
         where id = ?
     """
-    modify_entry_params = (verified, request_user_id, entry_id)
+    modify_entry_params = (score, True, request_user_id, entry_id, None, None, None, read_key_ver)
     cur.execute(modify_entry_command, modify_entry_params)
+
+    modify_comment_command = """
+    update entry_comments
+    set content = ?, uploader_key = ?, mod_key = ?, mod_key_ver = ?, read_key_ver = ?
+    where id = ?
+    """
+    for comment_id in comments:
+        modify_comment_params = (comments[comment_id], None, None, None, read_key_ver, comment_id)
+        cur.execute(modify_comment_command, modify_comment_params)
+
+    modify_file_command = """
+    update files
+    set data = ?, uploader_key = ?, mod_key = ?, mod_key_ver = ?, read_key_ver = ?
+    where id = ?
+    """
+    for file_id in files:
+        modify_file_params = (files[file_id], None, None, None, read_key_ver, file_id)
+        cur.execute(modify_file_command, modify_file_params)
+
     db.commit()
     return {
         "success": True,
@@ -850,18 +870,22 @@ def handle_request(request_user_id: int, request: dict):
         }
 
     # Entry: Verify Entry
-    # Entry: Un-verify Entry
-    if request_type == ResourceRequestType.ModifyEntryVerification:
+    if request_type == ResourceRequestType.Verify_Entry:
         try:
             entry_id = request["entry_id"]
             if not isinstance(entry_id, int):
                 raise TypeError
-            verified = request["verified"]
-            if not isinstance(verified, bool):
+            score = netlib.b64_to_bytes(request["score"])
+            read_key_ver = request["read_key_ver"]
+            if not isinstance(read_key_ver, int):
                 raise TypeError
+            intermediate_comments = request["comments"]
+            comments = {int(comment_id): netlib.b64_to_bytes(intermediate_comments[id]) for comment_id in intermediate_comments}
+            intermediate_files = request["files"]
+            files = {int(file_id): netlib.b64_to_bytes(intermediate_files[file_id]) for file_id in intermediate_files}
         except (KeyError, TypeError):
             return serverlib.bad_request_json(ServerErrCode.MalformedRequest)
-        return modify_verification(request_user_id, perms, entry_id, verified)
+        return verify_entry(request_user_id, perms, entry_id, score, read_key_ver, comments, files)
 
     # Entry: Add comment
     if request_type == ResourceRequestType.AddComment:
