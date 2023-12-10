@@ -1276,7 +1276,7 @@ if __name__ == "__main__":
             uploader_key BLOB,
             mod_key BLOB,
             mod_key_ver INTEGER,
-            read_key_ver INTEGER,
+            read_key_ver INTEGER
         );
         CREATE TABLE files (
             id INTEGER PRIMARY KEY,
@@ -1287,7 +1287,7 @@ if __name__ == "__main__":
             uploader_key BLOB,
             mod_key BLOB,
             mod_key_ver INTEGER,
-            read_key_ver INTEGER,
+            read_key_ver INTEGER
         );
     """
 
