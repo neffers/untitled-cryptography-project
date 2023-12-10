@@ -106,19 +106,43 @@ def show_one_leaderboard_response(requesting_user_id: int, user_perms: dict, lea
     }
 
 
-# TODO T6
-def add_leaderboard(new_lb_name: str, new_lb_asc: bool) -> dict:
+def add_leaderboard(creator_id: int, new_lb_name: str, new_lb_asc: bool, mod_pubkey: bytes, creator_read_key: bytes,
+                    creator_mod_sym: bytes, creator_mod_priv: bytes) -> dict:
     cur = db.cursor()
     new_lb_command = """
-        insert into leaderboards(name, creation_date, ascending) values(?, strftime('%s'), ?)
+        insert into leaderboards(name, creation_date, ascending, mod_pubkey, read_key_version, mod_key_version)
+        values(?, strftime('%s'), ?, ?, ?, ?)
     """
-    new_lb_params = (new_lb_name, new_lb_asc)
+    new_lb_params = (new_lb_name, new_lb_asc, mod_pubkey, 1, 1)
     cur.execute(new_lb_command, new_lb_params)
+    leaderboard_id = cur.lastrowid
+
+    create_perm_command = """
+    insert into permissions(user, leaderboard, permission, change_date)
+    values(?, ?, ?, strftime('%s'))
+    """
+    create_perm_params = (creator_id, leaderboard_id, Permissions.Moderate)
+    cur.execute(create_perm_command, create_perm_params)
+    perm_id = cur.lastrowid
+
+    add_read_key_command = """
+    insert into read_keys(associated_perm, version, encrypted_key)
+    values(?, ?, ?)
+    """
+    add_read_key_params = (perm_id, 1, creator_read_key)
+    cur.execute(add_read_key_command, add_read_key_params)
+
+    add_mod_key_command = """
+    insert into mod_keys(associated_perm, version, encrypted_sym_key, encrypted_priv_key)
+    values(?, ?, ?, ?)
+    """
+    add_mod_key_params = (perm_id, 1, creator_mod_sym, creator_mod_priv)
+    cur.execute(add_mod_key_command, add_mod_key_params)
+
     db.commit()
-    new_lb_id = cur.lastrowid
     return {
         "success": True,
-        "data": new_lb_id,
+        "data": leaderboard_id,
     }
 
 
@@ -428,23 +452,23 @@ def add_permission(user_id: int, leaderboard_id: int, p: Permissions, read_keys:
     perm_id = cur.lastrowid
 
     add_read_keys_command = """
-    insert into read_keys(user, leaderboard, associated_perm, version, encrypted_key)
-    values(?, ?, ?, ?, ?)
+    insert into read_keys(associated_perm, version, encrypted_key)
+    values(?, ?, ?)
     """
     for i in range(len(read_keys)):
         read_key = netlib.b64_to_bytes(read_keys[i])
-        add_read_keys_params = (user_id, leaderboard_id, perm_id, i, read_key)
+        add_read_keys_params = (perm_id, i, read_key)
         cur.execute(add_read_keys_command, add_read_keys_params)
 
     if mod_keys is not None:
         add_mod_keys_command = """
-        insert into mod_keys(user, leaderboard, associated_perm, version, encrypted_sym_key, encrypted_priv_key)
-        values(?, ?, ?, ?, ?, ?)
+        insert into mod_keys(associated_perm, version, encrypted_sym_key, encrypted_priv_key)
+        values(?, ?, ?, ?)
         """
         for i in range(len(mod_keys)):
-            sym = mod_keys[i][0]
-            mod = mod_keys[i][1]
-            add_mod_keys_params = (user_id, leaderboard_id, perm_id, i, sym, mod)
+            sym = netlib.b64_to_bytes(mod_keys[i][0])
+            mod = netlib.b64_to_bytes(mod_keys[i][1])
+            add_mod_keys_params = (perm_id, i, sym, mod)
             cur.execute(add_mod_keys_command, add_mod_keys_params)
 
     db.commit()
@@ -491,6 +515,7 @@ def remove_permission(user_id: int, leaderboard_id: int, new_read_keys: dict, ne
     insert into read_keys(user, leaderboard, associated_perm, version, encrypted_key)
     select ?, ?, associated_perm, ?, ?
     from read_keys
+    left join permissions p on p.id = associated_perm
     where user = ? and leaderboard = ?
     """
     for user in new_read_keys:
@@ -504,6 +529,7 @@ def remove_permission(user_id: int, leaderboard_id: int, new_read_keys: dict, ne
         insert into mod_keys (user, leaderboard, associated_perm, version, encrypted_sym_key, encrypted_priv_key)
         select ?, ?, associated_perm, ?, ?, ?
         from mod_keys
+        left join permissions p on p.id = associated_perm
         where user = ? and leaderboard = ?
         """
         for user in new_mod_keys:
@@ -688,6 +714,7 @@ def get_keys(user_id: int, lb_id: int) -> dict:
     get_mod_keys_command = """
         select version, encrypted_key
         from read_keys
+        left join permissions p on p.id = associated_perm
         where user = ? and leaderboard = ?
     """
     get_mod_keys_params = (user_id, lb_id)
@@ -696,6 +723,7 @@ def get_keys(user_id: int, lb_id: int) -> dict:
     get_read_keys_command = """
         select version, encrypted_priv_key, encrypted_sym_key
         from mod_keys
+        left join permission p on p.id = associated_perm
         where user = ? and leaderboard = ?
     """
     get_read_keys_params = (user_id, lb_id)
@@ -751,9 +779,14 @@ def handle_request(request_user_id: int, request: dict):
             new_lb_asc = request["leaderboard_ascending"]
             if not isinstance(new_lb_asc, bool):
                 raise TypeError
+            mod_pubkey = netlib.b64_to_bytes(request["mod_pubkey"])
+            creator_read_key = netlib.b64_to_bytes(request["read_key"])
+            creator_mod_sym = netlib.b64_to_bytes(request["mod_sym"])
+            creator_mod_priv = netlib.b64_to_bytes(request["mod_priv"])
         except (KeyError, TypeError, ValueError):
             return serverlib.bad_request_json(ServerErrCode.MalformedRequest)
-        return add_leaderboard(new_lb_name, new_lb_asc)
+        return add_leaderboard(request_user_id, new_lb_name, new_lb_asc, mod_pubkey, creator_read_key, creator_mod_sym,
+                               creator_mod_priv)
 
     # Leaderboard: Submit Entry
     if request_type == ResourceRequestType.AddEntry:
@@ -1184,15 +1217,11 @@ if __name__ == "__main__":
             change_date INTEGER NOT NULL
         );
         CREATE TABLE read_keys (
-            user INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-            leaderboard INTEGER NOT NULL REFERENCES leaderboards(id) ON DELETE CASCADE,
             associated_perm INTEGER NOT NULL REFERENCES permissions(id) ON DELETE CASCADE,
             version INTEGER NOT NULL,
             encrypted_key BLOB NOT NULL
         );
         CREATE TABLE mod_keys (
-            user INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-            leaderboard INTEGER NOT NULL REFERENCES leaderboards(id) ON DELETE CASCADE,
             associated_perm INTEGER NOT NULL REFERENCES permissions(id) ON DELETE CASCADE,
             version INTEGER NOT NULL,
             encrypted_sym_key BLOB NOT NULL,
