@@ -57,7 +57,6 @@ def list_leaderboards_response(requesting_user_id: int):
     }
 
 
-# TODO T6
 def show_one_leaderboard_response(requesting_user_id: int, user_perms: dict, leaderboard_id: int):
     cursor = db.cursor()
     # make sure leaderboard should be visible by user
@@ -75,7 +74,7 @@ def show_one_leaderboard_response(requesting_user_id: int, user_perms: dict, lea
     # If moderator, return all entries
     if permission >= Permissions.Moderate:
         get_entries_command = """
-            select e.id, user, u.identity, score, submission_date, verified
+            select e.id, user, u.identity, score, submission_date, verified, read_key_ver, mod_key, mod_key_ver
                 from leaderboard_entries e
                 join main.leaderboards l on e.leaderboard = l.id
                 join main.users u on e.user = u.id
@@ -85,7 +84,7 @@ def show_one_leaderboard_response(requesting_user_id: int, user_perms: dict, lea
     else:
         # Non-mods get visible entries and those that they submitted
         get_entries_command = """
-            select e.id, user, u.identity, score, submission_date, verified
+            select e.id, user, u.identity, score, submission_date, verified, read_key_ver, uploader_key
                 from leaderboard_entries e
                 join main.leaderboards l on e.leaderboard = l.id
                 join main.users u on e.user = u.id
@@ -95,11 +94,10 @@ def show_one_leaderboard_response(requesting_user_id: int, user_perms: dict, lea
 
     cursor.execute(get_entries_command, get_entries_params)
     entries = cursor.fetchall()
-    if ascending:
-        entries.reverse()
     data_to_return = {
         "id": leaderboard_id,
         "name": leaderboard_name,
+        "ascending": ascending,
         "entries": entries
     }
     return {
