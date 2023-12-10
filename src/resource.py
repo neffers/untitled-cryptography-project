@@ -956,6 +956,8 @@ class Handler(socketserver.BaseRequestHandler):
         cursor.execute(get_id_command, get_id_params)
         (socket_user_id,) = cursor.fetchone()
 
+        seqnum = 0
+        
         while True:
             try:
                 request = netlib.get_dict_from_socket(self.request)
@@ -972,12 +974,17 @@ class Handler(socketserver.BaseRequestHandler):
                 # TODO as above, maybe need a new error code for this
                 return serverlib.bad_request_json(ServerErrCode.AuthenticationFailure)
             request = cryptolib.decrypt_dict(aes_key, encrypted_request)
+            if request["seqnum"] != seqnum:
+                # TODO as above, maybe need a new error code for this
+                return serverlib.bad_request_json(ServerErrCode.AuthenticationFailure)
             response = handle_request(socket_user_id, request)
+            response["seqnum"] = seqnum
             response_bytes = cryptolib.encrypt_dict(aes_key, response)
             base64_response = netlib.bytes_to_b64(response_bytes)
             response = {"encrypted_response": base64_response, "signature": netlib.bytes_to_b64(cryptolib.rsa_sign(private_key, response_bytes))}
             print("sending {} to {}".format(response, self.client_address[0]))
             netlib.send_dict_to_socket(response, self.request)
+            seqnum += 1
 
 
 # noinspection PyUnusedLocal
