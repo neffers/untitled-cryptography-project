@@ -7,7 +7,6 @@ import sys
 import time
 from os import path
 
-from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
 
 import serverlib
@@ -109,12 +108,13 @@ def show_one_leaderboard_response(requesting_user_id: int, user_perms: dict, lea
     }
 
 
-def add_leaderboard(new_lb_name: str, new_lb_perm: Permissions, new_lb_asc: bool) -> dict:
+def add_leaderboard(new_lb_name: str, new_lb_asc: bool) -> dict:
     cur = db.cursor()
     new_lb_command = """
         insert into leaderboards(name, creation_date, default_permission, ascending) values(?, strftime('%s'), ?, ?)
     """
-    new_lb_params = (new_lb_name, new_lb_perm, new_lb_asc)
+    # TODO jordan should just remove the permission column but this hack works for now.
+    new_lb_params = (new_lb_name, Permissions.NoAccess, new_lb_asc)
     cur.execute(new_lb_command, new_lb_params)
     db.commit()
     new_lb_id = cur.lastrowid
@@ -621,16 +621,12 @@ def handle_request(request_user_id: int, request: dict):
             new_lb_name = request["leaderboard_name"]
             if not isinstance(new_lb_name, str):
                 raise TypeError
-            new_lb_perm = request["leaderboard_permission"]
-            if not isinstance(new_lb_perm, int):
-                raise TypeError
-            new_lb_perm = Permissions(new_lb_perm)
             new_lb_asc = request["leaderboard_ascending"]
             if not isinstance(new_lb_asc, bool):
                 raise TypeError
         except (KeyError, TypeError, ValueError):
             return serverlib.bad_request_json(ServerErrCode.MalformedRequest)
-        return add_leaderboard(new_lb_name, new_lb_perm, new_lb_asc)
+        return add_leaderboard(new_lb_name, new_lb_asc)
 
     # Leaderboard: Submit Entry
     if request_type == ResourceRequestType.AddEntry:
@@ -886,23 +882,24 @@ class Handler(socketserver.BaseRequestHandler):
         signin_payload = netlib.b64_to_bytes(request["signin_payload"])
         signin_request = cryptolib.decrypt_dict(aes_key, signin_payload)
         socket_identity = signin_request["identity"]
+        token = netlib.b64_to_bytes(signin_request["token"])
         expiration_time = signin_request["expiration_time"]
-        client_key = serialization.load_ssh_public_key(netlib.b64_to_bytes(signin_request["client_key"]))
-        if (time.time() > float(expiration_time)):
+        if time.time() > float(expiration_time):
             print("Token is expired!")
             netlib.send_dict_to_socket(serverlib.bad_request_json(ServerErrCode.MalformedRequest), self.request)
             return
-        token = signin_request["token"]
-        if not cryptolib.rsa_verify_str(auth_public_key, netlib.b64_to_bytes(token), cryptolib.public_key_hash(public_key) + socket_identity + expiration_time):
+        client_public_key_bytes = netlib.b64_to_bytes(signin_request["pubkey"])
+        client_public_key = netlib.deserialize_public_key(client_public_key_bytes)
+        if not cryptolib.rsa_verify_str(auth_public_key, token, socket_identity):
             print("Invalid login token, exiting")
             netlib.send_dict_to_socket(serverlib.bad_request_json(ServerErrCode.AuthenticationFailure), self.request)
             return
+
+        # verification
         nonce = os.urandom(32)
         encrypted_nonce = cryptolib.symmetric_encrypt(aes_key, nonce)
         response = {"nonce": netlib.bytes_to_b64(encrypted_nonce), "signature": netlib.bytes_to_b64(cryptolib.rsa_sign(private_key, encrypted_nonce))}
         netlib.send_dict_to_socket(response, self.request)
-
-        # verification
         try:
             request = netlib.get_dict_from_socket(self.request)
         except socket.timeout:
@@ -913,13 +910,14 @@ class Handler(socketserver.BaseRequestHandler):
             print("Client Broke Pipe")
             return
         if not request["type"] == ResourceRequestType.NonceReply:
-            print("request type not a nonce reply, exiting")
+            print("Request type not a NonceReply, exiting")
             netlib.send_dict_to_socket(serverlib.bad_request_json(ServerErrCode.MalformedRequest), self.request)
             return
         encrypted_reply_nonce = netlib.b64_to_bytes(request["nonce"])
-        signature = request["signature"]
-        if not cryptolib.rsa_verify(client_key, netlib.b64_to_bytes(signature), encrypted_reply_nonce):
-            print("Signature Failed")
+        signature = netlib.b64_to_bytes(request["signature"])
+        if not cryptolib.rsa_verify(client_public_key, signature, encrypted_reply_nonce):
+            print("Signature verification failed")
+            netlib.send_dict_to_socket(serverlib.bad_request_json(ServerErrCode.MalformedRequest), self.request)
             return
         reply_nonce = cryptolib.symmetric_decrypt(aes_key, encrypted_reply_nonce)
         if not netlib.bytes_to_int(nonce) + 1 == netlib.bytes_to_int(reply_nonce):
@@ -970,11 +968,16 @@ class Handler(socketserver.BaseRequestHandler):
                 return
             print("received {} from {}".format(request, self.client_address[0]))
             encrypted_request = netlib.b64_to_bytes(request["encrypted_request"])
-            real_request = cryptolib.decrypt_dict(aes_key, encrypted_request)
-            response = handle_request(socket_user_id, real_request)
-            real_response = {"encrypted_response": netlib.bytes_to_b64(cryptolib.encrypt_dict(aes_key, response))}
+            if not cryptolib.rsa_verify(client_public_key, netlib.b64_to_bytes(request["signature"]), encrypted_request):
+                # TODO as above, maybe need a new error code for this
+                return serverlib.bad_request_json(ServerErrCode.AuthenticationFailure)
+            request = cryptolib.decrypt_dict(aes_key, encrypted_request)
+            response = handle_request(socket_user_id, request)
+            response_bytes = cryptolib.encrypt_dict(aes_key, response)
+            base64_response = netlib.bytes_to_b64(response_bytes)
+            response = {"encrypted_response": base64_response, "signature": netlib.bytes_to_b64(cryptolib.rsa_sign(private_key, response_bytes))}
             print("sending {} to {}".format(response, self.client_address[0]))
-            netlib.send_dict_to_socket(real_response, self.request)
+            netlib.send_dict_to_socket(response, self.request)
 
 
 # noinspection PyUnusedLocal
@@ -1038,13 +1041,13 @@ if __name__ == "__main__":
     auth_public_key_filename = "auth_public_key"
 
     # Init Cryptography stuff
-    private_key = serverlib.initialize_key(key_filename)
+    private_key = cryptolib.initialize_key(key_filename)
     public_key = private_key.public_key()
     if not path.exists(auth_public_key_filename):
         print("No Auth server public key found! Please provide an authentication server public key.")
         sys.exit(1)
     with open(auth_public_key_filename, "rb") as key_file:
-        auth_public_key: rsa.RSAPublicKey = serialization.load_ssh_public_key(key_file.read())
+        auth_public_key: rsa.RSAPublicKey = netlib.deserialize_public_key(key_file.read())
         print("Found Auth server public key.")
         print("Key Hash: " + cryptolib.public_key_hash(auth_public_key))
 

@@ -2,7 +2,6 @@ import socketserver
 import signal
 import sys
 import time
-from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
 
 from enums import AuthRequestType, ServerErrCode
@@ -106,14 +105,11 @@ if __name__ == "__main__":
     db = serverlib.initialize_database(db_location, db_init_command)
 
     private_key_file = "auth_private_key"
-    private_key: rsa.RSAPrivateKey = serverlib.initialize_key(private_key_file)
+    private_key: rsa.RSAPrivateKey = cryptolib.initialize_key(private_key_file)
     public_key = private_key.public_key()
 
     public_key_file = "auth_public_key"
-    public_key_writable = public_key.public_bytes(
-        serialization.Encoding.OpenSSH,
-        serialization.PublicFormat.OpenSSH
-    )
+    public_key_writable = netlib.serialize_public_key(public_key)
     with open(public_key_file, "wb") as key_file:
         key_file.write(public_key_writable)
 

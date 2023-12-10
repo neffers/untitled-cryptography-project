@@ -1,18 +1,13 @@
 import sqlite3
+import netlib
 from os import path
 from cryptography.hazmat.primitives.asymmetric import rsa
-from cryptography.hazmat.primitives import serialization
 
-import cryptolib
-import netlib
 from enums import ServerErrCode
 
 
 def public_key_response(public_key: rsa.RSAPublicKey):
-    pubkey_bytes = public_key.public_bytes(
-        serialization.Encoding.OpenSSH,
-        serialization.PublicFormat.OpenSSH
-    )
+    pubkey_bytes = netlib.serialize_public_key(public_key)
     response = {
         "success": True,
         "data": pubkey_bytes.decode()
@@ -36,28 +31,6 @@ def initialize_database(db_filename, schema_command):
     cursor.execute(enable_foreign_keys)
     cursor.close()
     return database
-
-
-def initialize_key(key_filename):
-    if path.exists(key_filename):
-        print("Found existing private key, using that.")
-        with open(key_filename, "rb") as key_file:
-            key: rsa.RSAPrivateKey = serialization.load_ssh_private_key(
-                key_file.read(),
-                None
-            )
-    else:
-        print("No existing private key found, generating...")
-        key = rsa.generate_private_key(65537, 4096)
-        to_write = key.private_bytes(
-            serialization.Encoding.PEM,
-            serialization.PrivateFormat.OpenSSH,
-            serialization.NoEncryption()
-        )
-        with open(key_filename, "wb") as key_file:
-            key_file.write(to_write)
-    print("Key Hash: " + cryptolib.public_key_hash(key.public_key()))
-    return key
 
 
 def bad_request_json(err: ServerErrCode, comment: str = None):
