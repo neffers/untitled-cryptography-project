@@ -65,12 +65,13 @@ class Request:
 
 
 # Auth server request
-def request_token(password, as_pub) -> Union[bytes, None]:
+def request_token(as_sock, password, as_pub, rs_pub) -> Union[bytes, None]:
     aes_key = os.urandom(32)
     encrypted_key = cryptolib.rsa_encrypt(as_pub, aes_key)
     signin_dict = {
         "identity": identity,
         "password": password,
+        "rs_keyhash": cryptolib.public_key_hash(rs_pub),
     }
     signin_payload = cryptolib.encrypt_dict(aes_key, signin_dict)
     request = {
@@ -78,11 +79,11 @@ def request_token(password, as_pub) -> Union[bytes, None]:
         "encrypted_key": netlib.bytes_to_b64(encrypted_key),
         "signin_payload": netlib.bytes_to_b64(signin_payload),
     }
-    netlib.send_dict_to_socket(request, sock)
-    response = netlib.get_dict_from_socket(sock)
+    netlib.send_dict_to_socket(request, as_sock)
+    response = netlib.get_dict_from_socket(as_sock)
     if "success" in response:
         if response["success"]:
-            return cryptolib.symmetric_decrypt(aes_key, netlib.b64_to_bytes(response["data"]))
+            return cryptolib.decrypt_dict(aes_key, netlib.b64_to_bytes(response["data"]))
 
     return None
 
@@ -839,28 +840,8 @@ def server_loop(res_ip, res_port):
         write_database_to_file()
     sock.close()
 
-    auth_server = db["auth_server"]
-    print("Trying to connect to {}:{}".format(auth_server["ip"], auth_server["port"]))
-    try:
-        sock = socket.socket()
-        sock.connect((auth_server["ip"], int(auth_server["port"])))
-    except OSError as e:
-        print("Connection to authentication server failed! error: " + str(e))
-        return
-    print("Connection successful.")
     identity = input("Enter identity: ")
     password = input("Enter password: ")
-    try:
-        token = request_token(password, as_pub)
-    except BrokenPipeError:
-        print("Authentication Server Closed Pipe")
-        return
-    if token is None:
-        print("Incorrect username or password!")
-        return
-
-    print("Login successful!")
-    sock.close()
 
     # Resource server handshake
     print("Trying to connect to {}:{}".format(res_ip, res_port))
@@ -912,11 +893,34 @@ def server_loop(res_ip, res_port):
                 print("Public key offered matches the one stored locally")
             break
 
+    # AS Token
+    print("Trying to connect to {}:{}".format(auth_server["ip"], auth_server["port"]))
+    try:
+        as_sock = socket.socket()
+        as_sock.connect((auth_server["ip"], int(auth_server["port"])))
+    except OSError as e:
+        print("Connection to authentication server failed! error: " + str(e))
+        return
+    print("Connection successful.")
+    try:
+        data = request_token(as_sock, password, as_pub, rs_pub)
+        token = data["token"]
+        expiration_time = data["expiration_time"]
+    except BrokenPipeError:
+        print("Authentication Server Closed Pipe")
+        return
+    if token is None:
+        print("Incorrect username or password!")
+        return
+
+    print("Login successful!")
+    sock.close()
+
     aes_key = os.urandom(32)
     encrypted_key = cryptolib.rsa_encrypt(rs_pub, aes_key)
     signin_dict = {
         "identity": identity,
-        "token": netlib.bytes_to_b64(token),
+        "token": token,
     }
     signin_payload = cryptolib.encrypt_dict(aes_key, signin_dict)
     request = {
