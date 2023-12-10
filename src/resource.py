@@ -528,28 +528,28 @@ def remove_permission(user_id: int, leaderboard_id: int, new_read_keys: dict, ne
     read_key_ver += 1
 
     add_new_read_perms_command = """
-    insert into read_keys(user, leaderboard, associated_perm, version, encrypted_key)
-    select ?, ?, associated_perm, ?, ?
+    insert into read_keys(associated_perm, version, encrypted_key)
+    select associated_perm, ?, ?
     from read_keys
     left join permissions p on p.id = associated_perm
     where user = ? and leaderboard = ?
     """
     for user in new_read_keys:
-        add_new_read_perms_params = (user, leaderboard_id, read_key_ver, new_read_keys[user], user, leaderboard_id)
+        add_new_read_perms_params = (read_key_ver, new_read_keys[user], user, leaderboard_id)
         cur.execute(add_new_read_perms_command, add_new_read_perms_params)
 
     if update_mod:
         mod_pubkey = new_mod_pubkey
         mod_key_ver += 1
         add_new_mod_perms_command = """
-        insert into mod_keys (user, leaderboard, associated_perm, version, encrypted_sym_key, encrypted_priv_key)
-        select ?, ?, associated_perm, ?, ?, ?
+        insert into mod_keys (associated_perm, version, encrypted_sym_key, encrypted_priv_key)
+        select associated_perm, ?, ?, ?
         from mod_keys
         left join permissions p on p.id = associated_perm
         where user = ? and leaderboard = ?
         """
         for user in new_mod_keys:
-            add_new_mod_perms_params = (user, leaderboard_id, mod_key_ver, new_mod_keys[user][0], new_mod_keys[user][1], user, leaderboard_id)
+            add_new_mod_perms_params = (mod_key_ver, new_mod_keys[user][0], new_mod_keys[user][1], user, leaderboard_id)
             cur.execute(add_new_mod_perms_command, add_new_mod_perms_params)
 
     update_leaderboard_command = """
