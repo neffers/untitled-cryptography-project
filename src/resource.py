@@ -146,8 +146,8 @@ def add_leaderboard(creator_id: int, new_lb_name: str, new_lb_asc: bool, mod_pub
     }
 
 
-# TODO T6
-def add_entry(requesting_user_id: int, user_perms: dict, leaderboard_id: int, entry_score: float, comment: str) -> dict:
+def add_entry(requesting_user_id: int, user_perms: dict, leaderboard_id: int, entry_score: bytes, comment: bytes,
+              uploader_key: bytes, mod_key: bytes, mod_key_ver: int) -> dict:
     # error if leaderboard id doesn't exist
     try:
         lb_perm = user_perms[leaderboard_id]
@@ -157,18 +157,18 @@ def add_entry(requesting_user_id: int, user_perms: dict, leaderboard_id: int, en
     if lb_perm < Permissions.Write:
         return serverlib.bad_request_json(ServerErrCode.InsufficientPermission)
     create_entry_command = """
-        insert into leaderboard_entries(user, leaderboard, score, submission_date, verified)
-        values(?, ?, ?, strftime('%s'), ?)
+    insert into leaderboard_entries(user, leaderboard, score, submission_date, verified, uploader_key, mod_key, mod_key_ver)
+    values(?, ?, ?, strftime('%s'), ?, ?, ?, ?)
     """
-    create_entry_params = (requesting_user_id, leaderboard_id, entry_score, False)
+    create_entry_params = (requesting_user_id, leaderboard_id, entry_score, False, uploader_key, mod_key, mod_key_ver)
     cur = db.cursor()
     cur.execute(create_entry_command, create_entry_params)
     entry_id = cur.lastrowid
     create_comment_command = """
-        insert into entry_comments(user, entry, date, content)
-        values(?, ?, strftime('%s'), ?)
+    insert into entry_comments(user, entry, date, content, uploader_key, mod_key, mod_key_ver)
+    values(?, ?, strftime('%s'), ?)
     """
-    create_comment_params = (requesting_user_id, entry_id, comment)
+    create_comment_params = (requesting_user_id, entry_id, comment, uploader_key, mod_key, mod_key_ver)
     cur.execute(create_comment_command, create_comment_params)
     db.commit()
     return {
@@ -794,16 +794,16 @@ def handle_request(request_user_id: int, request: dict):
             leaderboard_id = request["leaderboard_id"]
             if not isinstance(leaderboard_id, int):
                 raise TypeError
-            entry_score = request["score"]
-            if not isinstance(entry_score, (float, int)):
-                raise TypeError
-            comment = request["comment"]
-            if not isinstance(comment, str):
+            entry_score = netlib.b64_to_bytes(request["score"])
+            comment = netlib.b64_to_bytes(request["comment"])
+            uploader_key = netlib.b64_to_bytes(request["user_key"])
+            mod_key = netlib.b64_to_bytes(request["mod_key"])
+            mod_key_ver = request["mod_key_ver"]
+            if not isinstance(mod_key_ver, int):
                 raise TypeError
         except (KeyError, TypeError):
             return serverlib.bad_request_json(ServerErrCode.MalformedRequest)
-
-        return add_entry(request_user_id, perms, leaderboard_id, entry_score, comment)
+        return add_entry(request_user_id, perms, leaderboard_id, entry_score, comment, uploader_key, mod_key, mod_key_ver)
 
     # Basic: List Users
     if request_type == ResourceRequestType.ListUsers:
