@@ -4,7 +4,6 @@ import base64
 from datetime import datetime
 from typing import Union
 
-from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
 
 import os
@@ -17,21 +16,28 @@ token: bytes = bytes()
 sock: socket.socket = socket.socket()
 session_key: bytes = bytes()
 
+key_filename = str()
+private_key: rsa.RSAPrivateKey
+rs_pub: rsa.RSAPublicKey
+counter = 0
+
 # formatting lookup tables
 perms = ["No Access", "Read Access", "Write Access", "Mod", "Admin"]
 bools = ["False", "True"]
 
-def print_err(type):
-    if type == ServerErrCode.AuthenticationFailure:
+
+def print_err(err_type):
+    if err_type == ServerErrCode.AuthenticationFailure:
         print("Error: Authentication failed!")
-    if type == ServerErrCode.DoesNotExist:
+    if err_type == ServerErrCode.DoesNotExist:
         print("Error: The desired data does not exist!")
-    if type == ServerErrCode.InsufficientPermission:
+    if err_type == ServerErrCode.InsufficientPermission:
         print("Error: You do not have permission to run this command!")
-    if type == ServerErrCode.MalformedRequest:
+    if err_type == ServerErrCode.MalformedRequest:
         print("Error: Request was incorrectly formatted!")
-    if type == ServerErrCode.SessionExpired:
+    if err_type == ServerErrCode.SessionExpired:
         print("Error: The current session has expired!")
+
 
 class Request:
     def __init__(self, request: dict):
@@ -39,15 +45,31 @@ class Request:
 
     def make_request(self) -> dict:
         request = self.request
-        encrypted_request = {"encrypted_request": netlib.bytes_to_b64(cryptolib.encrypt_dict(session_key, request))}
+        encrypted_bytes = cryptolib.encrypt_dict(session_key, request)
+        signature = cryptolib.rsa_sign(private_key, encrypted_bytes)
+        base64_request = netlib.bytes_to_b64(encrypted_bytes)
+        base64_signature = netlib.bytes_to_b64(signature)
+        encrypted_request = {"encrypted_request": base64_request,
+                             "signature": base64_signature}
         netlib.send_dict_to_socket(encrypted_request, sock)
-        encrypted_response = netlib.get_dict_from_socket(sock)
-        if encrypted_response.get("encrypted_response") is None:
+
+        dict_response = netlib.get_dict_from_socket(sock)
+        if dict_response.get("encrypted_response") is None:
             # handle plaintext timeout message
-            if encrypted_response.get("success") is not None and encrypted_response.get("data") == ServerErrCode.SessionExpired:
-                return encrypted_response
-                
-        response = cryptolib.decrypt_dict(session_key, netlib.b64_to_bytes(encrypted_response["encrypted_response"]))
+            if dict_response.get("success") is not None and dict_response.get(
+                    "data") == ServerErrCode.SessionExpired:
+                return dict_response
+
+        # handle bad signature
+        if not cryptolib.rsa_verify(rs_pub, netlib.b64_to_bytes(dict_response.get("signature")),
+                                    netlib.b64_to_bytes(dict_response.get("encrypted_response"))):
+            response = {
+                "success": False,
+                "data": "Invalid signature"
+            }
+            return response
+
+        response = cryptolib.decrypt_dict(session_key, netlib.b64_to_bytes(dict_response["encrypted_response"]))
         return response
 
     def safe_print(self, response: dict) -> None:
@@ -58,7 +80,6 @@ class Request:
             self.print_response(response)
         else:
             print_err(response["data"])
-            #print(response["data"])
 
     def print_response(self, response):
         print("Operation successful.")
@@ -95,7 +116,7 @@ def request_pub_key() -> Union[rsa.RSAPublicKey, None]:
     netlib.send_dict_to_socket(request, sock)
     response = netlib.get_dict_from_socket(sock)
     if "success" in response and response["success"]:
-        return serialization.load_ssh_public_key(response["data"].encode())
+        return netlib.deserialize_public_key(response["data"].encode())
 
     return None
 
@@ -113,11 +134,10 @@ class ShowLeaderboardsRequest(Request):
 
 
 class CreateLeaderboardRequest(Request):
-    def __init__(self, leaderboard_name, leaderboard_permission, leaderboard_ascending):
+    def __init__(self, leaderboard_name, leaderboard_ascending):
         super().__init__({
             "type": ResourceRequestType.CreateLeaderboard,
             "leaderboard_name": leaderboard_name,
-            "leaderboard_permission": leaderboard_permission,
             "leaderboard_ascending": leaderboard_ascending,
         })
 
@@ -565,32 +585,13 @@ def do_show_leaderboards():
 
 def do_create_leaderboard():
     leaderboard_name = input("Enter the name for the new leaderboard: ")
-    leaderboard_permission = input(
-        "[0] None\n"
-        "[1] Read\n"
-        "[2] Write\n"
-        "[3] Moderator\n"
-        "Enter default permissions for leaderboard: ")
-    if not leaderboard_permission.isdigit() or int(leaderboard_permission) > 3:
-        print("Invalid input, please enter an integer listed above")
-        return
-    leaderboard_permission = int(leaderboard_permission)
-    if leaderboard_permission == 0:
-        leaderboard_permission = Permissions.NoAccess
-    elif leaderboard_permission == 1:
-        leaderboard_permission = Permissions.Read
-    elif leaderboard_permission == 2:
-        leaderboard_permission = Permissions.Write
-    elif leaderboard_permission == 3:
-        leaderboard_permission = Permissions.Moderate
     leaderboard_ascending = input("Score ascending [1] or descending [2]: ")
     if not leaderboard_ascending.isdigit() or int(leaderboard_ascending) > 2 \
             or int(leaderboard_ascending) < 1:
         print("Invalid input, please enter an integer listed")
         return
     leaderboard_ascending = int(leaderboard_ascending) == 1
-    request = CreateLeaderboardRequest(leaderboard_name, leaderboard_permission,
-                                       leaderboard_ascending)
+    request = CreateLeaderboardRequest(leaderboard_name, leaderboard_ascending)
     request.safe_print(request.make_request())
 
 
@@ -834,8 +835,7 @@ def server_loop(res_ip, res_port):
         print("No public key was found.")
         return
     if "as_pub" not in db["auth_server"]:
-        db["auth_server"]["as_pub"] = netlib.bytes_to_b64(as_pub.public_bytes(encoding=serialization.Encoding.PEM,
-                                                                              format=serialization.PublicFormat.SubjectPublicKeyInfo))
+        db["auth_server"]["as_pub"] = netlib.bytes_to_b64(netlib.serialize_public_key(as_pub))
         write_database_to_file()
     sock.close()
 
@@ -850,6 +850,12 @@ def server_loop(res_ip, res_port):
     print("Connection successful.")
     identity = input("Enter identity: ")
     password = input("Enter password: ")
+
+    global key_filename
+    global private_key
+    key_filename = "client_" + identity + "_private_key"
+    private_key = cryptolib.initialize_key(key_filename)
+
     try:
         token = request_token(password, as_pub)
     except BrokenPipeError:
@@ -886,12 +892,11 @@ def server_loop(res_ip, res_port):
     else:
         print("RS public key request failed")
         return
-    rs_pub: rsa.RSAPublicKey = serialization.load_ssh_public_key(rs_pub_serialized.encode())
+    global rs_pub
+    rs_pub = netlib.deserialize_public_key(rs_pub_serialized.encode())
     for rs in db["resource_servers"]:
         if rs["ip"] == res_ip and rs["port"] == res_port:
-            if "rs_pub" in rs and rs["rs_pub"] != netlib.bytes_to_b64(
-                    rs_pub.public_bytes(encoding=serialization.Encoding.PEM,
-                                        format=serialization.PublicFormat.SubjectPublicKeyInfo)):
+            if "rs_pub" in rs and rs["rs_pub"] != netlib.bytes_to_b64(netlib.serialize_public_key(rs_pub)):
                 print("Requested public key doesn't match stored public key.")
                 return
             elif "rs_pub" not in rs:
@@ -900,8 +905,7 @@ def server_loop(res_ip, res_port):
                     print("Confirm New Key Hash: " + cryptolib.public_key_hash(rs_pub))
                     response = input("Does this look right? (y/n): ")
                     if response.lower() == "y":
-                        rs["rs_pub"] = netlib.bytes_to_b64(rs_pub.public_bytes(encoding=serialization.Encoding.PEM,
-                                                                               format=serialization.PublicFormat.SubjectPublicKeyInfo))
+                        rs["rs_pub"] = netlib.bytes_to_b64(netlib.serialize_public_key(rs_pub))
                         write_database_to_file()
                         print("New key saved to disk for {}:{}".format(res_ip, res_port))
                         break
@@ -914,9 +918,13 @@ def server_loop(res_ip, res_port):
 
     aes_key = os.urandom(32)
     encrypted_key = cryptolib.rsa_encrypt(rs_pub, aes_key)
+    public_key = private_key.public_key()
+    public_key_bytes = netlib.serialize_public_key(public_key)
     signin_dict = {
         "identity": identity,
         "token": netlib.bytes_to_b64(token),
+        "pubkey": netlib.bytes_to_b64(public_key_bytes),
+        # TODO expiration goes here
     }
     signin_payload = cryptolib.encrypt_dict(aes_key, signin_dict)
     request = {
@@ -932,15 +940,27 @@ def server_loop(res_ip, res_port):
     except BrokenPipeError:
         print("Resource Server Broke Pipe")
         return
-    if "nonce" not in response or response["nonce"] is None:
+    if response.get("nonce") is None:
         print("Password authentication failed!")
         return
-    encrypted_nonce = response["nonce"]
-    nonce = cryptolib.symmetric_decrypt(aes_key, netlib.b64_to_bytes(encrypted_nonce))
+    if response.get("signature") is None:
+        print("Signature verification failed")
+        return
+    encrypted_nonce = netlib.b64_to_bytes(response["nonce"])
+    signature = netlib.b64_to_bytes(response["signature"])
+    if not cryptolib.rsa_verify(rs_pub, signature, encrypted_nonce):
+        print("Signature verification failed")
+        return
+    nonce = cryptolib.symmetric_decrypt(aes_key,encrypted_nonce)
     nonce_plus_1 = netlib.int_to_bytes(netlib.bytes_to_int(nonce) + 1)
+    encrypted_nonce = cryptolib.symmetric_encrypt(aes_key, nonce_plus_1)
+    signature = cryptolib.rsa_sign(private_key, encrypted_nonce)
+    base64_nonce = netlib.bytes_to_b64(encrypted_nonce)
+    base64_signature = netlib.bytes_to_b64(signature)
     request = {
         "type": ResourceRequestType.NonceReply,
-        "nonce": netlib.bytes_to_b64(cryptolib.symmetric_encrypt(aes_key, nonce_plus_1)),
+        "nonce": base64_nonce,
+        "signature": base64_signature
     }
     netlib.send_dict_to_socket(request, sock)
     try:
