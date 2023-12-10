@@ -2,7 +2,7 @@ import json
 from os import urandom, path
 
 from cryptography.exceptions import InvalidSignature
-from cryptography.hazmat.primitives import serialization, hashes, padding
+from cryptography.hazmat.primitives import hashes, padding
 from cryptography.hazmat.primitives.asymmetric import rsa, padding as asym_pad
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 
@@ -13,18 +13,11 @@ def initialize_key(key_filename):
     if path.exists(key_filename):
         print("Found existing private key, using that.")
         with open(key_filename, "rb") as key_file:
-            key: rsa.RSAPrivateKey = serialization.load_ssh_private_key(
-                key_file.read(),
-                None
-            )
+            key: rsa.RSAPrivateKey = netlib.deserialize_private_key(key_file.read())
     else:
         print("No existing private key found, generating...")
         key = rsa.generate_private_key(65537, 4096)
-        to_write = key.private_bytes(
-            serialization.Encoding.PEM,
-            serialization.PrivateFormat.OpenSSH,
-            serialization.NoEncryption()
-        )
+        to_write = netlib.serialize_private_key(key)
         with open(key_filename, "wb") as key_file:
             key_file.write(to_write)
     print("Key Hash: " + public_key_hash(key.public_key()))
@@ -32,10 +25,7 @@ def initialize_key(key_filename):
 
 
 def public_key_hash(key: rsa.RSAPublicKey):
-    public_key_bytes = key.public_bytes(
-        serialization.Encoding.OpenSSH,
-        serialization.PublicFormat.OpenSSH
-    )
+    public_key_bytes = netlib.serialize_public_key(key)
     hasher = hashes.Hash(hashes.SHA256())
     hasher.update(public_key_bytes)
     return netlib.bytes_to_b64(hasher.finalize())

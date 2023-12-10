@@ -1,16 +1,13 @@
 import sqlite3
+import netlib
 from os import path
 from cryptography.hazmat.primitives.asymmetric import rsa
-from cryptography.hazmat.primitives import serialization
 
 from enums import ServerErrCode
 
 
 def public_key_response(public_key: rsa.RSAPublicKey):
-    pubkey_bytes = public_key.public_bytes(
-        serialization.Encoding.OpenSSH,
-        serialization.PublicFormat.OpenSSH
-    )
+    pubkey_bytes = netlib.serialize_public_key(public_key)
     response = {
         "success": True,
         "data": pubkey_bytes.decode()
