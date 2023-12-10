@@ -347,8 +347,8 @@ def modify_verification(request_user_id: int, user_perms: dict, entry_id: int, v
     }
 
 
-# TODO T6
-def add_comment(request_user_id: int, user_perms: dict, entry_id: int, content: str) -> dict:
+def add_comment(request_user_id: int, user_perms: dict, entry_id: int, content: bytes,
+                uploader_key: bytes, mod_key: bytes, mod_key_ver: int) -> dict:
     cur = db.cursor()
     # Check permissions by first getting leaderboard id and then getting requesting user's perms for it
     get_leaderboard_id_command = """
@@ -367,10 +367,10 @@ def add_comment(request_user_id: int, user_perms: dict, entry_id: int, content: 
         return serverlib.bad_request_json(ServerErrCode.InsufficientPermission)
 
     add_comment_command = """
-        insert into entry_comments(user, entry, date, content)
-            values (?, ?, strftime('%s'), ?)
+    insert into entry_comments(user, entry, date, content, uploader_key, mod_key, mod_key_ver)
+        values (?, ?, strftime('%s'), ?, ?, ?, ?)
     """
-    add_comment_params = (request_user_id, entry_id, content)
+    add_comment_params = (request_user_id, entry_id, content, uploader_key, mod_key, mod_key_ver)
     cur.execute(add_comment_command, add_comment_params)
     db.commit()
     return {
@@ -869,12 +869,15 @@ def handle_request(request_user_id: int, request: dict):
             entry_id = request["entry_id"]
             if not isinstance(entry_id, int):
                 raise TypeError
-            content = request["content"]
-            if not isinstance(content, str):
+            content = netlib.b64_to_bytes(request["content"])
+            uploader_key = netlib.b64_to_bytes(request["uploader_key"])
+            mod_key = netlib.b64_to_bytes(request["mod_key"])
+            mod_key_ver = request["mod_key_ver"]
+            if not isinstance(mod_key_ver, int):
                 raise TypeError
         except (KeyError, TypeError):
             return serverlib.bad_request_json(ServerErrCode.MalformedRequest)
-        return add_comment(request_user_id, perms, entry_id, content)
+        return add_comment(request_user_id, perms, entry_id, content, uploader_key, mod_key, mod_key_ver)
 
     # Admin: Remove Leaderboard
     if request_type == ResourceRequestType.RemoveLeaderboard:
