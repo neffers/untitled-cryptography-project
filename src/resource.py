@@ -890,7 +890,7 @@ class Handler(socketserver.BaseRequestHandler):
             return
         client_public_key_bytes = netlib.b64_to_bytes(signin_request["pubkey"])
         client_public_key = netlib.deserialize_public_key(client_public_key_bytes)
-        if not cryptolib.rsa_verify_str(auth_public_key, token, socket_identity):
+        if not cryptolib.rsa_verify_str(auth_public_key, token, cryptolib.public_key_hash(public_key) + socket_identity + expiration_time):
             print("Invalid login token, exiting")
             netlib.send_dict_to_socket(serverlib.bad_request_json(ServerErrCode.AuthenticationFailure), self.request)
             return
