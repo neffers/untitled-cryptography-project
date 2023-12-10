@@ -62,7 +62,7 @@ def decrypt_resource(encrypted_resource: dict) -> bytes:
         # try to decrypt as mod
         mod_symkey = cryptolib.rsa_decrypt(private_key, mod_symkey)
         mod_privkey = cryptolib.symmetric_decrypt(mod_symkey, mod_privkey)
-        mod_privkey = serialization.load_pem_private_key(mod_privkey, None)
+        mod_privkey = netlib.deserialize_private_key(mod_privkey)
         resource_symkey = cryptolib.rsa_decrypt(mod_privkey, resource_symkey)
 
     resource = cryptolib.symmetric_decrypt(resource_symkey, resource)
