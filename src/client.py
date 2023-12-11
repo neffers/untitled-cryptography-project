@@ -380,13 +380,24 @@ class RemoveEntryRequest(Request):
         })
 
 
-class SetPermissionRequest(Request):
+class AddPermissionRequest(Request):
+    # TODO add read_keys, mod_keys
     def __init__(self, user_id, leaderboard_id, permission):
         super().__init__({
-            "type": ResourceRequestType.SetPermission,
+            "type": ResourceRequestType.AddPermission,
             "user_id": user_id,
             "leaderboard_id": leaderboard_id,
             "permission": permission
+        })
+
+
+class RemovePermissionRequest(Request):
+    # TODO add new_read_keys, new_mod_keys, new_mod_pubkey
+    def __init__(self, user_id, leaderboard_id):
+        super().__init__({
+            "type": ResourceRequestType.RemovePermission,
+            "user_id": user_id,
+            "leaderboard_id": leaderboard_id,
         })
 
 
@@ -416,32 +427,38 @@ def do_view_permissions(user_id):
     request.safe_print(request.make_request())
 
 
-def do_set_permission(user_id):
-    # TODO modify keys
-    leaderboard_id = input("Enter the leaderboard id where the permission will be changed: ")
+def do_add_permission(user_id):
+    leaderboard_id = input("Enter the leaderboard id where the permission will be added: ")
     if not leaderboard_id.isdigit():
         print("Invalid input, please enter an integer")
         return
     leaderboard_id = int(leaderboard_id)
     permission = input(
-        "[0] None\n"
-        "[1] Read\n"
-        "[2] Write\n"
-        "[3] Moderator\n"
+        "[0] Read\n"
+        "[1] Write\n"
+        "[2] Moderator\n"
         "Select new permission level: ")
     if not permission.isdigit() or int(permission) > 3:
         print("Invalid input, please enter an integer listed above")
         return
     permission = int(permission)
     if permission == 0:
-        permission = Permissions.NoAccess
-    elif permission == 1:
         permission = Permissions.Read
-    elif permission == 2:
+    elif permission == 1:
         permission = Permissions.Write
-    elif permission == 3:
+    elif permission == 2:
         permission = Permissions.Moderate
-    request = SetPermissionRequest(user_id, leaderboard_id, permission)
+    request = AddPermissionRequest(user_id, leaderboard_id, permission)
+    request.safe_print(request.make_request())
+
+
+def do_remove_permission(user_id):
+    leaderboard_id = input("Enter the leaderboard id where the permission will be added: ")
+    if not leaderboard_id.isdigit():
+        print("Invalid input, please enter an integer")
+        return
+    leaderboard_id = int(leaderboard_id)
+    request = RemovePermissionRequest(user_id, leaderboard_id)
     request.safe_print(request.make_request())
 
 
@@ -457,9 +474,10 @@ def user_options(user_id):
             "[0] Go Back\n"
             "[1] View User\n"
             "[2] View Permissions\n"
-            "[3] Set Permissions\n"
-            "[4] Open Submission\n"
-            "[5] Remove User\n")
+            "[3] Add Permission\n"
+            "[4] Remove Permission\n"
+            "[5] Open Submission\n"
+            "[6] Remove User\n")
         choice = input("Choose the corresponding number: ")
         if not choice.isdigit() or int(choice) > 5:
             print("Invalid input, please enter an integer listed above")
@@ -472,8 +490,10 @@ def user_options(user_id):
         elif choice == 2:
             do_view_permissions(user_id)
         elif choice == 3:
-            do_set_permission(user_id)
+            do_add_permission(user_id)
         elif choice == 4:
+            do_remove_permission(user_id)
+        elif choice == 5:
             entry_id = input("Enter the ID of the entry: ")
             try:
                 entry_id = int(entry_id)
@@ -481,7 +501,7 @@ def user_options(user_id):
                 print("Invalid entry ID")
                 continue
             entry_options(entry_id)
-        elif choice == 5:
+        elif choice == 6:
             do_remove_user(user_id)
             return
 
@@ -590,8 +610,7 @@ def entry_options(entry_id):
             "[5] View Comments\n"
             "[6] Post Comment\n"
             "[7] Verify Entry\n"
-            "[8] Un-verify Entry\n"
-            "[9] Remove Entry\n")
+            "[8] Remove Entry\n")
         choice = input("Choose the corresponding number: ")
         if not choice.isdigit():
             print("Invalid input, please enter an integer")
@@ -612,10 +631,8 @@ def entry_options(entry_id):
         elif choice == 6:
             do_add_comment(entry_id)
         elif choice == 7:
-            do_modify_entry_verification(entry_id, True)
+            do_verify_entry(entry_id)
         elif choice == 8:
-            do_modify_entry_verification(entry_id, False)
-        elif choice == 9:
             do_remove_entry(entry_id)
             return
         else:
