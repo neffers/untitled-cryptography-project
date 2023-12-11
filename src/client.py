@@ -39,15 +39,8 @@ def print_err(err_type):
         print("Error: The current session has expired!")
 
 
+"""
 def decrypt_resource(encrypted_resource: dict) -> bytes:
-    """
-    {
-        resource: resource bytes
-        resource_symkey: symkey to decrypt resource, encrypted by client pubkey or mod pubkey
-        optional mod_privkey: {mod group private key in PEM format}mod group symmetric key
-        optional mod_symkey: {mod group symmetric key}client pubkey
-    }
-    """
     resource = netlib.b64_to_bytes(encrypted_resource.get("resource"))
     resource_symkey = netlib.b64_to_bytes(encrypted_resource.get("resource_symkey"))
     mod_privkey = netlib.b64_to_bytes(encrypted_resource.get("mod_privkey"))
@@ -67,6 +60,7 @@ def decrypt_resource(encrypted_resource: dict) -> bytes:
 
     resource = cryptolib.symmetric_decrypt(resource_symkey, resource)
     return resource
+"""
 
 
 class Request:
@@ -417,15 +411,91 @@ class OneLeaderboardRequest(Request):
         })
 
     def print_response(self, response):
+        """ shape of response
+        entries: (if not mod)
+            0 entry id
+            1 user id
+            2 user identity
+            3 score
+            4 submission_date
+            5 verified
+            6 read_key_ver
+            7 uploader_key
+        entries: (if mod)
+            0 entry id
+            1 user id
+            2 user identity
+            3 score
+            4 submission_date
+            5 verified
+            6 read_key_ver
+            7 mod_key
+            8 mod_key_ver
+        """
+        entries = response["data"]["entries"]
         print("Leaderboard ID: {} Leaderboard Name: {}".format(response["data"]["id"], response["data"]["name"]))
         print("{:<9}{:<8}{:<21.21}{:<15}{:<20}{:<6}"
               .format("Entry ID", "User ID", "Username", "Score", "Date", "Verified"))
-        for entry in response["data"]["entries"]:
-            date = datetime.fromtimestamp(entry[4])
-            entry[3] = decrypt_resource(entry[3])
-            entry[3] = netlib.bytes_to_int(entry[3])
+        if entries.len() == 0:
+            print("No entries found")
+            return
+        is_mod = entries[0].len() == 7  # returns a different set of columns if client is moderator
+        leaderboard_id = self.request["leaderboard_id"]
+        user_id = do_get_self_id()
+        keys = do_get_keys(user_id, leaderboard_id)
+        for entry in entries:
+            entry_id = entry[0]
+            entry_user_id = entry[1]
+            entry_identity = entry[2]
+            entry_score = entry[3]
+            entry_date = entry[4]
+            entry_verified = entry[5]
+            read_key_ver = entry[6]
+            if entry_verified:
+                found = False
+                for key in keys["data"]["read"]:
+                    version = key[0]
+                    key = key[1]
+                    if version == read_key_ver:
+                        key = cryptolib.rsa_decrypt(private_key, key)
+                        entry_score = cryptolib.symmetric_decrypt(key, entry_score)
+                        entry_score = netlib.bytes_to_int(entry_score)
+                        found = True
+                        break
+                if not found:
+                    print("failed to decrypt")
+                    return
+            else:
+                if identity == entry_identity and not is_mod:
+                    uploader_key = entry[7]
+                    key = cryptolib.rsa_decrypt(private_key, uploader_key)
+                    entry_score = cryptolib.symmetric_decrypt(key, entry_score)
+                    entry_score = netlib.bytes_to_int(entry_score)
+                elif is_mod:
+                    found = False
+                    mod_key = entry[7]
+                    mod_key_ver = entry[8]
+                    for key in keys["data"]["mod"]:
+                        version = key[0]
+                        priv = key[1]
+                        sym = key[2]
+                        if version == mod_key_ver:
+                            sym = cryptolib.rsa_decrypt(private_key, sym)
+                            priv = cryptolib.symmetric_decrypt(sym, priv)
+                            key = cryptolib.rsa_decrypt(netlib.deserialize_private_key(priv), mod_key)
+                            entry_score = cryptolib.symmetric_decrypt(key, entry_score)
+                            entry_score = netlib.bytes_to_int(entry_score)
+                            found = True
+                            break
+                    if not found:
+                        print("failed to decrypt")
+                        return
+            if not isinstance(entry_score, int):
+                print("failed to decrypt")
+                return
+            date = datetime.fromtimestamp(entry_date)
             print("{:<9}{:<8}{:<21.21}{:<15}{:<20}{:<6}"
-                  .format(entry[0], entry[1], entry[2], entry[3], str(date), bools[entry[5]]))
+                  .format(entry_id, entry_user_id, entry_identity, entry_score, str(date), bools[entry_verified]))
 
 
 class ViewPermissionsRequest(Request):
