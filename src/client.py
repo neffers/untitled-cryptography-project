@@ -165,11 +165,15 @@ class ShowLeaderboardsRequest(Request):
 
 
 class CreateLeaderboardRequest(Request):
-    def __init__(self, leaderboard_name, leaderboard_ascending):
+    def __init__(self, leaderboard_name, leaderboard_ascending, mod_pubkey, read_key, mod_sym, mod_priv):
         super().__init__({
             "type": ResourceRequestType.CreateLeaderboard,
             "leaderboard_name": leaderboard_name,
             "leaderboard_ascending": leaderboard_ascending,
+            "mod_pubkey": mod_pubkey,
+            "read_key": read_key,
+            "mod_sym": mod_sym,
+            "mod_priv": mod_priv
         })
 
     def print_response(self, response):
@@ -177,12 +181,15 @@ class CreateLeaderboardRequest(Request):
 
 
 class AddEntryRequest(Request):
-    def __init__(self, leaderboard_id, score, comment):
+    def __init__(self, leaderboard_id, score, comment, user_key, mod_key, mod_key_ver):
         super().__init__({
             "type": ResourceRequestType.AddEntry,
             "leaderboard_id": leaderboard_id,
             "score": score,
             "comment": comment,
+            "user_key": user_key,
+            "mod_key": mod_key,
+            "mod_key_ver": mod_key_ver
         })
 
     def print_response(self, response):
@@ -267,12 +274,15 @@ class GetEntryRequest(Request):
 
 
 class AddProofRequest(Request):
-    def __init__(self, entry_id, filename, blob):
+    def __init__(self, entry_id, filename, blob, uploader_key, mod_key, mod_key_ver):
         super().__init__({
             "type": ResourceRequestType.AddProof,
             "entry_id": entry_id,
             "filename": filename,
-            "file": base64.b64encode(blob).decode()
+            "file": base64.b64encode(blob).decode(),
+            "uploader_key": uploader_key,
+            "mod_key": mod_key,
+            "mod_key_ver": mod_key_ver
         })
 
 
@@ -347,11 +357,11 @@ class ViewPermissionsRequest(Request):
 
 
 class VerifyEntryRequest(Request):
-    # TODO add read_key_ver
-    def __init__(self, entry_id):
+    def __init__(self, entry_id, read_key_ver):
         super().__init__({
             "type": ResourceRequestType.VerifyEntry,
             "entry_id": entry_id,
+            "read_key_ver": read_key_ver
         })
 
 
@@ -364,11 +374,14 @@ class RemoveLeaderboardRequest(Request):
 
 
 class AddCommentRequest(Request):
-    def __init__(self, entry_id, content):
+    def __init__(self, entry_id, content, uploader_key, mod_key, mod_key_ver):
         super().__init__({
             "type": ResourceRequestType.AddComment,
             "entry_id": entry_id,
-            "content": content
+            "content": content,
+            "uploader_key": uploader_key,
+            "mod_key": mod_key,
+            "mod_key_ver": mod_key_ver
         })
 
 
@@ -381,23 +394,26 @@ class RemoveEntryRequest(Request):
 
 
 class AddPermissionRequest(Request):
-    # TODO add read_keys, mod_keys
-    def __init__(self, user_id, leaderboard_id, permission):
+    def __init__(self, user_id, leaderboard_id, permission, read_keys, mod_keys):
         super().__init__({
             "type": ResourceRequestType.AddPermission,
             "user_id": user_id,
             "leaderboard_id": leaderboard_id,
-            "permission": permission
+            "permission": permission,
+            "read_keys": read_keys,
+            "mod_keys": mod_keys
         })
 
 
 class RemovePermissionRequest(Request):
-    # TODO add new_read_keys, new_mod_keys, new_mod_pubkey
-    def __init__(self, user_id, leaderboard_id):
+    def __init__(self, user_id, leaderboard_id, new_read_keys, new_mod_keys, new_mod_pubkey):
         super().__init__({
             "type": ResourceRequestType.RemovePermission,
             "user_id": user_id,
             "leaderboard_id": leaderboard_id,
+            "new_read_keys": new_read_keys,
+            "new_mod_keys": new_mod_keys,
+            "new_mod_pubkey": new_mod_pubkey
         })
 
 
