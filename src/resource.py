@@ -868,7 +868,7 @@ def handle_request(request_user_id: int, request: dict):
         }
 
     # Entry: Verify Entry
-    if request_type == ResourceRequestType.Verify_Entry:
+    if request_type == ResourceRequestType.VerifyEntry:
         try:
             entry_id = request["entry_id"]
             if not isinstance(entry_id, int):
@@ -935,7 +935,7 @@ def handle_request(request_user_id: int, request: dict):
             return serverlib.bad_request_json(ServerErrCode.MalformedRequest)
         return view_permissions(user_id)
 
-    # User: Set Permission
+    # User: Add Permission
     if request_type == ResourceRequestType.AddPermission:
         if user_class < UserClass.Administrator:
             return serverlib.bad_request_json(ServerErrCode.InsufficientPermission)
@@ -960,6 +960,7 @@ def handle_request(request_user_id: int, request: dict):
             return serverlib.bad_request_json(ServerErrCode.MalformedRequest)
         return add_permission(user_id, leaderboard_id, p, read_keys, mod_keys)
 
+    # User: Remove Permission
     if request_type == ResourceRequestType.RemovePermission:
         if user_class < UserClass.Administrator:
             return serverlib.bad_request_json(ServerErrCode.InsufficientPermission)

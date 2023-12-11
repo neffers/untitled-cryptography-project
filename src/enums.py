@@ -30,7 +30,7 @@ class ResourceRequestType(IntEnum):
     RemoveProof = auto()
     RemoveUser = auto()
     ShowOneLeaderboard = auto()
-    Verify_Entry = auto()
+    VerifyEntry = auto()
     ViewPermissions = auto()
     ViewUser = auto()
 

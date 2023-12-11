@@ -165,11 +165,15 @@ class ShowLeaderboardsRequest(Request):
 
 
 class CreateLeaderboardRequest(Request):
-    def __init__(self, leaderboard_name, leaderboard_ascending):
+    def __init__(self, leaderboard_name, leaderboard_ascending, mod_pubkey, read_key, mod_sym, mod_priv):
         super().__init__({
             "type": ResourceRequestType.CreateLeaderboard,
             "leaderboard_name": leaderboard_name,
             "leaderboard_ascending": leaderboard_ascending,
+            "mod_pubkey": mod_pubkey,
+            "read_key": read_key,
+            "mod_sym": mod_sym,
+            "mod_priv": mod_priv
         })
 
     def print_response(self, response):
@@ -177,12 +181,15 @@ class CreateLeaderboardRequest(Request):
 
 
 class AddEntryRequest(Request):
-    def __init__(self, leaderboard_id, score, comment):
+    def __init__(self, leaderboard_id, score, comment, user_key, mod_key, mod_key_ver):
         super().__init__({
             "type": ResourceRequestType.AddEntry,
             "leaderboard_id": leaderboard_id,
             "score": score,
             "comment": comment,
+            "user_key": user_key,
+            "mod_key": mod_key,
+            "mod_key_ver": mod_key_ver
         })
 
     def print_response(self, response):
@@ -231,12 +238,10 @@ class ListUnverifiedRequest(Request):
         })
 
     def print_response(self, response):
-        print("{:<9}{:<8}{:<21.21}{:<15}{:<20}".format("Entry ID", "User ID", "Username", "Score", "Date"))
+        print("{:<9}{:<8}{:<21.21}{:<20}".format("Entry ID", "User ID", "Username", "Date"))
         for entry in response["data"]:
-            date = datetime.fromtimestamp(entry[4])
-            entry[3] = decrypt_resource(entry[3])
-            entry[3] = netlib.bytes_to_int(entry[3])
-            print("{:<9}{:<8}{:<21.21}{:<15}{:<20}".format(entry[0], entry[1], entry[2], entry[3], str(date)))
+            date = datetime.fromtimestamp(entry[3])
+            print("{:<9}{:<8}{:<21.21}{:<20}".format(entry[0], entry[1], entry[2], str(date)))
 
 
 class GetEntryRequest(Request):
@@ -247,16 +252,102 @@ class GetEntryRequest(Request):
         })
 
     def print_response(self, response):
+        """ shape of response
+            entry:
+                0 entry id
+                1 leaderboard id
+                2 user id
+                3 identity
+                4 score
+                5 date
+                6 uploader key
+                7 mod key
+                8 mod key ver
+                9 read key ver
+                10 verified
+                11 verifier id
+                12 verifier identity
+                13 verification date
+            comments:
+                0 identity
+                1 date
+                2 content
+                3 uploader key
+                4 mod key
+                5 mod key ver
+                6 read key ver
+            files:
+                0 file id
+                1 file name
+                2 submission_date
+                3 uploader key
+                4 mod key
+                5 mod key ver
+                6 read key ver
+        """
         entry = response["data"]["entry"]
-        entry[3] = decrypt_resource(entry[3])
-        entry[3] = netlib.bytes_to_int(entry[3])
+        entry_id = entry[0]
+        entry_user_id = entry[2]
+        entry_identity = entry[3]
+        entry_date = entry[5]
+        entry_verified = entry[10]
+        entry_mod_id = entry[11]
+        entry_mod_identity = entry[12]
+        leaderboard_id = entry[1]
+        user_id = do_get_self_id()
+        keys = do_get_keys(user_id, leaderboard_id)
+        score = entry[4]
+        verified = entry[10]
+        if verified:
+            read_key_ver = entry[9]
+            found = False
+            for key in keys["data"]["read"]:
+                version = key[0]
+                key = key[1]
+                if version == read_key_ver:
+                    key = cryptolib.rsa_decrypt(private_key, key)
+                    score = cryptolib.symmetric_decrypt(key, score)
+                    score = netlib.bytes_to_int(score)
+                    found = True
+                    break
+            if not found:
+                print("failed to decrypt")
+                return
+        else:
+            if identity == entry_identity:
+                uploader_key = entry[6]
+                key = cryptolib.rsa_decrypt(private_key, uploader_key)
+                score = cryptolib.symmetric_decrypt(key, score)
+                score = netlib.bytes_to_int(score)
+            else:
+                found = False
+                mod_key_ver = entry[8]
+                for key in keys["data"]["mod"]:
+                    version = key[0]
+                    priv = key[1]
+                    sym = key[2]
+                    if version == mod_key_ver:
+                        sym = cryptolib.rsa_decrypt(private_key, sym)
+                        priv = cryptolib.symmetric_decrypt(sym, priv)
+                        key = cryptolib.rsa_decrypt(netlib.deserialize_private_key(priv), score)
+                        score = cryptolib.symmetric_decrypt(key, score)
+                        score = netlib.bytes_to_int(score)
+                        found = True
+                        break
+                if not found:
+                    print("failed to decrypt")
+                    return
+        if not isinstance(score, int):
+            print("failed to decrypt")
+            return
+
         print("{:<9}{:<8}{:<21.21}{:<15}{:<20}{:<9}{:<7}{:<21.21}"
               .format("Entry ID", "User ID", "Username", "Score", "Date", "Verified", "Mod ID", "Mod Name"))
-        date = datetime.fromtimestamp(entry[4])
-        mod_id = entry[6] if entry[6] else "N/A"
-        mod_name = entry[7] if entry[7] else "N/A"
+        date = datetime.fromtimestamp(entry_date)
+        mod_id = entry_mod_id if entry_mod_id else "N/A"
+        mod_name = entry_mod_identity if entry_mod_identity else "N/A"
         print("{:<9}{:<8}{:<21.21}{:<15}{:<20}{:<9}{:<7}{:<21.21}"
-              .format(entry[0], entry[1], entry[2], entry[3], str(date), bools[entry[5]], mod_id, mod_name))
+              .format(entry_id, entry_user_id, entry_identity, score, str(date), bools[entry_verified], mod_id, mod_name))
         comments = response["data"]["comments"]
         print("{} Comments".format(len(comments)))
         files = response["data"]["files"]
@@ -269,12 +360,15 @@ class GetEntryRequest(Request):
 
 
 class AddProofRequest(Request):
-    def __init__(self, entry_id, filename, blob):
+    def __init__(self, entry_id, filename, blob, uploader_key, mod_key, mod_key_ver):
         super().__init__({
             "type": ResourceRequestType.AddProof,
             "entry_id": entry_id,
             "filename": filename,
-            "file": base64.b64encode(blob).decode()
+            "file": base64.b64encode(blob).decode(),
+            "uploader_key": uploader_key,
+            "mod_key": mod_key,
+            "mod_key_ver": mod_key_ver
         })
 
 
@@ -348,12 +442,12 @@ class ViewPermissionsRequest(Request):
             print("{:<5}{:<12}".format(permission[0], perms[permission[1]]))
 
 
-class ModifyEntryVerificationRequest(Request):
-    def __init__(self, entry_id, verified):
+class VerifyEntryRequest(Request):
+    def __init__(self, entry_id, read_key_ver):
         super().__init__({
-            "type": ResourceRequestType.ModifyEntryVerification,
+            "type": ResourceRequestType.VerifyEntry,
             "entry_id": entry_id,
-            "verified": verified
+            "read_key_ver": read_key_ver
         })
 
 
@@ -366,11 +460,14 @@ class RemoveLeaderboardRequest(Request):
 
 
 class AddCommentRequest(Request):
-    def __init__(self, entry_id, content):
+    def __init__(self, entry_id, content, uploader_key, mod_key, mod_key_ver):
         super().__init__({
             "type": ResourceRequestType.AddComment,
             "entry_id": entry_id,
-            "content": content
+            "content": content,
+            "uploader_key": uploader_key,
+            "mod_key": mod_key,
+            "mod_key_ver": mod_key_ver
         })
 
 
@@ -382,13 +479,27 @@ class RemoveEntryRequest(Request):
         })
 
 
-class SetPermissionRequest(Request):
-    def __init__(self, user_id, leaderboard_id, permission):
+class AddPermissionRequest(Request):
+    def __init__(self, user_id, leaderboard_id, permission, read_keys, mod_keys):
         super().__init__({
-            "type": ResourceRequestType.SetPermission,
+            "type": ResourceRequestType.AddPermission,
             "user_id": user_id,
             "leaderboard_id": leaderboard_id,
-            "permission": permission
+            "permission": permission,
+            "read_keys": read_keys,
+            "mod_keys": mod_keys
+        })
+
+
+class RemovePermissionRequest(Request):
+    def __init__(self, user_id, leaderboard_id, new_read_keys, new_mod_keys, new_mod_pubkey):
+        super().__init__({
+            "type": ResourceRequestType.RemovePermission,
+            "user_id": user_id,
+            "leaderboard_id": leaderboard_id,
+            "new_read_keys": new_read_keys,
+            "new_mod_keys": new_mod_keys,
+            "new_mod_pubkey": new_mod_pubkey
         })
 
 
@@ -400,12 +511,30 @@ class RemoveUserRequest(Request):
         })
 
 
-class GetSelfID(Request):
+class GetSelfIDRequest(Request):
     def __init__(self):
         super().__init__({
             "type": ResourceRequestType.GetSelfID,
             "user_id": identity
         })
+
+
+class GetKeysRequest(Request):
+    def __init__(self, user_id, leaderboard_id):
+        super().__init__({
+            "type": ResourceRequestType.GetKeys,
+            "user_id": user_id,
+            "leaderboard_id": leaderboard_id
+        })
+
+
+def do_get_keys(user_id, leaderboard_id) -> Union[dict, None]:
+    request = GetKeysRequest(user_id, leaderboard_id)
+    response = request.make_request()
+    if "success" not in response or "data" not in response:
+        print("Malformed packet: " + str(response))
+        return None
+    return response
 
 
 def do_view_user(user_id):
@@ -418,32 +547,38 @@ def do_view_permissions(user_id):
     request.safe_print(request.make_request())
 
 
-def do_set_permission(user_id):
-    # TODO modify keys
-    leaderboard_id = input("Enter the leaderboard id where the permission will be changed: ")
+def do_add_permission(user_id):
+    leaderboard_id = input("Enter the leaderboard id where the permission will be added: ")
     if not leaderboard_id.isdigit():
         print("Invalid input, please enter an integer")
         return
     leaderboard_id = int(leaderboard_id)
     permission = input(
-        "[0] None\n"
-        "[1] Read\n"
-        "[2] Write\n"
-        "[3] Moderator\n"
+        "[0] Read\n"
+        "[1] Write\n"
+        "[2] Moderator\n"
         "Select new permission level: ")
     if not permission.isdigit() or int(permission) > 3:
         print("Invalid input, please enter an integer listed above")
         return
     permission = int(permission)
     if permission == 0:
-        permission = Permissions.NoAccess
-    elif permission == 1:
         permission = Permissions.Read
-    elif permission == 2:
+    elif permission == 1:
         permission = Permissions.Write
-    elif permission == 3:
+    elif permission == 2:
         permission = Permissions.Moderate
-    request = SetPermissionRequest(user_id, leaderboard_id, permission)
+    request = AddPermissionRequest(user_id, leaderboard_id, permission)
+    request.safe_print(request.make_request())
+
+
+def do_remove_permission(user_id):
+    leaderboard_id = input("Enter the leaderboard id where the permission will be added: ")
+    if not leaderboard_id.isdigit():
+        print("Invalid input, please enter an integer")
+        return
+    leaderboard_id = int(leaderboard_id)
+    request = RemovePermissionRequest(user_id, leaderboard_id)
     request.safe_print(request.make_request())
 
 
@@ -459,9 +594,10 @@ def user_options(user_id):
             "[0] Go Back\n"
             "[1] View User\n"
             "[2] View Permissions\n"
-            "[3] Set Permissions\n"
-            "[4] Open Submission\n"
-            "[5] Remove User\n")
+            "[3] Add Permission\n"
+            "[4] Remove Permission\n"
+            "[5] Open Submission\n"
+            "[6] Remove User\n")
         choice = input("Choose the corresponding number: ")
         if not choice.isdigit() or int(choice) > 5:
             print("Invalid input, please enter an integer listed above")
@@ -474,8 +610,10 @@ def user_options(user_id):
         elif choice == 2:
             do_view_permissions(user_id)
         elif choice == 3:
-            do_set_permission(user_id)
+            do_add_permission(user_id)
         elif choice == 4:
+            do_remove_permission(user_id)
+        elif choice == 5:
             entry_id = input("Enter the ID of the entry: ")
             try:
                 entry_id = int(entry_id)
@@ -483,7 +621,7 @@ def user_options(user_id):
                 print("Invalid entry ID")
                 continue
             entry_options(entry_id)
-        elif choice == 5:
+        elif choice == 6:
             do_remove_user(user_id)
             return
 
@@ -569,9 +707,9 @@ def do_add_comment(entry_id):
     request.safe_print(request.make_request())
 
 
-def do_modify_entry_verification(entry_id, verify):
+def do_verify_entry(entry_id):
     # TODO re encrypt
-    request = ModifyEntryVerificationRequest(entry_id, verify)
+    request = VerifyEntryRequest(entry_id)
     request.safe_print(request.make_request())
 
 
@@ -592,8 +730,7 @@ def entry_options(entry_id):
             "[5] View Comments\n"
             "[6] Post Comment\n"
             "[7] Verify Entry\n"
-            "[8] Un-verify Entry\n"
-            "[9] Remove Entry\n")
+            "[8] Remove Entry\n")
         choice = input("Choose the corresponding number: ")
         if not choice.isdigit():
             print("Invalid input, please enter an integer")
@@ -614,10 +751,8 @@ def entry_options(entry_id):
         elif choice == 6:
             do_add_comment(entry_id)
         elif choice == 7:
-            do_modify_entry_verification(entry_id, True)
+            do_verify_entry(entry_id)
         elif choice == 8:
-            do_modify_entry_verification(entry_id, False)
-        elif choice == 9:
             do_remove_entry(entry_id)
             return
         else:
@@ -691,7 +826,7 @@ def do_remove_leaderboard(leaderboard_id):
 
 
 def do_get_self_id() -> Union[int, None]:
-    request = GetSelfID()
+    request = GetSelfIDRequest()
     response = request.make_request()
     if "success" not in response or "data" not in response:
         print("Malformed packet: " + str(response))
