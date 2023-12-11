@@ -400,14 +400,12 @@ class ViewUserRequest(Request):
         entries = response["data"]["entries"]
         date = datetime.fromtimestamp(user_data[1])
         print("Name: {} Registration Date: {}".format(user_data[0], str(date)))
-        print("{:<4}{:<5}{:<15}{:<9}{:<20}"
-              .format("ID", "LB ID", "Score", "Verified", "Registration Date"))
+        print("{:<4}{:<5}{:<9}{:<20}"
+              .format("ID", "LB ID", "Verified", "Registration Date"))
         for entry in entries:
-            date = datetime.fromtimestamp(entry[4])
-            entry[2] = decrypt_resource(entry[2])
-            entry[2] = netlib.bytes_to_int(entry[2])
-            print("{:<4}{:<5}{:<15}{:<9}{:<20}"
-                  .format(entry[0], entry[1], entry[2], bools[entry[3]], str(date)))
+            date = datetime.fromtimestamp(entry[3])
+            print("{:<4}{:<5}{:<9}{:<20}"
+                  .format(entry[0], entry[1], bools[entry[2]], str(date)))
 
 
 class OneLeaderboardRequest(Request):
