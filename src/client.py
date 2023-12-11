@@ -116,7 +116,7 @@ class Request:
 
 
 # Auth server request
-def request_token(as_sock, password, as_pub) -> Union[dict | None]:
+def request_token(as_sock, password, as_pub) -> Union[dict, None]:
     aes_key = os.urandom(32)
     encrypted_key = cryptolib.rsa_encrypt(as_pub, aes_key)
     signin_dict = {
