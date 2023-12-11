@@ -252,16 +252,102 @@ class GetEntryRequest(Request):
         })
 
     def print_response(self, response):
+        """ shape of response
+            entry:
+                0 entry id
+                1 leaderboard id
+                2 user id
+                3 identity
+                4 score
+                5 date
+                6 uploader key
+                7 mod key
+                8 mod key ver
+                9 read key ver
+                10 verified
+                11 verifier id
+                12 verifier identity
+                13 verification date
+            comments:
+                0 identity
+                1 date
+                2 content
+                3 uploader key
+                4 mod key
+                5 mod key ver
+                6 read key ver
+            files:
+                0 file id
+                1 file name
+                2 submission_date
+                3 uploader key
+                4 mod key
+                5 mod key ver
+                6 read key ver
+        """
         entry = response["data"]["entry"]
-        entry[3] = decrypt_resource(entry[3])
-        entry[3] = netlib.bytes_to_int(entry[3])
+        entry_id = entry[0]
+        entry_user_id = entry[2]
+        entry_identity = entry[3]
+        entry_date = entry[5]
+        entry_verified = entry[10]
+        entry_mod_id = entry[11]
+        entry_mod_identity = entry[12]
+        leaderboard_id = entry[1]
+        user_id = do_get_self_id()
+        keys = do_get_keys(user_id, leaderboard_id)
+        score = entry[4]
+        verified = entry[10]
+        if verified:
+            read_key_ver = entry[9]
+            found = False
+            for key in keys["data"]["read"]:
+                version = key[0]
+                key = key[1]
+                if version == read_key_ver:
+                    key = cryptolib.rsa_decrypt(private_key, key)
+                    score = cryptolib.symmetric_decrypt(key, score)
+                    score = netlib.bytes_to_int(score)
+                    found = True
+                    break
+            if not found:
+                print("failed to decrypt")
+                return
+        else:
+            if identity == entry_identity:
+                uploader_key = entry[6]
+                key = cryptolib.rsa_decrypt(private_key, uploader_key)
+                score = cryptolib.symmetric_decrypt(key, score)
+                score = netlib.bytes_to_int(score)
+            else:
+                found = False
+                mod_key_ver = entry[8]
+                for key in keys["data"]["mod"]:
+                    version = key[0]
+                    priv = key[1]
+                    sym = key[2]
+                    if version == mod_key_ver:
+                        sym = cryptolib.rsa_decrypt(private_key, sym)
+                        priv = cryptolib.symmetric_decrypt(sym, priv)
+                        key = cryptolib.rsa_decrypt(netlib.deserialize_private_key(priv), score)
+                        score = cryptolib.symmetric_decrypt(key, score)
+                        score = netlib.bytes_to_int(score)
+                        found = True
+                        break
+                if not found:
+                    print("failed to decrypt")
+                    return
+        if not isinstance(score, int):
+            print("failed to decrypt")
+            return
+
         print("{:<9}{:<8}{:<21.21}{:<15}{:<20}{:<9}{:<7}{:<21.21}"
               .format("Entry ID", "User ID", "Username", "Score", "Date", "Verified", "Mod ID", "Mod Name"))
-        date = datetime.fromtimestamp(entry[4])
-        mod_id = entry[6] if entry[6] else "N/A"
-        mod_name = entry[7] if entry[7] else "N/A"
+        date = datetime.fromtimestamp(entry_date)
+        mod_id = entry_mod_id if entry_mod_id else "N/A"
+        mod_name = entry_mod_identity if entry_mod_identity else "N/A"
         print("{:<9}{:<8}{:<21.21}{:<15}{:<20}{:<9}{:<7}{:<21.21}"
-              .format(entry[0], entry[1], entry[2], entry[3], str(date), bools[entry[5]], mod_id, mod_name))
+              .format(entry_id, entry_user_id, entry_identity, score, str(date), bools[entry_verified], mod_id, mod_name))
         comments = response["data"]["comments"]
         print("{} Comments".format(len(comments)))
         files = response["data"]["files"]
@@ -425,12 +511,30 @@ class RemoveUserRequest(Request):
         })
 
 
-class GetSelfID(Request):
+class GetSelfIDRequest(Request):
     def __init__(self):
         super().__init__({
             "type": ResourceRequestType.GetSelfID,
             "user_id": identity
         })
+
+
+class GetKeysRequest(Request):
+    def __init__(self, user_id, leaderboard_id):
+        super().__init__({
+            "type": ResourceRequestType.GetKeys,
+            "user_id": user_id,
+            "leaderboard_id": leaderboard_id
+        })
+
+
+def do_get_keys(user_id, leaderboard_id) -> Union[dict, None]:
+    request = GetKeysRequest(user_id, leaderboard_id)
+    response = request.make_request()
+    if "success" not in response or "data" not in response:
+        print("Malformed packet: " + str(response))
+        return None
+    return response
 
 
 def do_view_user(user_id):
@@ -722,7 +826,7 @@ def do_remove_leaderboard(leaderboard_id):
 
 
 def do_get_self_id() -> Union[int, None]:
-    request = GetSelfID()
+    request = GetSelfIDRequest()
     response = request.make_request()
     if "success" not in response or "data" not in response:
         print("Malformed packet: " + str(response))
