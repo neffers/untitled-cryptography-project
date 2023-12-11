@@ -291,7 +291,7 @@ def get_user(requesting_user_id: int, user_id: int) -> dict:
         return serverlib.bad_request_json(ServerErrCode.DoesNotExist)
 
     get_entries_command = """
-        select e.id, e.leaderboard, e.score, e.verified, e.submission_date
+        select e.id, e.leaderboard, e.verified, e.submission_date
         from leaderboard_entries e
         left outer join leaderboards l on e.leaderboard = l.id
         left outer join (select p.permission, p.leaderboard
