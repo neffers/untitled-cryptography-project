@@ -749,12 +749,31 @@ def do_view_comments(entry_id):
         return
     if response["success"]:
         comments = response["data"]["comments"]
+        entry_verified = response["data"]["entry"][10]
+        client_id = do_get_self_id()
+        leaderboard_id = response["data"]["entry"][1]
+        keys = do_get_keys(client_id, leaderboard_id)
         print("{:<21.21}{:<20}{}".format("Commenter", "Date", "Comment"))
         for comment in comments:
-            date = datetime.fromtimestamp(comment[1])
-            comment[2] = decrypt_resource(comment[2])
-            comment[2] = comment[2].decode()
-            print("{:<21.21}{:<20}{}".format(comment[0], str(date), comment[2]))
+            """
+                "comments"
+                    0 poster's identity
+                    1 date
+                    2 content
+                    3 uploader_key
+                    4 mod_key
+                    5 mod_key_ver
+                    6 read_key_ver
+            """
+            date = datetime.fromtimestamp(comment[2])
+            if entry_verified:
+                comment_contents = decrypt_read_resource(keys, comment[6], comment[2])
+            else:
+                if comment[0] == identity:
+                    comment_contents = decrypt_uploader_resource(comment[3], comment[2])
+                else:
+                    comment_contents = decrypt_mod_resource(keys, comment[4], comment[5], comment[2])
+            print("{:<21.21}{:<20}{}".format(comment[1], str(date), comment_contents))
     else:
         print(response["data"])
 
