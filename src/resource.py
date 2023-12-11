@@ -661,13 +661,13 @@ def download_proof(request_user_id: int, user_perms: dict, file_id: int) -> dict
     cur.execute(get_file_command, get_file_params)
     (entry_id, file, uploader_key, mod_key, mod_key_ver, read_key_ver) = cur.fetchone()
     get_entry_command = """
-        select user, verified
+        select user, verified, leaderboard
         from leaderboard_entries
         where id = ?
     """
     get_entry_params = (entry_id,)
     cur.execute(get_entry_command, get_entry_params)
-    (user_id, verified) = cur.fetchone()
+    (user_id, verified, leaderboard_id) = cur.fetchone()
     return_dict = {
         "file": netlib.bytes_to_b64(file),
         "uploader_key": netlib.bytes_to_b64(uploader_key),
@@ -675,6 +675,7 @@ def download_proof(request_user_id: int, user_perms: dict, file_id: int) -> dict
         "mod_key_ver": mod_key_ver,
         "read_key_ver": read_key_ver,
         "user_id": user_id,
+        "leaderboard": leaderboard_id,
         "verified": verified
     }
     return {
