@@ -6,6 +6,7 @@ import signal
 import sys
 import time
 from os import path
+from typing import Union
 
 from cryptography.hazmat.primitives.asymmetric import rsa
 
@@ -18,12 +19,11 @@ from enums import ResourceRequestType, Permissions, UserClass, ServerErrCode
 def get_leaderboard_perms(userid: int) -> dict:
     cur = db.cursor()
     get_perm_command = """
-        select l.id, max(l.default_permission, coalesce(p.permission, 0), class) as perm
+        select l.id, coalesce(p.permission, 0) as perm
         from leaderboards l
             left join (select * from permissions where user = ?) p on l.id = p.leaderboard
-            inner join (select class from users where id = ?)
     """
-    get_perm_params = (userid, userid)
+    get_perm_params = (userid,)
     cur.execute(get_perm_command, get_perm_params)
     perm_tuples = cur.fetchall()
     return {entry[0]: entry[1] for entry in perm_tuples}
@@ -41,13 +41,12 @@ def get_user_class(userid: int) -> UserClass:
 def list_leaderboards_response(requesting_user_id: int):
     cursor = db.cursor()
     get_leaderboards_command = """
-        select l.id, l.name, max(l.default_permission, coalesce(p.permission, 0), class) as perm
+        select l.id, l.name, coalesce(p.permission, 0) as perm
         from leaderboards l
             left join (select * from permissions where user = ?) p on l.id = p.leaderboard
-            inner join (select class from users where id = ?)
         where perm >= ?
     """
-    get_leaderboards_params = (requesting_user_id, requesting_user_id, Permissions.Read)
+    get_leaderboards_params = (requesting_user_id, Permissions.Read)
     cursor.execute(get_leaderboards_command, get_leaderboards_params)
     leaderboards_to_return = cursor.fetchall()
     return {
@@ -73,33 +72,30 @@ def show_one_leaderboard_response(requesting_user_id: int, user_perms: dict, lea
     # If moderator, return all entries
     if permission >= Permissions.Moderate:
         get_entries_command = """
-            select e.id, user, u.identity, score, submission_date, verified
+            select e.id, user, u.identity, score, submission_date, verified, read_key_ver, mod_key, mod_key_ver
                 from leaderboard_entries e
                 join main.leaderboards l on e.leaderboard = l.id
                 join main.users u on e.user = u.id
             where l.id = ?
-            order by score desc
         """
         get_entries_params = (leaderboard_id,)
     else:
         # Non-mods get visible entries and those that they submitted
         get_entries_command = """
-            select e.id, user, u.identity, score, submission_date, verified
+            select e.id, user, u.identity, score, submission_date, verified, read_key_ver, uploader_key
                 from leaderboard_entries e
                 join main.leaderboards l on e.leaderboard = l.id
                 join main.users u on e.user = u.id
             where (verified or user = ?) and l.id = ?
-            order by score desc
         """
         get_entries_params = (requesting_user_id, leaderboard_id)
 
     cursor.execute(get_entries_command, get_entries_params)
     entries = cursor.fetchall()
-    if ascending:
-        entries.reverse()
     data_to_return = {
         "id": leaderboard_id,
         "name": leaderboard_name,
+        "ascending": ascending,
         "entries": entries
     }
     return {
@@ -108,23 +104,48 @@ def show_one_leaderboard_response(requesting_user_id: int, user_perms: dict, lea
     }
 
 
-def add_leaderboard(new_lb_name: str, new_lb_asc: bool) -> dict:
+def add_leaderboard(creator_id: int, new_lb_name: str, new_lb_asc: bool, mod_pubkey: bytes, creator_read_key: bytes,
+                    creator_mod_sym: bytes, creator_mod_priv: bytes) -> dict:
     cur = db.cursor()
     new_lb_command = """
-        insert into leaderboards(name, creation_date, default_permission, ascending) values(?, strftime('%s'), ?, ?)
+        insert into leaderboards(name, creation_date, ascending, mod_pubkey, read_key_version, mod_key_version)
+        values(?, strftime('%s'), ?, ?, ?, ?)
     """
-    # TODO jordan should just remove the permission column but this hack works for now.
-    new_lb_params = (new_lb_name, Permissions.NoAccess, new_lb_asc)
+    new_lb_params = (new_lb_name, new_lb_asc, mod_pubkey, 1, 1)
     cur.execute(new_lb_command, new_lb_params)
+    leaderboard_id = cur.lastrowid
+
+    create_perm_command = """
+    insert into permissions(user, leaderboard, permission, change_date)
+    values(?, ?, ?, strftime('%s'))
+    """
+    create_perm_params = (creator_id, leaderboard_id, Permissions.Moderate)
+    cur.execute(create_perm_command, create_perm_params)
+    perm_id = cur.lastrowid
+
+    add_read_key_command = """
+    insert into read_keys(associated_perm, version, encrypted_key)
+    values(?, ?, ?)
+    """
+    add_read_key_params = (perm_id, 1, creator_read_key)
+    cur.execute(add_read_key_command, add_read_key_params)
+
+    add_mod_key_command = """
+    insert into mod_keys(associated_perm, version, encrypted_sym_key, encrypted_priv_key)
+    values(?, ?, ?, ?)
+    """
+    add_mod_key_params = (perm_id, 1, creator_mod_sym, creator_mod_priv)
+    cur.execute(add_mod_key_command, add_mod_key_params)
+
     db.commit()
-    new_lb_id = cur.lastrowid
     return {
         "success": True,
-        "data": new_lb_id,
+        "data": leaderboard_id,
     }
 
 
-def add_entry(requesting_user_id: int, user_perms: dict, leaderboard_id: int, entry_score: float, comment: str) -> dict:
+def add_entry(requesting_user_id: int, user_perms: dict, leaderboard_id: int, entry_score: bytes, comment: bytes,
+              uploader_key: bytes, mod_key: bytes, mod_key_ver: int) -> dict:
     # error if leaderboard id doesn't exist
     try:
         lb_perm = user_perms[leaderboard_id]
@@ -134,18 +155,18 @@ def add_entry(requesting_user_id: int, user_perms: dict, leaderboard_id: int, en
     if lb_perm < Permissions.Write:
         return serverlib.bad_request_json(ServerErrCode.InsufficientPermission)
     create_entry_command = """
-        insert into leaderboard_entries(user, leaderboard, score, submission_date, verified)
-        values(?, ?, ?, strftime('%s'), ?)
+    insert into leaderboard_entries(user, leaderboard, score, submission_date, verified, uploader_key, mod_key, mod_key_ver)
+    values(?, ?, ?, strftime('%s'), ?, ?, ?, ?)
     """
-    create_entry_params = (requesting_user_id, leaderboard_id, entry_score, False)
+    create_entry_params = (requesting_user_id, leaderboard_id, entry_score, False, uploader_key, mod_key, mod_key_ver)
     cur = db.cursor()
     cur.execute(create_entry_command, create_entry_params)
     entry_id = cur.lastrowid
     create_comment_command = """
-        insert into entry_comments(user, entry, date, content)
-        values(?, ?, strftime('%s'), ?)
+    insert into entry_comments(user, entry, date, content, uploader_key, mod_key, mod_key_ver)
+    values(?, ?, strftime('%s'), ?, ?, ?, ?)
     """
-    create_comment_params = (requesting_user_id, entry_id, comment)
+    create_comment_params = (requesting_user_id, entry_id, comment, uploader_key, mod_key, mod_key_ver)
     cur.execute(create_comment_command, create_comment_params)
     db.commit()
     return {
@@ -172,21 +193,18 @@ def list_users() -> dict:
 def list_unverified(requesting_user_id: int, leaderboard_id: int) -> dict:
     cursor = db.cursor()
     list_unverified_command = """
-        select e.id, user, identity, score, submission_date
+        select e.id, user, identity, submission_date
         from leaderboard_entries e
                  left outer join leaderboards l on e.leaderboard = l.id
-                 left outer join (select u.class, u.identity
-                                  from users u
-                                  where u.id = ?)
-                 left outer join (select p.permission, p.leaderboard
+                 left outer join (select p.permission, p.leaderboard, identity
                                   from users u
                                            left join permissions p on p.user = u.id
                                   where u.id = ?) x
                                  on e.leaderboard = x.leaderboard
-        where (user = ? or max(default_permission, class, coalesce(permission, 0)) >= 3) and not verified
+        where (user = ? or coalesce(permission, 0) >= 3) and not verified
           and e.leaderboard = ?
     """
-    list_unverified_params = (requesting_user_id, requesting_user_id, requesting_user_id, leaderboard_id)
+    list_unverified_params = (requesting_user_id, requesting_user_id, leaderboard_id)
     cursor.execute(list_unverified_command, list_unverified_params)
 
     entries = cursor.fetchall()
@@ -218,7 +236,7 @@ def get_entry(requesting_user_id: int, user_perms: dict, entry_id: int) -> dict:
         return serverlib.bad_request_json(ServerErrCode.InsufficientPermission)
 
     get_entry_command = """
-        select e.id, user, u.identity, score, submission_date, verified, verifier, v.identity, verification_date
+        select e.id, leaderboard, user, u.identity, score, submission_date, uploader_key, mod_key, mod_key_ver, read_key_ver, verified, verifier, v.identity, verification_date
         from leaderboard_entries e
         left join main.users u on e.user = u.id
         left join main.users v on e.verifier = v.id
@@ -229,7 +247,7 @@ def get_entry(requesting_user_id: int, user_perms: dict, entry_id: int) -> dict:
     entry = cursor.fetchone()
 
     get_comments_command = """
-        select u.identity, date, content
+        select u.identity, date, content, uploader_key, mod_key, mod_key_ver, read_key_ver
         from entry_comments c
         left join main.users u on u.id = c.user
         where c.entry = ?
@@ -240,7 +258,7 @@ def get_entry(requesting_user_id: int, user_perms: dict, entry_id: int) -> dict:
     comments = cursor.fetchall()
 
     get_files_command = """
-        select id, name, submission_date
+        select id, name, submission_date, uploader_key, mod_key, mod_key_ver, read_key_ver
         from files
         where entry = ?
     """
@@ -273,18 +291,15 @@ def get_user(requesting_user_id: int, user_id: int) -> dict:
         return serverlib.bad_request_json(ServerErrCode.DoesNotExist)
 
     get_entries_command = """
-        select e.id, e.leaderboard, e.score, e.verified, e.submission_date
+        select e.id, e.leaderboard, e.verified, e.submission_date
         from leaderboard_entries e
         left outer join leaderboards l on e.leaderboard = l.id
-        left outer join (select u.class
-                         from users u
-                         where u.id = ?)
         left outer join (select p.permission, p.leaderboard
                          from users u
                          left join permissions p on p.user = u.id
                          where u.id = ?) x
             on e.leaderboard = x.leaderboard
-        where (verified or (max(default_permission, class, coalesce(permission, 0)) >= ?) or e.user = ?)
+        where (verified or (coalesce(permission, 0) >= ?) or e.user = ?)
             and (e.user = ?)
     """
     get_entries_params = (requesting_user_id, requesting_user_id, Permissions.Moderate, requesting_user_id, user_id)
@@ -301,7 +316,8 @@ def get_user(requesting_user_id: int, user_id: int) -> dict:
     }
 
 
-def modify_verification(request_user_id: int, user_perms: dict, entry_id: int, verified: bool) -> dict:
+def verify_entry(request_user_id: int, user_perms: dict, entry_id: int,
+                 score: bytes, read_key_ver: int, comments: dict, files: dict) -> dict:
     cur = db.cursor()
     get_entry_command = "select leaderboard from leaderboard_entries where id = ?"
     get_entry_params = (entry_id,)
@@ -317,11 +333,31 @@ def modify_verification(request_user_id: int, user_perms: dict, entry_id: int, v
 
     modify_entry_command = """
         update leaderboard_entries
-        set verified = ?, verifier = ?, verification_date = strftime('%s')
+        set score = ?, verified = ?, verifier = ?, verification_date = strftime('%s'), uploader_key = ?, mod_key = ?,
+        mod_key_ver = ?, read_key_ver = ?
         where id = ?
     """
-    modify_entry_params = (verified, request_user_id, entry_id)
+    modify_entry_params = (score, True, request_user_id, None, None, None, read_key_ver, entry_id)
     cur.execute(modify_entry_command, modify_entry_params)
+
+    modify_comment_command = """
+    update entry_comments
+    set content = ?, uploader_key = ?, mod_key = ?, mod_key_ver = ?, read_key_ver = ?
+    where id = ?
+    """
+    for comment_id in comments:
+        modify_comment_params = (comments[comment_id], None, None, None, read_key_ver, comment_id)
+        cur.execute(modify_comment_command, modify_comment_params)
+
+    modify_file_command = """
+    update files
+    set data = ?, uploader_key = ?, mod_key = ?, mod_key_ver = ?, read_key_ver = ?
+    where id = ?
+    """
+    for file_id in files:
+        modify_file_params = (files[file_id], None, None, None, read_key_ver, file_id)
+        cur.execute(modify_file_command, modify_file_params)
+
     db.commit()
     return {
         "success": True,
@@ -329,7 +365,8 @@ def modify_verification(request_user_id: int, user_perms: dict, entry_id: int, v
     }
 
 
-def add_comment(request_user_id: int, user_perms: dict, entry_id: int, content: str) -> dict:
+def add_comment(request_user_id: int, user_perms: dict, entry_id: int, content: bytes,
+                uploader_key: bytes, mod_key: bytes, mod_key_ver: int) -> dict:
     cur = db.cursor()
     # Check permissions by first getting leaderboard id and then getting requesting user's perms for it
     get_leaderboard_id_command = """
@@ -348,10 +385,10 @@ def add_comment(request_user_id: int, user_perms: dict, entry_id: int, content: 
         return serverlib.bad_request_json(ServerErrCode.InsufficientPermission)
 
     add_comment_command = """
-        insert into entry_comments(user, entry, date, content)
-            values (?, ?, strftime('%s'), ?)
+    insert into entry_comments(user, entry, date, content, uploader_key, mod_key, mod_key_ver)
+        values (?, ?, strftime('%s'), ?, ?, ?, ?)
     """
-    add_comment_params = (request_user_id, entry_id, content)
+    add_comment_params = (request_user_id, entry_id, content, uploader_key, mod_key, mod_key_ver)
     cur.execute(add_comment_command, add_comment_params)
     db.commit()
     return {
@@ -406,15 +443,17 @@ def view_permissions(user_id: int) -> dict:
     }
 
 
-def set_permission(user_id: int, leaderboard_id: int, p: Permissions) -> dict:
+def add_permission(user_id: int, leaderboard_id: int, p: Permissions, read_keys: list, mod_keys: Union[list, None]) -> dict:
     cur = db.cursor()
-    delete_old_permissions_command = """
-        delete
+    get_old_permissions_command = """
+        select *
         from permissions
         where user = ? and leaderboard = ?
     """
-    delete_old_permissions_params = (user_id, leaderboard_id)
-    cur.execute(delete_old_permissions_command, delete_old_permissions_params)
+    get_old_permissions_params = (user_id, leaderboard_id)
+    cur.execute(get_old_permissions_command, get_old_permissions_params)
+    if cur.fetchone() is not None:
+        return serverlib.bad_request_json(ServerErrCode.MalformedRequest, "Already exists")
 
     set_permission_command = """
         insert
@@ -426,7 +465,102 @@ def set_permission(user_id: int, leaderboard_id: int, p: Permissions) -> dict:
         cur.execute(set_permission_command, set_permission_params)
     except sqlite3.IntegrityError:
         return serverlib.bad_request_json(ServerErrCode.DoesNotExist)
+    perm_id = cur.lastrowid
+
+    add_read_keys_command = """
+    insert into read_keys(associated_perm, version, encrypted_key)
+    values(?, ?, ?)
+    """
+    for i in range(len(read_keys)):
+        read_key = netlib.b64_to_bytes(read_keys[i])
+        add_read_keys_params = (perm_id, i, read_key)
+        cur.execute(add_read_keys_command, add_read_keys_params)
+
+    if mod_keys is not None:
+        add_mod_keys_command = """
+        insert into mod_keys(associated_perm, version, encrypted_sym_key, encrypted_priv_key)
+        values(?, ?, ?, ?)
+        """
+        for i in range(len(mod_keys)):
+            sym = netlib.b64_to_bytes(mod_keys[i][0])
+            mod = netlib.b64_to_bytes(mod_keys[i][1])
+            add_mod_keys_params = (perm_id, i, sym, mod)
+            cur.execute(add_mod_keys_command, add_mod_keys_params)
+
     db.commit()
+    return {
+        "success": True,
+        "data": None
+    }
+
+
+def remove_permission(user_id: int, leaderboard_id: int, new_read_keys: dict, new_mod_pubkey: Union[bytes, None],
+                      new_mod_keys: Union[dict, None]) -> dict:
+    update_mod = False
+    cur = db.cursor()
+    get_perm_command = """
+    select permission from permissions
+    where user = ? and leaderboard = ?
+    """
+    get_perm_params = (user_id, leaderboard_id)
+    cur.execute(get_perm_command, get_perm_params)
+    (old_perm,) = cur.fetchone()
+    if old_perm == Permissions.Moderate and (new_mod_pubkey is None or new_mod_keys is None):
+        return serverlib.bad_request_json(ServerErrCode.MalformedRequest)
+    if old_perm == Permissions.Moderate:
+        update_mod = True
+
+    delete_permission_command = """
+    delete from permissions
+    where user = ? and leaderboard = ?
+    """
+    delete_permission_params = (user_id, leaderboard_id)
+    cur.execute(delete_permission_command, delete_permission_params)
+
+    get_current_key_versions_command = """
+    select read_key_version, mod_pubkey, mod_key_version
+    from leaderboards
+    where id = ?
+    """
+    get_current_key_versions_params = (leaderboard_id,)
+    cur.execute(get_current_key_versions_command, get_current_key_versions_params)
+    (read_key_ver, mod_pubkey, mod_key_ver) = cur.fetchone()
+    read_key_ver += 1
+
+    add_new_read_perms_command = """
+    insert into read_keys(associated_perm, version, encrypted_key)
+    select associated_perm, ?, ?
+    from read_keys
+    left join permissions p on p.id = associated_perm
+    where user = ? and leaderboard = ?
+    """
+    for user in new_read_keys:
+        add_new_read_perms_params = (read_key_ver, new_read_keys[user], user, leaderboard_id)
+        cur.execute(add_new_read_perms_command, add_new_read_perms_params)
+
+    if update_mod:
+        mod_pubkey = new_mod_pubkey
+        mod_key_ver += 1
+        add_new_mod_perms_command = """
+        insert into mod_keys (associated_perm, version, encrypted_sym_key, encrypted_priv_key)
+        select associated_perm, ?, ?, ?
+        from mod_keys
+        left join permissions p on p.id = associated_perm
+        where user = ? and leaderboard = ?
+        """
+        for user in new_mod_keys:
+            add_new_mod_perms_params = (mod_key_ver, new_mod_keys[user][0], new_mod_keys[user][1], user, leaderboard_id)
+            cur.execute(add_new_mod_perms_command, add_new_mod_perms_params)
+
+    update_leaderboard_command = """
+    update leaderboards
+    set read_key_version = ?, mod_pubkey = ?, mod_key_version = ?
+    where id = ?
+    """
+    update_leaderboard_params = (read_key_ver, mod_pubkey, mod_key_ver, leaderboard_id)
+    cur.execute(update_leaderboard_command, update_leaderboard_params)
+    db.commit()
+
     return {
         "success": True,
         "data": None
@@ -465,7 +599,7 @@ def set_score_order(leaderboard_id: int, ascending: bool) -> dict:
     }
 
 
-def add_proof(request_user_id: int, entry_id: int, filename: str, file: bytes) -> dict:
+def add_proof(request_user_id: int, entry_id: int, filename: str, file: bytes, uploader_key: bytes, mod_key: bytes, mod_key_ver: int) -> dict:
     cur = db.cursor()
     get_submitter_command = """
         select user
@@ -483,9 +617,10 @@ def add_proof(request_user_id: int, entry_id: int, filename: str, file: bytes) -
         return serverlib.bad_request_json(ServerErrCode.InsufficientPermission)
 
     add_file_command = """
-        insert into files (entry, name, submission_date, data) values (?, ?, strftime('%s'), ?)
+        insert into files (entry, name, submission_date, data, uploader_key, mod_key, mod_key_ver)
+        values (?, ?, strftime('%s'), ?, ?, ?, ?)
     """
-    add_file_params = (entry_id, filename, file)
+    add_file_params = (entry_id, filename, file, uploader_key, mod_key, mod_key_ver)
     cur.execute(add_file_command, add_file_params)
     db.commit()
     return {
@@ -518,35 +653,53 @@ def download_proof(request_user_id: int, user_perms: dict, file_id: int) -> dict
         return serverlib.bad_request_json(ServerErrCode.InsufficientPermission)
 
     get_file_command = """
-        select data
+        select entry, data, uploader_key, mod_key, mod_key_ver, read_key_ver
         from files
         where id = ?
     """
     get_file_params = (file_id,)
     cur.execute(get_file_command, get_file_params)
-    (file,) = cur.fetchone()
+    (entry_id, file, uploader_key, mod_key, mod_key_ver, read_key_ver) = cur.fetchone()
+    get_entry_command = """
+        select user, verified, leaderboard
+        from leaderboard_entries
+        where id = ?
+    """
+    get_entry_params = (entry_id,)
+    cur.execute(get_entry_command, get_entry_params)
+    (user_id, verified, leaderboard_id) = cur.fetchone()
+    return_dict = {
+        "file": netlib.bytes_to_b64(file),
+        "uploader_key": netlib.bytes_to_b64(uploader_key),
+        "mod_key": netlib.bytes_to_b64(mod_key),
+        "mod_key_ver": mod_key_ver,
+        "read_key_ver": read_key_ver,
+        "user_id": user_id,
+        "leaderboard": leaderboard_id,
+        "verified": verified
+    }
     return {
         "success": True,
-        "data": netlib.bytes_to_b64(file)
+        "data": return_dict
     }
 
 
 def list_access_groups(leaderboard_id: int) -> dict:
     cur = db.cursor()
     list_user_perms_command = """
-        select u.id, u.identity, max(default_permission, class, coalesce(permission, 0)) as perm
+        select u.id, u.identity, coalesce(permission, 0) as perm, pub_key
         from users u
         left join (select * from permissions where leaderboard = ?) p
             on p.user = u.id
-        left join (select default_permission from leaderboards where id = ?)
         order by perm
     """
     list_user_perms_params = (leaderboard_id, leaderboard_id)
     cur.execute(list_user_perms_command, list_user_perms_params)
     user_list = cur.fetchall()
+    returnable_user_list = [(e[0], e[1], e[2], netlib.bytes_to_b64(e[3])) for e in user_list]
     return {
         "success": True,
-        "data": user_list
+        "data": returnable_user_list
     }
 
 
@@ -580,6 +733,35 @@ def remove_proof(request_user_id: int, user_perms: dict, file_id: int) -> dict:
     return {
         "success": True,
         "data": None
+    }
+
+
+def get_keys(user_id: int, lb_id: int) -> dict:
+    cur = db.cursor()
+    get_read_keys_command = """
+        select version, encrypted_key
+        from read_keys
+        left join permissions p on p.id = associated_perm
+        where user = ? and leaderboard = ?
+    """
+    get_read_keys_params = (user_id, lb_id)
+    cur.execute(get_read_keys_command, get_read_keys_params)
+    read_keys = cur.fetchall()
+    get_mod_keys_command = """
+        select version, encrypted_priv_key, encrypted_sym_key
+        from mod_keys
+        left join permissions p on p.id = associated_perm
+        where user = ? and leaderboard = ?
+    """
+    get_mod_keys_params = (user_id, lb_id)
+    cur.execute(get_mod_keys_command, get_mod_keys_params)
+    mod_keys = cur.fetchall()
+    return {
+        "success": True,
+        "data": {
+            "read": read_keys,
+            "mod": mod_keys
+        }
     }
 
 
@@ -624,9 +806,14 @@ def handle_request(request_user_id: int, request: dict):
             new_lb_asc = request["leaderboard_ascending"]
             if not isinstance(new_lb_asc, bool):
                 raise TypeError
+            mod_pubkey = netlib.b64_to_bytes(request["mod_pubkey"])
+            creator_read_key = netlib.b64_to_bytes(request["read_key"])
+            creator_mod_sym = netlib.b64_to_bytes(request["mod_sym"])
+            creator_mod_priv = netlib.b64_to_bytes(request["mod_priv"])
         except (KeyError, TypeError, ValueError):
             return serverlib.bad_request_json(ServerErrCode.MalformedRequest)
-        return add_leaderboard(new_lb_name, new_lb_asc)
+        return add_leaderboard(request_user_id, new_lb_name, new_lb_asc, mod_pubkey, creator_read_key, creator_mod_sym,
+                               creator_mod_priv)
 
     # Leaderboard: Submit Entry
     if request_type == ResourceRequestType.AddEntry:
@@ -634,16 +821,16 @@ def handle_request(request_user_id: int, request: dict):
             leaderboard_id = request["leaderboard_id"]
             if not isinstance(leaderboard_id, int):
                 raise TypeError
-            entry_score = request["score"]
-            if not isinstance(entry_score, (float, int)):
-                raise TypeError
-            comment = request["comment"]
-            if not isinstance(comment, str):
+            entry_score = netlib.b64_to_bytes(request["score"])
+            comment = netlib.b64_to_bytes(request["comment"])
+            uploader_key = netlib.b64_to_bytes(request["user_key"])
+            mod_key = netlib.b64_to_bytes(request["mod_key"])
+            mod_key_ver = request["mod_key_ver"]
+            if not isinstance(mod_key_ver, int):
                 raise TypeError
         except (KeyError, TypeError):
             return serverlib.bad_request_json(ServerErrCode.MalformedRequest)
-
-        return add_entry(request_user_id, perms, leaderboard_id, entry_score, comment)
+        return add_entry(request_user_id, perms, leaderboard_id, entry_score, comment, uploader_key, mod_key, mod_key_ver)
 
     # Basic: List Users
     if request_type == ResourceRequestType.ListUsers:
@@ -692,18 +879,22 @@ def handle_request(request_user_id: int, request: dict):
         }
 
     # Entry: Verify Entry
-    # Entry: Un-verify Entry
-    if request_type == ResourceRequestType.ModifyEntryVerification:
+    if request_type == ResourceRequestType.VerifyEntry:
         try:
             entry_id = request["entry_id"]
             if not isinstance(entry_id, int):
                 raise TypeError
-            verified = request["verified"]
-            if not isinstance(verified, bool):
+            score = netlib.b64_to_bytes(request["score"])
+            read_key_ver = request["read_key_ver"]
+            if not isinstance(read_key_ver, int):
                 raise TypeError
+            intermediate_comments = request["comments"]
+            comments = {int(comment_id): netlib.b64_to_bytes(intermediate_comments[id]) for comment_id in intermediate_comments}
+            intermediate_files = request["files"]
+            files = {int(file_id): netlib.b64_to_bytes(intermediate_files[file_id]) for file_id in intermediate_files}
         except (KeyError, TypeError):
             return serverlib.bad_request_json(ServerErrCode.MalformedRequest)
-        return modify_verification(request_user_id, perms, entry_id, verified)
+        return verify_entry(request_user_id, perms, entry_id, score, read_key_ver, comments, files)
 
     # Entry: Add comment
     if request_type == ResourceRequestType.AddComment:
@@ -711,12 +902,15 @@ def handle_request(request_user_id: int, request: dict):
             entry_id = request["entry_id"]
             if not isinstance(entry_id, int):
                 raise TypeError
-            content = request["content"]
-            if not isinstance(content, str):
+            content = netlib.b64_to_bytes(request["content"])
+            uploader_key = netlib.b64_to_bytes(request["uploader_key"])
+            mod_key = netlib.b64_to_bytes(request["mod_key"])
+            mod_key_ver = request["mod_key_ver"]
+            if not isinstance(mod_key_ver, int):
                 raise TypeError
         except (KeyError, TypeError):
             return serverlib.bad_request_json(ServerErrCode.MalformedRequest)
-        return add_comment(request_user_id, perms, entry_id, content)
+        return add_comment(request_user_id, perms, entry_id, content, uploader_key, mod_key, mod_key_ver)
 
     # Admin: Remove Leaderboard
     if request_type == ResourceRequestType.RemoveLeaderboard:
@@ -752,8 +946,8 @@ def handle_request(request_user_id: int, request: dict):
             return serverlib.bad_request_json(ServerErrCode.MalformedRequest)
         return view_permissions(user_id)
 
-    # User: Set Permission
-    if request_type == ResourceRequestType.SetPermission:
+    # User: Add Permission
+    if request_type == ResourceRequestType.AddPermission:
         if user_class < UserClass.Administrator:
             return serverlib.bad_request_json(ServerErrCode.InsufficientPermission)
         try:
@@ -767,9 +961,39 @@ def handle_request(request_user_id: int, request: dict):
             if not isinstance(p, int):
                 raise TypeError
             p = Permissions(request["permission"])
+            read_keys = request["read_keys"]
+            if not isinstance(read_keys, list):
+                raise TypeError
+            mod_keys = request["mod_keys"]
+            if not (isinstance(mod_keys, list) or mod_keys is None):
+                raise TypeError
         except (KeyError, TypeError, ValueError):
             return serverlib.bad_request_json(ServerErrCode.MalformedRequest)
-        return set_permission(user_id, leaderboard_id, p)
+        return add_permission(user_id, leaderboard_id, p, read_keys, mod_keys)
+
+    # User: Remove Permission
+    if request_type == ResourceRequestType.RemovePermission:
+        if user_class < UserClass.Administrator:
+            return serverlib.bad_request_json(ServerErrCode.InsufficientPermission)
+        try:
+            user_id = request["user_id"]
+            if not isinstance(user_id, int):
+                raise TypeError
+            leaderboard_id = request["leaderboard_id"]
+            if not isinstance(leaderboard_id, int):
+                raise TypeError
+            new_read_keys = request["new_read_keys"]
+            if not isinstance(new_read_keys, dict):
+                raise TypeError
+            new_mod_pub_key = request["new_mod_pubkey"]
+            if new_mod_pub_key is not None:
+                netlib.b64_to_bytes(new_mod_pub_key)
+            new_mod_keys = request["new_mod_keys"]
+            if not (isinstance(new_mod_keys, dict) or new_mod_keys is None):
+                raise TypeError
+        except (KeyError, TypeError):
+            return serverlib.bad_request_json(ServerErrCode.MalformedRequest)
+        return remove_permission(user_id, leaderboard_id, new_read_keys, new_mod_pub_key, new_mod_keys)
 
     # User: Remove User
     if request_type == ResourceRequestType.RemoveUser:
@@ -805,10 +1029,15 @@ def handle_request(request_user_id: int, request: dict):
             filename = request["filename"]
             if not isinstance(filename, str):
                 raise TypeError
+            uploader_key = netlib.b64_to_bytes(request["uploader_key"])
+            mod_key = netlib.b64_to_bytes(request["mod_key"])
+            mod_key_ver = request["mod_key_ver"]
+            if not isinstance(mod_key_ver, int):
+                raise TypeError
             file = netlib.b64_to_bytes(request["file"])
         except (KeyError, TypeError):
             return serverlib.bad_request_json(ServerErrCode.MalformedRequest)
-        return add_proof(request_user_id, entry_id, filename, file)
+        return add_proof(request_user_id, entry_id, filename, file, uploader_key, mod_key, mod_key_ver)
 
     # Entry: Download Proof
     if request_type == ResourceRequestType.DownloadProof:
@@ -844,6 +1073,18 @@ def handle_request(request_user_id: int, request: dict):
         except (KeyError, TypeError):
             return serverlib.bad_request_json(ServerErrCode.MalformedRequest)
         return remove_proof(request_user_id, perms, file_id)
+
+    if request_type == ResourceRequestType.GetKeys:
+        try:
+            user_id = request["user_id"]
+            if not isinstance(user_id, int):
+                raise TypeError
+            lb_id = request["leaderboard_id"]
+            if not isinstance(lb_id, int):
+                raise TypeError
+        except (KeyError, TypeError):
+            return serverlib.bad_request_json(ServerErrCode.MalformedRequest)
+        return get_keys(user_id, lb_id)
 
 
 class Handler(socketserver.BaseRequestHandler):
@@ -932,9 +1173,10 @@ class Handler(socketserver.BaseRequestHandler):
         print("User {} successfully connected".format(socket_identity))
         cursor = db.cursor()
         register_command = """
-            insert or ignore into users(identity, class, registration_date) values(?, ?, strftime('%s'))
+            insert or ignore into users(identity, class, registration_date, pub_key)
+            values(?, ?, strftime('%s'), ?)
             """
-        register_params = (socket_identity, UserClass.User)
+        register_params = (socket_identity, UserClass.User, client_public_key_bytes)
         cursor.execute(register_command, register_params)
         db.commit()
 
@@ -957,7 +1199,7 @@ class Handler(socketserver.BaseRequestHandler):
         (socket_user_id,) = cursor.fetchone()
 
         seqnum = 0
-        
+
         while True:
             try:
                 request = netlib.get_dict_from_socket(self.request)
@@ -1002,26 +1244,45 @@ if __name__ == "__main__":
             id INTEGER PRIMARY KEY,
             identity TEXT UNIQUE NOT NULL,
             class INTEGER NOT NULL,
-            registration_date INTEGER NOT NULL
+            registration_date INTEGER NOT NULL,
+            pub_key BLOB NOT NULL
         );
         CREATE TABLE leaderboards (
             id INTEGER PRIMARY KEY,
             name TEXT NOT NULL,
             creation_date INTEGER NOT NULL,
-            default_permission INTEGER NOT NULL,
-            ascending BOOLEAN NOT NULL
+            ascending BOOLEAN NOT NULL,
+            mod_pubkey BLOB NOT NULL,
+            read_key_version INTEGER NOT NULL,
+            mod_key_version INTEGER NOT NULL
         );
         CREATE TABLE permissions (
-            user INTEGER NOT NULL REFERENCES users(id),
+            id INTEGER PRIMARY KEY,
+            user INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
             leaderboard INTEGER NOT NULL REFERENCES  leaderboards(id) ON DELETE CASCADE,
             permission INTEGER NOT NULL,
             change_date INTEGER NOT NULL
+        );
+        CREATE TABLE read_keys (
+            associated_perm INTEGER NOT NULL REFERENCES permissions(id) ON DELETE CASCADE,
+            version INTEGER NOT NULL,
+            encrypted_key BLOB NOT NULL
+        );
+        CREATE TABLE mod_keys (
+            associated_perm INTEGER NOT NULL REFERENCES permissions(id) ON DELETE CASCADE,
+            version INTEGER NOT NULL,
+            encrypted_sym_key BLOB NOT NULL,
+            encrypted_priv_key BLOB NOT NULL
         );
         CREATE TABLE leaderboard_entries (
             id INTEGER PRIMARY KEY,
             user INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
             leaderboard INTEGER NOT NULL REFERENCES leaderboards(id) ON DELETE CASCADE,
-            score REAL NOT NULL,
+            score BLOB NOT NULL,
+            uploader_key BLOB,
+            mod_key BLOB,
+            mod_key_ver INTEGER,
+            read_key_ver INTEGER,
             submission_date INTEGER NOT NULL,
             verified INTEGER NOT NULL,
             verification_date INTEGER,
@@ -1032,14 +1293,22 @@ if __name__ == "__main__":
             user INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
             entry INTEGER NOT NULL REFERENCES leaderboard_entries(id) ON DELETE CASCADE,
             date INTEGER NOT NULL,
-            content TEXT NOT NULL
+            content BLOB NOT NULL,
+            uploader_key BLOB,
+            mod_key BLOB,
+            mod_key_ver INTEGER,
+            read_key_ver INTEGER
         );
         CREATE TABLE files (
             id INTEGER PRIMARY KEY,
             entry INTEGER NOT NULL REFERENCES leaderboard_entries(id) ON DELETE CASCADE,
             name TEXT NOT NULL,
             submission_date INTEGER NOT NULL,
-            data BLOB NOT NULL
+            data BLOB NOT NULL,
+            uploader_key BLOB,
+            mod_key BLOB,
+            mod_key_ver INTEGER,
+            read_key_ver INTEGER
         );
     """
 

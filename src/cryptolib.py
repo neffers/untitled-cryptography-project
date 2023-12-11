@@ -23,6 +23,8 @@ def initialize_key(key_filename):
     print("Key Hash: " + public_key_hash(key.public_key()))
     return key
 
+def generate_rsa_key():
+    return rsa.generate_private_key(65537, 4096)
 
 def public_key_hash(key: rsa.RSAPublicKey):
     public_key_bytes = netlib.serialize_public_key(key)
@@ -92,3 +94,4 @@ def symmetric_encrypt(key: bytes, message: bytes) -> bytes:
 def encrypt_dict(key: bytes, message: dict) -> bytes:
     to_encrypt = json.dumps(message).encode()
     return symmetric_encrypt(key, to_encrypt)
+
