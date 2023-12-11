@@ -34,6 +34,7 @@
         - the submission date as an int
         - the submission's verified status
 - `CreateLeaderboard`
+  - TODO: add encryption fields
   - Additional client request fields:
     - `leaderboard_name`: the name for the new leaderboard
     - `leaderboard_permission`: the default permission for the new leaderboard
@@ -41,6 +42,7 @@
   - Resource server response `data`:
     - The new leaderboard's id
 - `AddEntry`
+  - TODO: add encryption fields
   - Additional client request fields:
     - `leaderboard_id`: id of the leaderboard
     - `score`: the score
@@ -108,13 +110,8 @@
     - a `list` of tuples each with:
       - the id of a leaderboard
       - the permission of the user for this leaderboard
-- `ModifyEntryVerification`
-  - Additional client request fields:
-    - `entry_id`: the id of the entry to change
-    - `verified`: the state to set (boolean)
-  - Resource server response `data`:
-    - `None`, use `success` alone to determine outcome.
 - `AddComment`
+  - TODO: add encryption fields
   - Additional client request fields:
     - `entry_id`: the id of the entry to add comment to
     - `content`: the text content of the comment
@@ -132,14 +129,6 @@
     - `entry_id`: the id of the entry to remove
   - Resource server response `data`
     - `None`, use `success` alone to determine outcome
-- `SetPermission`
-  - Sets a user's permission for a leaderboard to a certain permission level. Can update a current permission or set a new permission.
-  - Additional client request fields:
-    - `user_id`: the id of the user whose permission is to be updated
-    - `leaderboard_id`: the leaderboard for the permission
-    - `permission`: the new permission for the user
-  - Resource server response `data`
-    - `None`, use `success` alone to determine outcome
 - `RemoveUser`
   - Removes a user and associated data from the database.
   - Additional client request fields:
@@ -154,6 +143,7 @@
   - Resource server response `data`
     - `None`, use `success` alone to determine outcome
 - `AddProof`
+  - TODO: add encryption args
   - adds a proof file associated with an entry. Only the user that submitted the entry can add proof.
   - Additional client request fields:
     - `entry_id`: the id of the entry to associate the file with.
@@ -188,3 +178,46 @@
     - `file_id`: the id of the file to be deleted.
   - Resource server response `data`:
     - `None`. Use `success` field alone to determine outcome.
+- `AddPermission`
+  - Escalates a user's permission for a leaderboard to a certain permission level.
+  - Additional client request fields:
+    - `user_id`: the id of the user whose permission is to be updated
+    - `leaderboard_id`: the leaderboard for the permission
+    - `permission`: the new permission for the user
+    - `read_keys`: list of symmetric keys associated with leaderboard, in syntax of response of `GetKeys`
+    - `mod_keys`: list of RSA moderator keys, associated with moderator group of leaderboard, in syntax of response of `GetKeys`
+  - Resource server response `data`
+    - `None`, use `success` alone to determine outcome
+- `GetKeys`
+  - Returns the encrypted symmetric keys for a resource. 
+  - Additional client request fields:
+    - `user_id`: the id of the user requesting the keys.
+    - `leaderboard_id`: the leaderboard id where `user_id` exists
+  - Resource server response `data`:
+    - `mod`: a list of moderator keys i.e. list of tuples containing:
+      - the version of the key
+      - RSA Private key associated with moderator group of `leaderboard_id` encrypted with the symmetric key specified below.
+      - symmetric key with which moderator group private key is encrypted. This key is encrypted with `user_id`'s public key.
+    - `read`: a list of read keys i.e. list of tuples containing:
+      - the version of the key
+      - encrypted symmetric key, associated with leaderboard `leaderboard_id`'s read group. This key is encrypted using `user_id`'s public key.
+- `RemovePermission`
+  - Revokes permission from a user for a certain leaderboard, and expires relavent keys
+  - Additional client request fields:
+    - `user_id`: id of the user whose permissions need to be removed
+    - `leaderboard_id`: the leaderboard for the permission
+    - `new_read_keys`: new symmetric key list for Read group of leaderboard
+    - `new_mod_pubkey`: new RSA public key dictionary(mapping user to public key) for Moderator group of leaderboard, if user was a moderator, otherwise `None`
+    - `new_mod_keys`: new symmetric key dictionary(mapping user to encrypted symmetric key) associated with Moderator group.
+  - Resource server response `data`:
+    - `None`, use `success` alone to determine outcome
+- `Verify_Entry`
+  - Verifies entry of a leaderboard. Entry is now available to Read group, and thus relavent keys are used to encrypt data associated with entry
+  - Additional Client Request Fields:
+    - `entry_id`: id of entry to be verified
+    - `score`: score to be verified 
+    - `read_key_ver`: read key version with which data is encrypted
+    - `files`: List of proof file identifiers that associated with entry, 
+    - `comments`: List of comments associated with entry
+  - Resource server response `data`:
+    - `None`, use success alone to determine outcome
