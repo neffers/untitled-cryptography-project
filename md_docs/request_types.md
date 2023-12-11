@@ -1,10 +1,18 @@
 # Making Requests
+- All client messages to the resource server consist of the following:
+  - `encrypted_request` the request made by the client to the resource server, encrypted using shared AES key
+  - `signature` the RSA signature of `encrypted_request` using client's private key
 - All client requests to the resource server should include the following fields:
   - `identity` the identity used to log in to the auth server
   - `token` the token received back from the auth server
   - `type` the type of request. Should use a ResourceRequestType enum from `enums.py`
+  - `seqnum` a monotonically increasing counter, counting the number of messages exchanged till now
   - additional fields as required by the request type
+- All Resource server messages to client consist of the following:
+  - `encrypted_response` the response to client's request, encrypted using shared AES key
+  - `signature` the RSA signature of `encrypted_response` using Resource Server's private key
 - All Resource server responses will include the following fields
+  - `seqnum` a monotonically increasing counter, counting the number of messages exchanged till now
   - `success` a boolean indicating if the requested operation was successful or not
   - `data` a blob of data formatted depending on the request
     - Upon failure, this will simply be a string indicating a reason for the failure.
