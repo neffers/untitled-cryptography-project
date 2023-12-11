@@ -39,30 +39,6 @@ def print_err(err_type):
         print("Error: The current session has expired!")
 
 
-"""
-def decrypt_resource(encrypted_resource: dict) -> bytes:
-    resource = netlib.b64_to_bytes(encrypted_resource.get("resource"))
-    resource_symkey = netlib.b64_to_bytes(encrypted_resource.get("resource_symkey"))
-    mod_privkey = netlib.b64_to_bytes(encrypted_resource.get("mod_privkey"))
-    mod_symkey = netlib.b64_to_bytes(encrypted_resource.get("mod_symkey"))
-
-    if resource == None or resource_symkey == None:
-        return bytes()
-    if mod_privkey == None or mod_symkey == None:
-        # try to decrypt as client
-        resource_symkey = cryptolib.rsa_decrypt(private_key, resource_symkey)
-    else:
-        # try to decrypt as mod
-        mod_symkey = cryptolib.rsa_decrypt(private_key, mod_symkey)
-        mod_privkey = cryptolib.symmetric_decrypt(mod_symkey, mod_privkey)
-        mod_privkey = netlib.deserialize_private_key(mod_privkey)
-        resource_symkey = cryptolib.rsa_decrypt(mod_privkey, resource_symkey)
-
-    resource = cryptolib.symmetric_decrypt(resource_symkey, resource)
-    return resource
-"""
-
-
 def decrypt_read_resource(keys, key_ver, resource) -> Union[bytes, None]:
     for key in keys["data"]["read"]:
         version = key[0]
@@ -342,7 +318,8 @@ class GetEntryRequest(Request):
         mod_id = entry_mod_id if entry_mod_id else "N/A"
         mod_name = entry_mod_identity if entry_mod_identity else "N/A"
         print("{:<9}{:<8}{:<21.21}{:<15}{:<20}{:<9}{:<7}{:<21.21}"
-              .format(entry_id, entry_user_id, entry_identity, score, str(date), bools[entry_verified], mod_id, mod_name))
+              .format(entry_id, entry_user_id, entry_identity, score, str(date), bools[entry_verified], mod_id,
+                      mod_name))
         comments = response["data"]["comments"]
         print("{} Comments".format(len(comments)))
         files = response["data"]["files"]
@@ -720,7 +697,8 @@ def do_get_proof():
                     if response["data"]["user_id"] == client_id:
                         data = decrypt_uploader_resource(response["data"]["uploader_key"], data)
                     else:
-                        data = decrypt_mod_resource(keys, response["data"]["mod_key"], response["data"]["mod_key_ver"], data)
+                        data = decrypt_mod_resource(keys, response["data"]["mod_key"], response["data"]["mod_key_ver"],
+                                                    data)
                 file.write(data)
                 print("Operation successful.")
             else:
@@ -1213,7 +1191,7 @@ def server_loop(res_ip, res_port):
     if not cryptolib.rsa_verify(rs_pub, signature, encrypted_nonce):
         print("Signature verification failed")
         return
-    nonce = cryptolib.symmetric_decrypt(aes_key,encrypted_nonce)
+    nonce = cryptolib.symmetric_decrypt(aes_key, encrypted_nonce)
     nonce_plus_1 = netlib.int_to_bytes(netlib.bytes_to_int(nonce) + 1)
     encrypted_nonce = cryptolib.symmetric_encrypt(aes_key, nonce_plus_1)
     signature = cryptolib.rsa_sign(private_key, encrypted_nonce)
