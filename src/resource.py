@@ -743,7 +743,7 @@ def get_keys(user_id: int, lb_id: int) -> dict:
         where user = ? and leaderboard = ?
     """
     get_mod_keys_params = (user_id, lb_id)
-    cur.execute(get_read_keys_command, get_read_keys_params)
+    cur.execute(get_mod_keys_command, get_mod_keys_params)
     mod_keys = cur.fetchall()
     return {
         "success": True,
@@ -1161,9 +1161,10 @@ class Handler(socketserver.BaseRequestHandler):
         print("User {} successfully connected".format(socket_identity))
         cursor = db.cursor()
         register_command = """
-            insert or ignore into users(identity, class, registration_date) values(?, ?, strftime('%s'))
+            insert or ignore into users(identity, class, registration_date, pub_key)
+            values(?, ?, strftime('%s'), ?)
             """
-        register_params = (socket_identity, UserClass.User)
+        register_params = (socket_identity, UserClass.User, client_public_key_bytes)
         cursor.execute(register_command, register_params)
         db.commit()
 
