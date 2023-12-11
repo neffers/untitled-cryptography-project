@@ -866,7 +866,20 @@ def do_create_leaderboard():
         print("Invalid input, please enter an integer listed")
         return
     leaderboard_ascending = int(leaderboard_ascending) == 1
-    request = CreateLeaderboardRequest(leaderboard_name, leaderboard_ascending)
+    read_key = os.urandom(32)
+    mod_sym_key = os.urandom(32)
+    mod_priv_key = cryptolib.generate_rsa_key()
+    mod_priv_key_bytes = netlib.serialize_private_key(mod_priv_key)
+    encrypted_priv_key = cryptolib.symmetric_encrypt(mod_sym_key, mod_priv_key_bytes) 
+    mod_encrypted_sym = cryptolib.rsa_encrypt(private_key.public_key(), mod_sym_key)
+    encrypted_read_key = cryptolib.rsa_encrypt(private_key.public_key(), read_key)
+    
+    request = CreateLeaderboardRequest(leaderboard_name, leaderboard_ascending, 
+                                       netlib.serialize_public_key(mod_priv_key.public_key()),
+                                       encrypted_read_key,
+                                       mod_encrypted_sym,
+                                        encrypted_priv_key,
+                                       )
     request.safe_print(request.make_request())
 
 
