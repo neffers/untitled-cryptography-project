@@ -868,7 +868,7 @@ def handle_request(request_user_id: int, request: dict):
         }
 
     # Entry: Verify Entry
-    if request_type == ResourceRequestType.Verify_Entry:
+    if request_type == ResourceRequestType.VerifyEntry:
         try:
             entry_id = request["entry_id"]
             if not isinstance(entry_id, int):

@@ -346,12 +346,12 @@ class ViewPermissionsRequest(Request):
             print("{:<5}{:<12}".format(permission[0], perms[permission[1]]))
 
 
-class ModifyEntryVerificationRequest(Request):
-    def __init__(self, entry_id, verified):
+class VerifyEntryRequest(Request):
+    # TODO add read_key_ver
+    def __init__(self, entry_id):
         super().__init__({
-            "type": ResourceRequestType.ModifyEntryVerification,
+            "type": ResourceRequestType.VerifyEntry,
             "entry_id": entry_id,
-            "verified": verified
         })
 
 
@@ -567,9 +567,9 @@ def do_add_comment(entry_id):
     request.safe_print(request.make_request())
 
 
-def do_modify_entry_verification(entry_id, verify):
+def do_verify_entry(entry_id):
     # TODO re encrypt
-    request = ModifyEntryVerificationRequest(entry_id, verify)
+    request = VerifyEntryRequest(entry_id)
     request.safe_print(request.make_request())
 
 
