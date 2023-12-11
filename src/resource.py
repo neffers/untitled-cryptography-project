@@ -164,7 +164,7 @@ def add_entry(requesting_user_id: int, user_perms: dict, leaderboard_id: int, en
     entry_id = cur.lastrowid
     create_comment_command = """
     insert into entry_comments(user, entry, date, content, uploader_key, mod_key, mod_key_ver)
-    values(?, ?, strftime('%s'), ?)
+    values(?, ?, strftime('%s'), ?, ?, ?, ?)
     """
     create_comment_params = (requesting_user_id, entry_id, comment, uploader_key, mod_key, mod_key_ver)
     cur.execute(create_comment_command, create_comment_params)
