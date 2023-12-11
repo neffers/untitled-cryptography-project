@@ -15,7 +15,7 @@ identity: str = ""
 token: bytes = bytes()
 sock: socket.socket = socket.socket()
 session_key: bytes = bytes()
-
+seqnum: int
 key_filename = str()
 private_key: rsa.RSAPrivateKey
 rs_pub: rsa.RSAPublicKey
@@ -73,7 +73,9 @@ class Request:
         self.request = request
 
     def make_request(self) -> dict:
+        global seqnum
         request = self.request
+        request["seqnum"] = seqnum
         encrypted_bytes = cryptolib.encrypt_dict(session_key, request)
         signature = cryptolib.rsa_sign(private_key, encrypted_bytes)
         base64_request = netlib.bytes_to_b64(encrypted_bytes)
@@ -81,7 +83,7 @@ class Request:
         encrypted_request = {"encrypted_request": base64_request,
                              "signature": base64_signature}
         netlib.send_dict_to_socket(encrypted_request, sock)
-
+        seqnum += 1
         dict_response = netlib.get_dict_from_socket(sock)
         if dict_response.get("encrypted_response") is None:
             # handle plaintext timeout message
@@ -98,7 +100,15 @@ class Request:
             }
             return response
 
+        # handle bad seqnum
         response = cryptolib.decrypt_dict(session_key, netlib.b64_to_bytes(dict_response["encrypted_response"]))
+        if response["seqnum"] != seqnum:
+            response = {
+                "success": False,
+                "data": "Incorrect seqnum"
+            }
+            return response
+        seqnum += 1
         return response
 
     def safe_print(self, response: dict) -> None:
@@ -1143,6 +1153,9 @@ def server_loop(res_ip, res_port):
     print("Connection successful.")
     try:
         data = request_token(as_sock, password, as_pub)
+        if data is None:
+            print("Login Failed!")
+            return
         token = netlib.b64_to_bytes(data["token"])
         expiration_time = data["expiration_time"]
     except BrokenPipeError:
@@ -1214,6 +1227,9 @@ def server_loop(res_ip, res_port):
 
     print("Connected to " + res_ip + ":" + res_port + " as " + identity + "\n")
     session_key = aes_key
+
+    global seqnum
+    seqnum = 0
 
     # Resource server connection loop
     while True:

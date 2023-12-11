@@ -1198,6 +1198,8 @@ class Handler(socketserver.BaseRequestHandler):
         cursor.execute(get_id_command, get_id_params)
         (socket_user_id,) = cursor.fetchone()
 
+        seqnum = 0
+
         while True:
             try:
                 request = netlib.get_dict_from_socket(self.request)
@@ -1211,14 +1213,21 @@ class Handler(socketserver.BaseRequestHandler):
             print("received {} from {}".format(request, self.client_address[0]))
             encrypted_request = netlib.b64_to_bytes(request["encrypted_request"])
             if not cryptolib.rsa_verify(client_public_key, netlib.b64_to_bytes(request["signature"]), encrypted_request):
+                print("Signature did not verify")
                 return serverlib.bad_request_json(ServerErrCode.MalformedRequest)
             request = cryptolib.decrypt_dict(aes_key, encrypted_request)
+            if request["seqnum"] != seqnum:
+                print("Sequence number wrong, received: {}, expected: {}".format(request["seqnum"], seqnum + 1))
+                return serverlib.bad_request_json(ServerErrCode.MalformedRequest)
+            seqnum += 1
             response = handle_request(socket_user_id, request)
+            response["seqnum"] = seqnum
             response_bytes = cryptolib.encrypt_dict(aes_key, response)
             base64_response = netlib.bytes_to_b64(response_bytes)
             response = {"encrypted_response": base64_response, "signature": netlib.bytes_to_b64(cryptolib.rsa_sign(private_key, response_bytes))}
             print("sending {} to {}".format(response, self.client_address[0]))
             netlib.send_dict_to_socket(response, self.request)
+            seqnum += 1
 
 
 # noinspection PyUnusedLocal
