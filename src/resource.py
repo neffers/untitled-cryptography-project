@@ -291,7 +291,7 @@ def get_user(requesting_user_id: int, user_id: int) -> dict:
         return serverlib.bad_request_json(ServerErrCode.DoesNotExist)
 
     get_entries_command = """
-        select e.id, e.leaderboard, e.score, e.verified, e.submission_date
+        select e.id, e.leaderboard, e.verified, e.submission_date
         from leaderboard_entries e
         left outer join leaderboards l on e.leaderboard = l.id
         left outer join (select p.permission, p.leaderboard
@@ -337,7 +337,7 @@ def verify_entry(request_user_id: int, user_perms: dict, entry_id: int,
         mod_key_ver = ?, read_key_ver = ?
         where id = ?
     """
-    modify_entry_params = (score, True, request_user_id, entry_id, None, None, None, read_key_ver)
+    modify_entry_params = (score, True, request_user_id, None, None, None, read_key_ver, entry_id)
     cur.execute(modify_entry_command, modify_entry_params)
 
     modify_comment_command = """
@@ -653,19 +653,30 @@ def download_proof(request_user_id: int, user_perms: dict, file_id: int) -> dict
         return serverlib.bad_request_json(ServerErrCode.InsufficientPermission)
 
     get_file_command = """
-        select data, uploader_key, mod_key, mod_key_ver, read_key_ver
+        select entry, data, uploader_key, mod_key, mod_key_ver, read_key_ver
         from files
         where id = ?
     """
     get_file_params = (file_id,)
     cur.execute(get_file_command, get_file_params)
-    (file, uploader_key, mod_key, mod_key_ver, read_key_ver) = cur.fetchone()
+    (entry_id, file, uploader_key, mod_key, mod_key_ver, read_key_ver) = cur.fetchone()
+    get_entry_command = """
+        select user, verified, leaderboard
+        from leaderboard_entries
+        where id = ?
+    """
+    get_entry_params = (entry_id,)
+    cur.execute(get_entry_command, get_entry_params)
+    (user_id, verified, leaderboard_id) = cur.fetchone()
     return_dict = {
         "file": netlib.bytes_to_b64(file),
         "uploader_key": netlib.bytes_to_b64(uploader_key),
         "mod_key": netlib.bytes_to_b64(mod_key),
         "mod_key_ver": mod_key_ver,
-        "read_key_ver": read_key_ver
+        "read_key_ver": read_key_ver,
+        "user_id": user_id,
+        "leaderboard": leaderboard_id,
+        "verified": verified
     }
     return {
         "success": True,
@@ -1187,6 +1198,8 @@ class Handler(socketserver.BaseRequestHandler):
         cursor.execute(get_id_command, get_id_params)
         (socket_user_id,) = cursor.fetchone()
 
+        seqnum = 0
+
         while True:
             try:
                 request = netlib.get_dict_from_socket(self.request)
@@ -1200,14 +1213,21 @@ class Handler(socketserver.BaseRequestHandler):
             print("received {} from {}".format(request, self.client_address[0]))
             encrypted_request = netlib.b64_to_bytes(request["encrypted_request"])
             if not cryptolib.rsa_verify(client_public_key, netlib.b64_to_bytes(request["signature"]), encrypted_request):
+                print("Signature did not verify")
                 return serverlib.bad_request_json(ServerErrCode.MalformedRequest)
             request = cryptolib.decrypt_dict(aes_key, encrypted_request)
+            if request["seqnum"] != seqnum:
+                print("Sequence number wrong, received: {}, expected: {}".format(request["seqnum"], seqnum + 1))
+                return serverlib.bad_request_json(ServerErrCode.MalformedRequest)
+            seqnum += 1
             response = handle_request(socket_user_id, request)
+            response["seqnum"] = seqnum
             response_bytes = cryptolib.encrypt_dict(aes_key, response)
             base64_response = netlib.bytes_to_b64(response_bytes)
             response = {"encrypted_response": base64_response, "signature": netlib.bytes_to_b64(cryptolib.rsa_sign(private_key, response_bytes))}
             print("sending {} to {}".format(response, self.client_address[0]))
             netlib.send_dict_to_socket(response, self.request)
+            seqnum += 1
 
 
 # noinspection PyUnusedLocal

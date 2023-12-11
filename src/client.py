@@ -15,7 +15,7 @@ identity: str = ""
 token: bytes = bytes()
 sock: socket.socket = socket.socket()
 session_key: bytes = bytes()
-
+seqnum: int
 key_filename = str()
 private_key: rsa.RSAPrivateKey
 rs_pub: rsa.RSAPublicKey
@@ -39,34 +39,33 @@ def print_err(err_type):
         print("Error: The current session has expired!")
 
 
-def decrypt_resource(encrypted_resource: dict) -> bytes:
-    """
-    {
-        resource: resource bytes
-        resource_symkey: symkey to decrypt resource, encrypted by client pubkey or mod pubkey
-        optional mod_privkey: {mod group private key in PEM format}mod group symmetric key
-        optional mod_symkey: {mod group symmetric key}client pubkey
-    }
-    """
-    resource = netlib.b64_to_bytes(encrypted_resource.get("resource"))
-    resource_symkey = netlib.b64_to_bytes(encrypted_resource.get("resource_symkey"))
-    mod_privkey = netlib.b64_to_bytes(encrypted_resource.get("mod_privkey"))
-    mod_symkey = netlib.b64_to_bytes(encrypted_resource.get("mod_symkey"))
+def decrypt_read_resource(keys, key_ver, resource) -> Union[bytes, None]:
+    for key in keys["data"]["read"]:
+        version = key[0]
+        key = key[1]
+        if version == key_ver:
+            key = cryptolib.rsa_decrypt(private_key, key)
+            resource = cryptolib.symmetric_decrypt(key, resource)
+            return resource
+    return None
 
-    if resource == None or resource_symkey == None:
-        return bytes()
-    if mod_privkey == None or mod_symkey == None:
-        # try to decrypt as client
-        resource_symkey = cryptolib.rsa_decrypt(private_key, resource_symkey)
-    else:
-        # try to decrypt as mod
-        mod_symkey = cryptolib.rsa_decrypt(private_key, mod_symkey)
-        mod_privkey = cryptolib.symmetric_decrypt(mod_symkey, mod_privkey)
-        mod_privkey = netlib.deserialize_private_key(mod_privkey)
-        resource_symkey = cryptolib.rsa_decrypt(mod_privkey, resource_symkey)
 
-    resource = cryptolib.symmetric_decrypt(resource_symkey, resource)
-    return resource
+def decrypt_uploader_resource(uploader_key, resource) -> bytes:
+    key = cryptolib.rsa_decrypt(private_key, uploader_key)
+    return cryptolib.symmetric_decrypt(key, resource)
+
+
+def decrypt_mod_resource(keys, mod_key, mod_key_ver, resource) -> Union[bytes, None]:
+    for key in keys["data"]["mod"]:
+        version = key[0]
+        priv = key[1]
+        sym = key[2]
+        if version == mod_key_ver:
+            sym = cryptolib.rsa_decrypt(private_key, sym)
+            priv = cryptolib.symmetric_decrypt(sym, priv)
+            key = cryptolib.rsa_decrypt(netlib.deserialize_private_key(priv), mod_key)
+            return cryptolib.symmetric_decrypt(key, resource)
+    return None
 
 
 class Request:
@@ -74,7 +73,9 @@ class Request:
         self.request = request
 
     def make_request(self) -> dict:
+        global seqnum
         request = self.request
+        request["seqnum"] = seqnum
         encrypted_bytes = cryptolib.encrypt_dict(session_key, request)
         signature = cryptolib.rsa_sign(private_key, encrypted_bytes)
         base64_request = netlib.bytes_to_b64(encrypted_bytes)
@@ -82,7 +83,7 @@ class Request:
         encrypted_request = {"encrypted_request": base64_request,
                              "signature": base64_signature}
         netlib.send_dict_to_socket(encrypted_request, sock)
-
+        seqnum += 1
         dict_response = netlib.get_dict_from_socket(sock)
         if dict_response.get("encrypted_response") is None:
             # handle plaintext timeout message
@@ -99,7 +100,15 @@ class Request:
             }
             return response
 
+        # handle bad seqnum
         response = cryptolib.decrypt_dict(session_key, netlib.b64_to_bytes(dict_response["encrypted_response"]))
+        if response["seqnum"] != seqnum:
+            response = {
+                "success": False,
+                "data": "Incorrect seqnum"
+            }
+            return response
+        seqnum += 1
         return response
 
     def safe_print(self, response: dict) -> None:
@@ -300,43 +309,15 @@ class GetEntryRequest(Request):
         verified = entry[10]
         if verified:
             read_key_ver = entry[9]
-            found = False
-            for key in keys["data"]["read"]:
-                version = key[0]
-                key = key[1]
-                if version == read_key_ver:
-                    key = cryptolib.rsa_decrypt(private_key, key)
-                    score = cryptolib.symmetric_decrypt(key, score)
-                    score = netlib.bytes_to_int(score)
-                    found = True
-                    break
-            if not found:
-                print("failed to decrypt")
-                return
+            score = netlib.bytes_to_int(decrypt_read_resource(keys, read_key_ver, score))
         else:
             if identity == entry_identity:
                 uploader_key = entry[6]
-                key = cryptolib.rsa_decrypt(private_key, uploader_key)
-                score = cryptolib.symmetric_decrypt(key, score)
-                score = netlib.bytes_to_int(score)
+                score = netlib.bytes_to_int(decrypt_uploader_resource(uploader_key, score))
             else:
-                found = False
+                mod_key = entry[7]
                 mod_key_ver = entry[8]
-                for key in keys["data"]["mod"]:
-                    version = key[0]
-                    priv = key[1]
-                    sym = key[2]
-                    if version == mod_key_ver:
-                        sym = cryptolib.rsa_decrypt(private_key, sym)
-                        priv = cryptolib.symmetric_decrypt(sym, priv)
-                        key = cryptolib.rsa_decrypt(netlib.deserialize_private_key(priv), score)
-                        score = cryptolib.symmetric_decrypt(key, score)
-                        score = netlib.bytes_to_int(score)
-                        found = True
-                        break
-                if not found:
-                    print("failed to decrypt")
-                    return
+                score = netlib.bytes_to_int(decrypt_mod_resource(keys, mod_key, mod_key_ver, score))
         if not isinstance(score, int):
             print("failed to decrypt")
             return
@@ -347,7 +328,8 @@ class GetEntryRequest(Request):
         mod_id = entry_mod_id if entry_mod_id else "N/A"
         mod_name = entry_mod_identity if entry_mod_identity else "N/A"
         print("{:<9}{:<8}{:<21.21}{:<15}{:<20}{:<9}{:<7}{:<21.21}"
-              .format(entry_id, entry_user_id, entry_identity, score, str(date), bools[entry_verified], mod_id, mod_name))
+              .format(entry_id, entry_user_id, entry_identity, score, str(date), bools[entry_verified], mod_id,
+                      mod_name))
         comments = response["data"]["comments"]
         print("{} Comments".format(len(comments)))
         files = response["data"]["files"]
@@ -400,14 +382,12 @@ class ViewUserRequest(Request):
         entries = response["data"]["entries"]
         date = datetime.fromtimestamp(user_data[1])
         print("Name: {} Registration Date: {}".format(user_data[0], str(date)))
-        print("{:<4}{:<5}{:<15}{:<9}{:<20}"
-              .format("ID", "LB ID", "Score", "Verified", "Registration Date"))
+        print("{:<4}{:<5}{:<9}{:<20}"
+              .format("ID", "LB ID", "Verified", "Registration Date"))
         for entry in entries:
-            date = datetime.fromtimestamp(entry[4])
-            entry[2] = decrypt_resource(entry[2])
-            entry[2] = netlib.bytes_to_int(entry[2])
-            print("{:<4}{:<5}{:<15}{:<9}{:<20}"
-                  .format(entry[0], entry[1], entry[2], bools[entry[3]], str(date)))
+            date = datetime.fromtimestamp(entry[3])
+            print("{:<4}{:<5}{:<9}{:<20}"
+                  .format(entry[0], entry[1], bools[entry[2]], str(date)))
 
 
 class OneLeaderboardRequest(Request):
@@ -418,15 +398,62 @@ class OneLeaderboardRequest(Request):
         })
 
     def print_response(self, response):
+        """ shape of response
+        entries: (if not mod)
+            0 entry id
+            1 user id
+            2 user identity
+            3 score
+            4 submission_date
+            5 verified
+            6 read_key_ver
+            7 uploader_key
+        entries: (if mod)
+            0 entry id
+            1 user id
+            2 user identity
+            3 score
+            4 submission_date
+            5 verified
+            6 read_key_ver
+            7 mod_key
+            8 mod_key_ver
+        """
+        entries = response["data"]["entries"]
         print("Leaderboard ID: {} Leaderboard Name: {}".format(response["data"]["id"], response["data"]["name"]))
         print("{:<9}{:<8}{:<21.21}{:<15}{:<20}{:<6}"
               .format("Entry ID", "User ID", "Username", "Score", "Date", "Verified"))
-        for entry in response["data"]["entries"]:
-            date = datetime.fromtimestamp(entry[4])
-            entry[3] = decrypt_resource(entry[3])
-            entry[3] = netlib.bytes_to_int(entry[3])
+        if entries.len() == 0:
+            print("No entries found")
+            return
+        is_mod = entries[0].len() == 7  # returns a different set of columns if client is moderator
+        leaderboard_id = self.request["leaderboard_id"]
+        user_id = do_get_self_id()
+        keys = do_get_keys(user_id, leaderboard_id)
+        for entry in entries:
+            entry_id = entry[0]
+            entry_user_id = entry[1]
+            entry_identity = entry[2]
+            entry_score = entry[3]
+            entry_date = entry[4]
+            entry_verified = entry[5]
+            read_key_ver = entry[6]
+            if entry_verified:
+                entry_score = netlib.bytes_to_int(decrypt_read_resource(keys, read_key_ver, entry_score))
+            else:
+                if identity == entry_identity and not is_mod:
+                    uploader_key = entry[7]
+                    entry_score = netlib.bytes_to_int(decrypt_uploader_resource(uploader_key, entry_score))
+                elif is_mod:
+                    mod_key = entry[7]
+                    mod_key_ver = entry[8]
+                    entry_score = netlib.bytes_to_int(decrypt_mod_resource(keys, mod_key, mod_key_ver, entry_score))
+            if not isinstance(entry_score, int):
+                print("failed to decrypt")
+                return
+            date = datetime.fromtimestamp(entry_date)
             print("{:<9}{:<8}{:<21.21}{:<15}{:<20}{:<6}"
-                  .format(entry[0], entry[1], entry[2], entry[3], str(date), bools[entry[5]]))
+                  .format(entry_id, entry_user_id, entry_identity, entry_score, str(date), bools[entry_verified]))
 
 
 class ViewPermissionsRequest(Request):
@@ -688,8 +715,28 @@ def do_get_proof():
                 print("Malformed packet: " + str(response))
                 return
             if response["success"]:
-                data = response["data"]
-                data = decrypt_resource(data)
+                """
+                data:
+                    "file"
+                    "uploader_key"
+                    "mod_key"
+                    "mod_key_ver"
+                    "read_key_ver"
+                    "user_id"
+                    "leaderboard"
+                    "verified"
+                """
+                data = response["data"]["file"]
+                client_id = do_get_self_id()
+                keys = do_get_keys(client_id, response["data"]["leaderboard_id"])
+                if response["data"]["verified"]:
+                    data = decrypt_read_resource(keys, response["data"]["read_key_ver"], data)
+                else:
+                    if response["data"]["user_id"] == client_id:
+                        data = decrypt_uploader_resource(response["data"]["uploader_key"], data)
+                    else:
+                        data = decrypt_mod_resource(keys, response["data"]["mod_key"], response["data"]["mod_key_ver"],
+                                                    data)
                 file.write(data)
                 print("Operation successful.")
             else:
@@ -718,12 +765,31 @@ def do_view_comments(entry_id):
         return
     if response["success"]:
         comments = response["data"]["comments"]
+        entry_verified = response["data"]["entry"][10]
+        client_id = do_get_self_id()
+        leaderboard_id = response["data"]["entry"][1]
+        keys = do_get_keys(client_id, leaderboard_id)
         print("{:<21.21}{:<20}{}".format("Commenter", "Date", "Comment"))
         for comment in comments:
-            date = datetime.fromtimestamp(comment[1])
-            comment[2] = decrypt_resource(comment[2])
-            comment[2] = comment[2].decode()
-            print("{:<21.21}{:<20}{}".format(comment[0], str(date), comment[2]))
+            """
+                "comments"
+                    0 poster's identity
+                    1 date
+                    2 content
+                    3 uploader_key
+                    4 mod_key
+                    5 mod_key_ver
+                    6 read_key_ver
+            """
+            date = datetime.fromtimestamp(comment[2])
+            if entry_verified:
+                comment_contents = decrypt_read_resource(keys, comment[6], comment[2])
+            else:
+                if comment[0] == identity:
+                    comment_contents = decrypt_uploader_resource(comment[3], comment[2])
+                else:
+                    comment_contents = decrypt_mod_resource(keys, comment[4], comment[5], comment[2])
+            print("{:<21.21}{:<20}{}".format(comment[1], str(date), comment_contents))
     else:
         print(response["data"])
 
@@ -1115,6 +1181,9 @@ def server_loop(res_ip, res_port):
     print("Connection successful.")
     try:
         data = request_token(as_sock, password, as_pub)
+        if data is None:
+            print("Login Failed!")
+            return
         token = netlib.b64_to_bytes(data["token"])
         expiration_time = data["expiration_time"]
     except BrokenPipeError:
@@ -1163,7 +1232,7 @@ def server_loop(res_ip, res_port):
     if not cryptolib.rsa_verify(rs_pub, signature, encrypted_nonce):
         print("Signature verification failed")
         return
-    nonce = cryptolib.symmetric_decrypt(aes_key,encrypted_nonce)
+    nonce = cryptolib.symmetric_decrypt(aes_key, encrypted_nonce)
     nonce_plus_1 = netlib.int_to_bytes(netlib.bytes_to_int(nonce) + 1)
     encrypted_nonce = cryptolib.symmetric_encrypt(aes_key, nonce_plus_1)
     signature = cryptolib.rsa_sign(private_key, encrypted_nonce)
@@ -1186,6 +1255,9 @@ def server_loop(res_ip, res_port):
 
     print("Connected to " + res_ip + ":" + res_port + " as " + identity + "\n")
     session_key = aes_key
+
+    global seqnum
+    seqnum = 0
 
     # Resource server connection loop
     while True:
