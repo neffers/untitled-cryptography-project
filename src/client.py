@@ -700,8 +700,27 @@ def do_get_proof():
                 print("Malformed packet: " + str(response))
                 return
             if response["success"]:
-                data = response["data"]
-                data = decrypt_resource(data)
+                """
+                data:
+                    "file"
+                    "uploader_key"
+                    "mod_key"
+                    "mod_key_ver"
+                    "read_key_ver"
+                    "user_id"
+                    "leaderboard"
+                    "verified"
+                """
+                data = response["data"]["file"]
+                client_id = do_get_self_id()
+                keys = do_get_keys(client_id, response["data"]["leaderboard_id"])
+                if response["data"]["verified"]:
+                    data = decrypt_read_resource(keys, response["data"]["read_key_ver"], data)
+                else:
+                    if response["data"]["user_id"] == client_id:
+                        data = decrypt_uploader_resource(response["data"]["uploader_key"], data)
+                    else:
+                        data = decrypt_mod_resource(keys, response["data"]["mod_key"], response["data"]["mod_key_ver"], data)
                 file.write(data)
                 print("Operation successful.")
             else:
