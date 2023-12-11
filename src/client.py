@@ -321,6 +321,7 @@ class GetEntryRequest(Request):
                 score = netlib.bytes_to_int(score)
             else:
                 found = False
+                mod_key = entry[7]
                 mod_key_ver = entry[8]
                 for key in keys["data"]["mod"]:
                     version = key[0]
@@ -329,7 +330,7 @@ class GetEntryRequest(Request):
                     if version == mod_key_ver:
                         sym = cryptolib.rsa_decrypt(private_key, sym)
                         priv = cryptolib.symmetric_decrypt(sym, priv)
-                        key = cryptolib.rsa_decrypt(netlib.deserialize_private_key(priv), score)
+                        key = cryptolib.rsa_decrypt(netlib.deserialize_private_key(priv), mod_key)
                         score = cryptolib.symmetric_decrypt(key, score)
                         score = netlib.bytes_to_int(score)
                         found = True
