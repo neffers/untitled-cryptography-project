@@ -63,6 +63,35 @@ def decrypt_resource(encrypted_resource: dict) -> bytes:
 """
 
 
+def decrypt_read_resource(keys, key_ver, resource) -> Union[bytes, None]:
+    for key in keys["data"]["read"]:
+        version = key[0]
+        key = key[1]
+        if version == key_ver:
+            key = cryptolib.rsa_decrypt(private_key, key)
+            resource = cryptolib.symmetric_decrypt(key, resource)
+            return resource
+    return None
+
+
+def decrypt_uploader_resource(uploader_key, resource) -> bytes:
+    key = cryptolib.rsa_decrypt(private_key, uploader_key)
+    return cryptolib.symmetric_decrypt(key, resource)
+
+
+def decrypt_mod_resource(keys, mod_key, mod_key_ver, resource) -> Union[bytes, None]:
+    for key in keys["data"]["mod"]:
+        version = key[0]
+        priv = key[1]
+        sym = key[2]
+        if version == mod_key_ver:
+            sym = cryptolib.rsa_decrypt(private_key, sym)
+            priv = cryptolib.symmetric_decrypt(sym, priv)
+            key = cryptolib.rsa_decrypt(netlib.deserialize_private_key(priv), mod_key)
+            return cryptolib.symmetric_decrypt(key, resource)
+    return None
+
+
 class Request:
     def __init__(self, request: dict):
         self.request = request
@@ -294,44 +323,15 @@ class GetEntryRequest(Request):
         verified = entry[10]
         if verified:
             read_key_ver = entry[9]
-            found = False
-            for key in keys["data"]["read"]:
-                version = key[0]
-                key = key[1]
-                if version == read_key_ver:
-                    key = cryptolib.rsa_decrypt(private_key, key)
-                    score = cryptolib.symmetric_decrypt(key, score)
-                    score = netlib.bytes_to_int(score)
-                    found = True
-                    break
-            if not found:
-                print("failed to decrypt")
-                return
+            score = netlib.bytes_to_int(decrypt_read_resource(keys, read_key_ver, score))
         else:
             if identity == entry_identity:
                 uploader_key = entry[6]
-                key = cryptolib.rsa_decrypt(private_key, uploader_key)
-                score = cryptolib.symmetric_decrypt(key, score)
-                score = netlib.bytes_to_int(score)
+                score = netlib.bytes_to_int(decrypt_uploader_resource(uploader_key, score))
             else:
-                found = False
                 mod_key = entry[7]
                 mod_key_ver = entry[8]
-                for key in keys["data"]["mod"]:
-                    version = key[0]
-                    priv = key[1]
-                    sym = key[2]
-                    if version == mod_key_ver:
-                        sym = cryptolib.rsa_decrypt(private_key, sym)
-                        priv = cryptolib.symmetric_decrypt(sym, priv)
-                        key = cryptolib.rsa_decrypt(netlib.deserialize_private_key(priv), mod_key)
-                        score = cryptolib.symmetric_decrypt(key, score)
-                        score = netlib.bytes_to_int(score)
-                        found = True
-                        break
-                if not found:
-                    print("failed to decrypt")
-                    return
+                score = netlib.bytes_to_int(decrypt_mod_resource(keys, mod_key, mod_key_ver, score))
         if not isinstance(score, int):
             print("failed to decrypt")
             return
@@ -452,44 +452,15 @@ class OneLeaderboardRequest(Request):
             entry_verified = entry[5]
             read_key_ver = entry[6]
             if entry_verified:
-                found = False
-                for key in keys["data"]["read"]:
-                    version = key[0]
-                    key = key[1]
-                    if version == read_key_ver:
-                        key = cryptolib.rsa_decrypt(private_key, key)
-                        entry_score = cryptolib.symmetric_decrypt(key, entry_score)
-                        entry_score = netlib.bytes_to_int(entry_score)
-                        found = True
-                        break
-                if not found:
-                    print("failed to decrypt")
-                    return
+                entry_score = netlib.bytes_to_int(decrypt_read_resource(keys, read_key_ver, entry_score))
             else:
                 if identity == entry_identity and not is_mod:
                     uploader_key = entry[7]
-                    key = cryptolib.rsa_decrypt(private_key, uploader_key)
-                    entry_score = cryptolib.symmetric_decrypt(key, entry_score)
-                    entry_score = netlib.bytes_to_int(entry_score)
+                    entry_score = netlib.bytes_to_int(decrypt_uploader_resource(uploader_key, entry_score))
                 elif is_mod:
-                    found = False
                     mod_key = entry[7]
                     mod_key_ver = entry[8]
-                    for key in keys["data"]["mod"]:
-                        version = key[0]
-                        priv = key[1]
-                        sym = key[2]
-                        if version == mod_key_ver:
-                            sym = cryptolib.rsa_decrypt(private_key, sym)
-                            priv = cryptolib.symmetric_decrypt(sym, priv)
-                            key = cryptolib.rsa_decrypt(netlib.deserialize_private_key(priv), mod_key)
-                            entry_score = cryptolib.symmetric_decrypt(key, entry_score)
-                            entry_score = netlib.bytes_to_int(entry_score)
-                            found = True
-                            break
-                    if not found:
-                        print("failed to decrypt")
-                        return
+                    entry_score = netlib.bytes_to_int(decrypt_mod_resource(keys, mod_key, mod_key_ver, entry_score))
             if not isinstance(entry_score, int):
                 print("failed to decrypt")
                 return
