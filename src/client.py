@@ -605,7 +605,35 @@ def do_remove_permission(user_id):
         print("Invalid input, please enter an integer")
         return
     leaderboard_id = int(leaderboard_id)
-    request = RemovePermissionRequest(user_id, leaderboard_id)
+    # get current read keys for leaderboard
+    access_list = AccessGroupsRequest(leaderboard_id).make_request().get("data")
+    user_data = [x for x in access_list if x[0] == user_id][0]
+    user_perms = user_data[2]
+    
+    new_read_keys = {}
+
+    new_mod_keys = None
+    new_mod_privkey = None
+
+    if user_perms >= Permissions.Moderate:
+        new_mod_privkey = cryptolib.generate_rsa_key()
+        new_mod_keys = {}
+
+    new_read_key = os.urandom(32)
+    for (user, _, _, pubkey) in access_list:
+        encrypted_read_key = cryptolib.rsa_encrypt(pubkey, new_read_key)
+        new_read_keys[user] = encrypted_read_key
+        if user_perms >= Permissions.Moderate:
+            priv_key_bytes = netlib.serialize_private_key(new_mod_privkey)
+            mod_sym_key = os.urandom(32)
+            encrypted_priv_key = cryptolib.symmetric_encrypt(mod_sym_key, priv_key_bytes) 
+            new_mod_keys[user] = (cryptolib.rsa_encrypt(pubkey, mod_sym_key), encrypted_priv_key)
+
+    if user_perms < Permissions.Moderate:
+        request = RemovePermissionRequest(user_id, leaderboard_id, new_read_keys, None, None)
+    else:
+        request = RemovePermissionRequest(user_id, leaderboard_id, new_read_keys, new_mod_keys, 
+                                          netlib.serialize_public_key(new_mod_privkey.public_key()))
     request.safe_print(request.make_request())
 
 
