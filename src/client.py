@@ -231,12 +231,10 @@ class ListUnverifiedRequest(Request):
         })
 
     def print_response(self, response):
-        print("{:<9}{:<8}{:<21.21}{:<15}{:<20}".format("Entry ID", "User ID", "Username", "Score", "Date"))
+        print("{:<9}{:<8}{:<21.21}{:<20}".format("Entry ID", "User ID", "Username", "Date"))
         for entry in response["data"]:
-            date = datetime.fromtimestamp(entry[4])
-            entry[3] = decrypt_resource(entry[3])
-            entry[3] = netlib.bytes_to_int(entry[3])
-            print("{:<9}{:<8}{:<21.21}{:<15}{:<20}".format(entry[0], entry[1], entry[2], entry[3], str(date)))
+            date = datetime.fromtimestamp(entry[3])
+            print("{:<9}{:<8}{:<21.21}{:<20}".format(entry[0], entry[1], entry[2], str(date)))
 
 
 class GetEntryRequest(Request):
