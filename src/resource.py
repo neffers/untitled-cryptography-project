@@ -653,19 +653,29 @@ def download_proof(request_user_id: int, user_perms: dict, file_id: int) -> dict
         return serverlib.bad_request_json(ServerErrCode.InsufficientPermission)
 
     get_file_command = """
-        select data, uploader_key, mod_key, mod_key_ver, read_key_ver
+        select entry, data, uploader_key, mod_key, mod_key_ver, read_key_ver
         from files
         where id = ?
     """
     get_file_params = (file_id,)
     cur.execute(get_file_command, get_file_params)
-    (file, uploader_key, mod_key, mod_key_ver, read_key_ver) = cur.fetchone()
+    (entry_id, file, uploader_key, mod_key, mod_key_ver, read_key_ver) = cur.fetchone()
+    get_entry_command = """
+        select user, verified
+        from leaderboard_entries
+        where id = ?
+    """
+    get_entry_params = (entry_id,)
+    cur.execute(get_entry_command, get_entry_params)
+    (user_id, verified) = cur.fetchone()
     return_dict = {
         "file": netlib.bytes_to_b64(file),
         "uploader_key": netlib.bytes_to_b64(uploader_key),
         "mod_key": netlib.bytes_to_b64(mod_key),
         "mod_key_ver": mod_key_ver,
-        "read_key_ver": read_key_ver
+        "read_key_ver": read_key_ver,
+        "user_id": user_id,
+        "verified": verified
     }
     return {
         "success": True,
