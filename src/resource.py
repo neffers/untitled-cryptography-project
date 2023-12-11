@@ -291,7 +291,7 @@ def get_user(requesting_user_id: int, user_id: int) -> dict:
         return serverlib.bad_request_json(ServerErrCode.DoesNotExist)
 
     get_entries_command = """
-        select e.id, e.leaderboard, e.score, e.verified, e.submission_date
+        select e.id, e.leaderboard, e.verified, e.submission_date
         from leaderboard_entries e
         left outer join leaderboards l on e.leaderboard = l.id
         left outer join (select p.permission, p.leaderboard
@@ -337,7 +337,7 @@ def verify_entry(request_user_id: int, user_perms: dict, entry_id: int,
         mod_key_ver = ?, read_key_ver = ?
         where id = ?
     """
-    modify_entry_params = (score, True, request_user_id, entry_id, None, None, None, read_key_ver)
+    modify_entry_params = (score, True, request_user_id, None, None, None, read_key_ver, entry_id)
     cur.execute(modify_entry_command, modify_entry_params)
 
     modify_comment_command = """
