@@ -431,13 +431,17 @@ class OneLeaderboardRequest(Request):
         user_id = do_get_self_id()
         keys = do_get_keys(user_id, leaderboard_id)
         for entry in entries:
-            entry_id = entry[0]
-            entry_user_id = entry[1]
-            entry_identity = entry[2]
-            entry_score = netlib.b64_to_bytes(entry[3])
-            entry_date = entry[4]
-            entry_verified = entry[5]
-            read_key_ver = entry[6]
+            entry_user_id = entry.get("user")
+            entry_identity = entry.get("identity")
+            entry_score = netlib.b64_to_bytes(entry.get("score"))
+            entry_date = entry.get("submission_date")
+            entry_verified = entry.get("verified")
+            read_key_ver = entry.get("read_key_ver")
+            mod_key = entry.get("mod_key")
+            mod_key_ver = entry.get("mod_key_ver")
+            uploader_key = entry.get("uploader_key")
+            #TODO FIX THIS
+            entry_id = entry.get("id")
             if entry_verified:
                 entry_score = netlib.bytes_to_int(decrypt_read_resource(keys, read_key_ver, entry_score))
             else:
