@@ -65,10 +65,10 @@ def show_one_leaderboard_response(requesting_user_id: int, user_perms: dict, lea
     if permission < Permissions.Read:
         return serverlib.bad_request_json(ServerErrCode.InsufficientPermission)
     # Get leaderboard name and ascending
-    leaderboard_info_command = "select name, ascending from leaderboards where id = ?"
+    leaderboard_info_command = "select name, ascending, mod_pubkey from leaderboards where id = ?"
     leaderboard_info_params = (leaderboard_id,)
     cursor.execute(leaderboard_info_command, leaderboard_info_params)
-    (leaderboard_name, ascending) = cursor.fetchone()
+    (leaderboard_name, ascending, mod_pubkey) = cursor.fetchone()
     # If moderator, return all entries
     if permission >= Permissions.Moderate:
         get_entries_command = """
@@ -95,6 +95,7 @@ def show_one_leaderboard_response(requesting_user_id: int, user_perms: dict, lea
     data_to_return = {
         "id": leaderboard_id,
         "name": leaderboard_name,
+        "mod_pubkey": netlib.bytes_to_b64(mod_pubkey),
         "ascending": ascending,
         "entries": entries
     }
