@@ -426,11 +426,12 @@ class OneLeaderboardRequest(Request):
         if len(entries) == 0:
             print("No entries found")
             return
-        is_mod = len(entries[0]) == 7  # returns a different set of columns if client is moderator
+        is_mod = False
         leaderboard_id = self.request["leaderboard_id"]
         user_id = do_get_self_id()
         keys = do_get_keys(user_id, leaderboard_id)
         for entry in entries:
+            entry_id = entry.get("id")
             entry_user_id = entry.get("user")
             entry_identity = entry.get("identity")
             entry_score = netlib.b64_to_bytes(entry.get("score"))
@@ -440,18 +441,12 @@ class OneLeaderboardRequest(Request):
             mod_key = entry.get("mod_key")
             mod_key_ver = entry.get("mod_key_ver")
             uploader_key = entry.get("uploader_key")
-            #TODO FIX THIS
-            entry_id = entry.get("id")
             if entry_verified:
                 entry_score = netlib.bytes_to_int(decrypt_read_resource(keys, read_key_ver, entry_score))
             else:
-                if identity == entry_identity and not is_mod:
-                    print("uploader_key", entry[7])
-                    uploader_key = netlib.b64_to_bytes(entry[7])
+                if identity == entry_identity and uploader_key is not None:
                     entry_score = netlib.bytes_to_int(decrypt_uploader_resource(uploader_key, entry_score))
-                elif is_mod:
-                    mod_key = netlib.b64_to_bytes(entry[7])
-                    mod_key_ver = netlib.b64_to_bytes(entry[8])
+                elif mod_key is not None:
                     entry_score = netlib.bytes_to_int(decrypt_mod_resource(keys, mod_key, mod_key_ver, entry_score))
             if not isinstance(entry_score, int):
                 print("failed to decrypt")
