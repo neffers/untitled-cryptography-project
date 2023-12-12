@@ -79,6 +79,9 @@ def show_one_leaderboard_response(requesting_user_id: int, user_perms: dict, lea
             where l.id = ?
         """
         get_entries_params = (leaderboard_id,)
+        cursor.execute(get_entries_command, get_entries_params)
+        entries = cursor.fetchall()
+        returnable_entries = [(e[0], e[1], e[2], netlib.bytes_to_b64(e[3]), e[4], e[5], e[6], netlib.bytes_to_b64(e[7]), e[8]) for e in entries]
     else:
         # Non-mods get visible entries and those that they submitted
         get_entries_command = """
@@ -89,15 +92,16 @@ def show_one_leaderboard_response(requesting_user_id: int, user_perms: dict, lea
             where (verified or user = ?) and l.id = ?
         """
         get_entries_params = (requesting_user_id, leaderboard_id)
+        cursor.execute(get_entries_command, get_entries_params)
+        entries = cursor.fetchall()
+        returnable_entries = [(e[0], e[1], e[2], netlib.bytes_to_b64(e[3]), e[4], e[5], e[6], netlib.bytes_to_b64(e[7])) for e in entries]
 
-    cursor.execute(get_entries_command, get_entries_params)
-    entries = cursor.fetchall()
     data_to_return = {
         "id": leaderboard_id,
         "name": leaderboard_name,
         "mod_pubkey": netlib.bytes_to_b64(mod_pubkey),
         "ascending": ascending,
-        "entries": entries
+        "entries": returnable_entries
     }
     return {
         "success": True,
@@ -1234,6 +1238,7 @@ class Handler(socketserver.BaseRequestHandler):
                 return serverlib.bad_request_json(ServerErrCode.MalformedRequest)
             seqnum += 1
             response = handle_request(socket_user_id, request)
+            print(response)
             response["seqnum"] = seqnum
             response_bytes = cryptolib.encrypt_dict(aes_key, response)
             base64_response = netlib.bytes_to_b64(response_bytes)
