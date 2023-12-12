@@ -434,7 +434,7 @@ class OneLeaderboardRequest(Request):
             entry_id = entry[0]
             entry_user_id = entry[1]
             entry_identity = entry[2]
-            entry_score = entry[3]
+            entry_score = netlib.b64_to_bytes(entry[3])
             entry_date = entry[4]
             entry_verified = entry[5]
             read_key_ver = entry[6]
@@ -442,11 +442,12 @@ class OneLeaderboardRequest(Request):
                 entry_score = netlib.bytes_to_int(decrypt_read_resource(keys, read_key_ver, entry_score))
             else:
                 if identity == entry_identity and not is_mod:
-                    uploader_key = entry[7]
+                    print("uploader_key", entry[7])
+                    uploader_key = netlib.b64_to_bytes(entry[7])
                     entry_score = netlib.bytes_to_int(decrypt_uploader_resource(uploader_key, entry_score))
                 elif is_mod:
-                    mod_key = entry[7]
-                    mod_key_ver = entry[8]
+                    mod_key = netlib.b64_to_bytes(entry[7])
+                    mod_key_ver = netlib.b64_to_bytes(entry[8])
                     entry_score = netlib.bytes_to_int(decrypt_mod_resource(keys, mod_key, mod_key_ver, entry_score))
             if not isinstance(entry_score, int):
                 print("failed to decrypt")
@@ -969,7 +970,6 @@ def do_list_unverified(leaderboard_id):
 
 
 def do_add_entry(leaderboard_id):
-    # TODO encrypt
     score = input("Enter your score (int): ")
     try:
         score = int(score)
@@ -980,19 +980,20 @@ def do_add_entry(leaderboard_id):
 
     sym_key = os.urandom(32)
     user_key = cryptolib.rsa_encrypt(private_key.public_key(), sym_key)
+    print("user key", netlib.bytes_to_b64(user_key))
     score = cryptolib.symmetric_encrypt(sym_key, netlib.int_to_bytes(score))
     comment = cryptolib.symmetric_encrypt(sym_key, comment.encode())
 
     request = GetSelfIDRequest()
-    reqrec = request.make_request()
-    user_id = reqrec.get("data")
+    response = request.make_request()
+    user_id = response.get("data")
 
     request = GetKeysRequest(user_id, leaderboard_id)
-    reqrec = request.make_request()
-    reqrec = reqrec.get("data")
+    response = request.make_request()
+    response = response.get("data")
 
-    mod_key_ver = len(reqrec.get("mod"))
-    mod_group_pub_key = netlib.deserialize_public_key(netlib.b64_to_bytes(reqrec.get("mod_pub")))
+    mod_key_ver = len(response.get("mod"))
+    mod_group_pub_key = netlib.deserialize_public_key(netlib.b64_to_bytes(response.get("mod_pub")))
 
     mod_key = cryptolib.rsa_encrypt(mod_group_pub_key, sym_key)
 
