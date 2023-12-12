@@ -963,9 +963,9 @@ def do_list_unverified(leaderboard_id):
 
 def do_add_entry(leaderboard_id):
     # TODO encrypt
-    score = input("Enter your score: ")
+    score = input("Enter your score (int): ")
     try:
-        score = float(score)
+        score = int(score)
     except ValueError:
         print("Must enter a number")
         return
@@ -973,8 +973,8 @@ def do_add_entry(leaderboard_id):
 
     sym_key = os.urandom(32)
     user_key = cryptolib.rsa_encrypt(private_key.public_key(), sym_key)
-    score = cryptolib.symmetric_encrypt(sym_key, score)
-    comment = cryptolib.symmetric_encrypt(sym_key, comment)
+    score = cryptolib.symmetric_encrypt(sym_key, netlib.int_to_bytes(score))
+    comment = cryptolib.symmetric_encrypt(sym_key, comment.encode())
 
     request = GetSelfIDRequest()
     reqrec = request.make_request()
