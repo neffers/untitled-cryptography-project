@@ -992,7 +992,7 @@ def do_add_entry(leaderboard_id):
     reqrec = reqrec.get("data")
     
     mod_key_ver = len(reqrec.get("mod"))
-    mod_group_pub_key = reqrec.get("mod_pub")
+    mod_group_pub_key = netlib.deserialize_public_key(netlib.b64_to_bytes(reqrec.get("mod_pub")))
 
     mod_key = cryptolib.rsa_encrypt(mod_group_pub_key, sym_key)
 
