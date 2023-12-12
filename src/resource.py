@@ -249,7 +249,8 @@ def get_entry(requesting_user_id: int, user_perms: dict, entry_id: int) -> dict:
     """
     get_entry_params = (entry_id,)
     cursor.execute(get_entry_command, get_entry_params)
-    entry = cursor.fetchone()
+    e = cursor.fetchone()
+    returnable_entry = (e[0], e[1], e[2], e[3], netlib.bytes_to_b64(e[4]), e[5], netlib.bytes_to_b64(e[6]), netlib.bytes_to_b64(e[7]), e[8], e[9], e[10], e[11], e[12], e[13])
 
     get_comments_command = """
         select u.identity, date, content, uploader_key, mod_key, mod_key_ver, read_key_ver
@@ -261,6 +262,7 @@ def get_entry(requesting_user_id: int, user_perms: dict, entry_id: int) -> dict:
     get_comments_params = (entry_id,)
     cursor.execute(get_comments_command, get_comments_params)
     comments = cursor.fetchall()
+    returnable_comments = [(e[0], e[1], netlib.bytes_to_b64(e[2]), netlib.bytes_to_b64(e[3]), netlib.bytes_to_b64(e[4]), e[5], e[6]) for e in comments]
 
     get_files_command = """
         select id, name, submission_date, uploader_key, mod_key, mod_key_ver, read_key_ver
@@ -270,12 +272,13 @@ def get_entry(requesting_user_id: int, user_perms: dict, entry_id: int) -> dict:
     get_files_params = (entry_id,)
     cursor.execute(get_files_command, get_files_params)
     files = cursor.fetchall()
+    returnable_files = [(e[0], e[1], e[2], netlib.bytes_to_b64(e[3]), netlib.bytes_to_b64(e[4]), netlib.bytes_to_b64(e[5]), e[6], e[7]) for e in files]
 
     data_to_return = {
         "leaderboard": leaderboard_id,
-        "entry": entry,
-        "comments": comments,
-        "files": files,
+        "entry": returnable_entry,
+        "comments": returnable_comments,
+        "files": returnable_files,
     }
     return {
         "success": True,
