@@ -695,7 +695,6 @@ def do_add_proof(entry_id):
 
             sym_key = os.urandom(32)
             uploader_key = cryptolib.rsa_encrypt(private_key.public_key(), sym_key)
-            filename = cryptolib.symmetric_encrypt(sym_key, filename)
             blob = cryptolib.symmetric_encrypt(sym_key, blob)
 
             request = GetSelfIDRequest()
@@ -715,6 +714,10 @@ def do_add_proof(entry_id):
             mod_group_pub_key = reqrec.get("mod_pub")
 
             mod_key = cryptolib.rsa_encrypt(mod_group_pub_key, sym_key)
+
+            blob = netlib.bytes_to_b64(blob)
+            uploader_key = netlib.bytes_to_b64(uploader_key)
+            mod_key = netlib.bytes_to_b64(mod_key)
 
             request = AddProofRequest(entry_id, filename, blob, uploader_key, mod_key, mod_key_ver)
             request.safe_print(request.make_request())
@@ -843,6 +846,10 @@ def do_add_comment(entry_id):
     mod_group_pub_key = reqrec.get("mod_pub")
 
     mod_key = cryptolib.rsa_encrypt(mod_group_pub_key, sym_key)
+
+    content = netlib.bytes_to_b64(content)
+    uploader_key = netlib.bytes_to_b64(uploader_key)
+    mod_key = netlib.bytes_to_b64(mod_key)
 
     request = AddCommentRequest(entry_id, content, uploader_key, mod_key, mod_key_ver)
     request.safe_print(request.make_request())
@@ -988,6 +995,11 @@ def do_add_entry(leaderboard_id):
     mod_group_pub_key = reqrec.get("mod_pub")
 
     mod_key = cryptolib.rsa_encrypt(mod_group_pub_key, sym_key)
+
+    score = netlib.bytes_to_b64(score)
+    comment = netlib.bytes_to_b64(comment)
+    user_key = netlib.bytes_to_b64(user_key)
+    mod_key = netlib.bytes_to_b64(mod_key)
 
     request = AddEntryRequest(leaderboard_id, score, comment, user_key, mod_key, mod_key_ver)
     request.safe_print(request.make_request())
