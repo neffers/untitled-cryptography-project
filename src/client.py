@@ -609,7 +609,7 @@ def do_remove_permission(user_id):
     access_list = AccessGroupsRequest(leaderboard_id).make_request().get("data")
     user_data = [x for x in access_list if x[0] == user_id][0]
     user_perms = user_data[2]
-    
+
     new_read_keys = {}
 
     new_mod_keys = None
@@ -626,13 +626,13 @@ def do_remove_permission(user_id):
         if user_perms >= Permissions.Moderate:
             priv_key_bytes = netlib.serialize_private_key(new_mod_privkey)
             mod_sym_key = os.urandom(32)
-            encrypted_priv_key = cryptolib.symmetric_encrypt(mod_sym_key, priv_key_bytes) 
+            encrypted_priv_key = cryptolib.symmetric_encrypt(mod_sym_key, priv_key_bytes)
             new_mod_keys[user] = (cryptolib.rsa_encrypt(pubkey, mod_sym_key), encrypted_priv_key)
 
     if user_perms < Permissions.Moderate:
         request = RemovePermissionRequest(user_id, leaderboard_id, new_read_keys, None, None)
     else:
-        request = RemovePermissionRequest(user_id, leaderboard_id, new_read_keys, new_mod_keys, 
+        request = RemovePermissionRequest(user_id, leaderboard_id, new_read_keys, new_mod_keys,
                                           netlib.serialize_public_key(new_mod_privkey.public_key()))
     request.safe_print(request.make_request())
 
@@ -709,7 +709,7 @@ def do_add_proof(entry_id):
             request = GetKeysRequest(user_id, leaderboard_id)
             reqrec = request.make_request()
             reqrec = reqrec.get("data")
-            
+
             mod_key_ver = len(reqrec.get("mod"))
             mod_group_pub_key = netlib.deserialize_public_key(netlib.b64_to_bytes(reqrec.get("mod_pub")))
 
@@ -841,7 +841,7 @@ def do_add_comment(entry_id):
     request = GetKeysRequest(user_id, leaderboard_id)
     reqrec = request.make_request()
     reqrec = reqrec.get("data")
-    
+
     mod_key_ver = len(reqrec.get("mod"))
     mod_group_pub_key = netlib.deserialize_public_key(netlib.b64_to_bytes(reqrec.get("mod_pub")))
 
@@ -870,7 +870,7 @@ def do_verify_entry(entry_id):
     request = GetKeysRequest(user_id, leaderboard_id)
     reqrec = request.make_request()
     reqrec = reqrec.get("data")
-    
+
     read_key_ver = len(reqrec.get("read"))
 
     request = VerifyEntryRequest(entry_id, read_key_ver)
@@ -940,11 +940,11 @@ def do_create_leaderboard():
     mod_sym_key = os.urandom(32)
     mod_priv_key = cryptolib.generate_rsa_key()
     mod_priv_key_bytes = netlib.serialize_private_key(mod_priv_key)
-    encrypted_priv_key = cryptolib.symmetric_encrypt(mod_sym_key, mod_priv_key_bytes) 
+    encrypted_priv_key = cryptolib.symmetric_encrypt(mod_sym_key, mod_priv_key_bytes)
     mod_encrypted_sym = cryptolib.rsa_encrypt(private_key.public_key(), mod_sym_key)
     encrypted_read_key = cryptolib.rsa_encrypt(private_key.public_key(), read_key)
-    
-    request = CreateLeaderboardRequest(leaderboard_name, leaderboard_ascending, 
+
+    request = CreateLeaderboardRequest(leaderboard_name, leaderboard_ascending,
                                        netlib.bytes_to_b64(netlib.serialize_public_key(mod_priv_key.public_key())),
                                        netlib.bytes_to_b64(encrypted_read_key),
                                        netlib.bytes_to_b64(mod_encrypted_sym),
@@ -990,7 +990,7 @@ def do_add_entry(leaderboard_id):
     request = GetKeysRequest(user_id, leaderboard_id)
     reqrec = request.make_request()
     reqrec = reqrec.get("data")
-    
+
     mod_key_ver = len(reqrec.get("mod"))
     mod_group_pub_key = netlib.deserialize_public_key(netlib.b64_to_bytes(reqrec.get("mod_pub")))
 
