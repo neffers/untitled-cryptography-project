@@ -692,7 +692,14 @@ def do_add_proof(entry_id):
     try:
         with open(filename, 'rb') as file:
             blob = file.read()
-            request = AddProofRequest(entry_id, filename, blob)
+
+            sym_key = os.urandom(32)
+            uploader_key = cryptolib.rsa_encrypt(private_key.public_key(), sym_key)
+            filename = cryptolib.symmetric_encrypt(sym_key, filename)
+            blob = cryptolib.symmetric_encrypt(sym_key, blob)
+            mod_key = cryptolib.rsa_encrypt(mod_group_pub_key, sym_key)
+
+            request = AddProofRequest(entry_id, filename, blob, uploader_key, mod_key, mod_key_ver)
             request.safe_print(request.make_request())
     except FileNotFoundError:
         print("File not found!")
@@ -797,13 +804,47 @@ def do_view_comments(entry_id):
 def do_add_comment(entry_id):
     # TODO encrypt
     content = input("Enter your comment to the entry: ")
-    request = AddCommentRequest(entry_id, content)
+
+    sym_key = os.urandom(32)
+    uploader_key = cryptolib.rsa_encrypt(private_key.public_key(), sym_key)
+    content = cryptolib.symmetric_encrypt(sym_key, content)
+
+    request = GetSelfIDRequest()
+    reqrec = request.make_request()
+    user_id = reqrec.get("data")
+
+    request = GetEntryRequest()
+    reqrec = request.make_request()
+    reqrec = reqrec.get("data")
+    leaderboard_id = reqrec.get("leaderboard")
+
+    request = GetKeysRequest(user_id, leaderboard_id)
+
+    mod_key = cryptolib.rsa_encrypt(mod_group_pub_key, sym_key)
+
+    request = AddCommentRequest(entry_id, content, uploader_key, mod_key, mod_key_ver)
     request.safe_print(request.make_request())
 
 
 def do_verify_entry(entry_id):
     # TODO re encrypt
-    request = VerifyEntryRequest(entry_id)
+
+    request = GetSelfIDRequest()
+    reqrec = request.make_request()
+    user_id = reqrec.get("data")
+
+    request = GetEntryRequest()
+    reqrec = request.make_request()
+    reqrec = reqrec.get("data")
+    leaderboard_id = reqrec.get("leaderboard")
+
+    request = GetKeysRequest(user_id, leaderboard_id)
+    reqrec = request.make_request()
+    reqrec = reqrec.get("data")
+    
+    read_key_ver = reqrec.get("read").len()
+
+    request = VerifyEntryRequest(entry_id, read_key_ver)
     request.safe_print(request.make_request())
 
 
@@ -907,7 +948,26 @@ def do_add_entry(leaderboard_id):
         print("Must enter a number")
         return
     comment = input("Enter any comments about your score: ")
-    request = AddEntryRequest(leaderboard_id, score, comment)
+
+    sym_key = os.urandom(32)
+    user_key = cryptolib.rsa_encrypt(private_key.public_key(), sym_key)
+    score = cryptolib.symmetric_encrypt(sym_key, score)
+    comment = cryptolib.symmetric_encrypt(sym_key, comment)
+
+    request = GetSelfIDRequest()
+    reqrec = request.make_request()
+    user_id = reqrec.get("data")
+
+    request = GetKeysRequest(user_id, leaderboard_id)
+    reqrec = request.make_request()
+    reqrec = reqrec.get("data")
+    
+    mod_key_ver = reqrec.get("mod").len()
+    mod_group_pub_key = reqrec.get("mod_pub")
+
+    mod_key = cryptolib.rsa_encrypt(mod_group_pub_key, sym_key)
+
+    request = AddEntryRequest(leaderboard_id, score, comment, user_key, mod_key, mod_key_ver)
     request.safe_print(request.make_request())
 
 
