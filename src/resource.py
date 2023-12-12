@@ -268,6 +268,7 @@ def get_entry(requesting_user_id: int, user_perms: dict, entry_id: int) -> dict:
     files = cursor.fetchall()
 
     data_to_return = {
+        "leaderboard": leaderboard_id,
         "entry": entry,
         "comments": comments,
         "files": files,
