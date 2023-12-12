@@ -827,7 +827,7 @@ def do_add_comment(entry_id):
 
     sym_key = os.urandom(32)
     uploader_key = cryptolib.rsa_encrypt(private_key.public_key(), sym_key)
-    content = cryptolib.symmetric_encrypt(sym_key, content)
+    content = cryptolib.symmetric_encrypt(sym_key, content.encode())
 
     request = GetSelfIDRequest()
     reqrec = request.make_request()
