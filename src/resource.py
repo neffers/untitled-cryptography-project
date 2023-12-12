@@ -1261,7 +1261,7 @@ class Handler(socketserver.BaseRequestHandler):
             except BrokenPipeError:
                 print("Client Broke Pipe")
                 return
-            print("received {} from {}".format(request, self.client_address[0]))
+            # print("received {} from {}".format(request, self.client_address[0]))
             encrypted_request = netlib.b64_to_bytes(request["encrypted_request"])
             if not cryptolib.rsa_verify(client_public_key, netlib.b64_to_bytes(request["signature"]),
                                         encrypted_request):
@@ -1272,15 +1272,16 @@ class Handler(socketserver.BaseRequestHandler):
                 print("Sequence number wrong, received: {}, expected: {}".format(request["seqnum"], seqnum + 1))
                 return serverlib.bad_request_json(ServerErrCode.MalformedRequest)
             seqnum += 1
+            print("recv request  ", request)
             response = handle_request(socket_user_id, request)
             # This is to help debug when we crash because we're sending bytes :)
-            print(response)
+            print("send response ", response)
             response["seqnum"] = seqnum
             response_bytes = cryptolib.encrypt_dict(aes_key, response)
             base64_response = netlib.bytes_to_b64(response_bytes)
             response = {"encrypted_response": base64_response,
                         "signature": netlib.bytes_to_b64(cryptolib.rsa_sign(private_key, response_bytes))}
-            print("sending {} to {}".format(response, self.client_address[0]))
+            # print("sending {} to {}".format(response, self.client_address[0]))
             netlib.send_dict_to_socket(response, self.request)
             seqnum += 1
 

@@ -61,8 +61,9 @@ def decrypt_mod_resource(keys, mod_key, mod_key_ver, resource) -> Union[bytes, N
         priv = key[1]
         sym = key[2]
         if version == mod_key_ver:
-            sym = cryptolib.rsa_decrypt(private_key, sym)
-            priv = cryptolib.symmetric_decrypt(sym, priv)
+            print("priv: ", priv, "\nsym: ", sym)
+            sym = cryptolib.rsa_decrypt(private_key, netlib.b64_to_bytes(sym))
+            priv = cryptolib.symmetric_decrypt(sym, netlib.b64_to_bytes(priv))
             key = cryptolib.rsa_decrypt(netlib.deserialize_private_key(priv), mod_key)
             return cryptolib.symmetric_decrypt(key, resource)
     return None
@@ -175,6 +176,7 @@ class ShowLeaderboardsRequest(Request):
 
 class CreateLeaderboardRequest(Request):
     def __init__(self, leaderboard_name, leaderboard_ascending, mod_pubkey, read_key, mod_sym, mod_priv):
+        print("mod_sym: ", mod_sym, "\nmod_priv: ", mod_priv)
         super().__init__({
             "type": ResourceRequestType.CreateLeaderboard,
             "leaderboard_name": leaderboard_name,
@@ -438,7 +440,7 @@ class OneLeaderboardRequest(Request):
             entry_date = entry.get("submission_date")
             entry_verified = entry.get("verified")
             read_key_ver = entry.get("read_key_ver")
-            mod_key = entry.get("mod_key")
+            mod_key = netlib.b64_to_bytes(entry.get("mod_key"))
             mod_key_ver = entry.get("mod_key_ver")
             uploader_key = entry.get("uploader_key")
             if entry_verified:
@@ -448,6 +450,8 @@ class OneLeaderboardRequest(Request):
                     entry_score = netlib.bytes_to_int(decrypt_uploader_resource(uploader_key, entry_score))
                 elif mod_key is not None:
                     entry_score = netlib.bytes_to_int(decrypt_mod_resource(keys, mod_key, mod_key_ver, entry_score))
+                else:
+                    print("oops")
             if not isinstance(entry_score, int):
                 print("failed to decrypt")
                 return
@@ -942,6 +946,8 @@ def do_create_leaderboard():
     mod_priv_key_bytes = netlib.serialize_private_key(mod_priv_key)
     encrypted_priv_key = cryptolib.symmetric_encrypt(mod_sym_key, mod_priv_key_bytes)
     mod_encrypted_sym = cryptolib.rsa_encrypt(private_key.public_key(), mod_sym_key)
+    test_mod_sym = cryptolib.rsa_decrypt(private_key, mod_encrypted_sym)
+    print(mod_sym_key, test_mod_sym)
     encrypted_read_key = cryptolib.rsa_encrypt(private_key.public_key(), read_key)
 
     request = CreateLeaderboardRequest(leaderboard_name, leaderboard_ascending,
