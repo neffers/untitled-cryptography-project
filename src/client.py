@@ -938,7 +938,7 @@ def do_create_leaderboard():
     encrypted_read_key = cryptolib.rsa_encrypt(private_key.public_key(), read_key)
     
     request = CreateLeaderboardRequest(leaderboard_name, leaderboard_ascending, 
-                                       netlib.serialize_public_key(mod_priv_key.public_key()),
+                                       netlib.bytes_to_b64(netlib.serialize_public_key(mod_priv_key.public_key())),
                                        netlib.bytes_to_b64(encrypted_read_key),
                                        netlib.bytes_to_b64(mod_encrypted_sym),
                                        netlib.bytes_to_b64(encrypted_priv_key),
