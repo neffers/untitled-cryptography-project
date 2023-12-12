@@ -423,10 +423,10 @@ class OneLeaderboardRequest(Request):
         print("Leaderboard ID: {} Leaderboard Name: {}".format(response["data"]["id"], response["data"]["name"]))
         print("{:<9}{:<8}{:<21.21}{:<15}{:<20}{:<6}"
               .format("Entry ID", "User ID", "Username", "Score", "Date", "Verified"))
-        if entries.len() == 0:
+        if len(entries) == 0:
             print("No entries found")
             return
-        is_mod = entries[0].len() == 7  # returns a different set of columns if client is moderator
+        is_mod = len(entries[0]) == 7  # returns a different set of columns if client is moderator
         leaderboard_id = self.request["leaderboard_id"]
         user_id = do_get_self_id()
         keys = do_get_keys(user_id, leaderboard_id)
@@ -434,7 +434,7 @@ class OneLeaderboardRequest(Request):
             entry_id = entry[0]
             entry_user_id = entry[1]
             entry_identity = entry[2]
-            entry_score = entry[3]
+            entry_score = netlib.b64_to_bytes(entry[3])
             entry_date = entry[4]
             entry_verified = entry[5]
             read_key_ver = entry[6]
@@ -442,11 +442,12 @@ class OneLeaderboardRequest(Request):
                 entry_score = netlib.bytes_to_int(decrypt_read_resource(keys, read_key_ver, entry_score))
             else:
                 if identity == entry_identity and not is_mod:
-                    uploader_key = entry[7]
+                    print("uploader_key", entry[7])
+                    uploader_key = netlib.b64_to_bytes(entry[7])
                     entry_score = netlib.bytes_to_int(decrypt_uploader_resource(uploader_key, entry_score))
                 elif is_mod:
-                    mod_key = entry[7]
-                    mod_key_ver = entry[8]
+                    mod_key = netlib.b64_to_bytes(entry[7])
+                    mod_key_ver = netlib.b64_to_bytes(entry[8])
                     entry_score = netlib.bytes_to_int(decrypt_mod_resource(keys, mod_key, mod_key_ver, entry_score))
             if not isinstance(entry_score, int):
                 print("failed to decrypt")
@@ -609,7 +610,7 @@ def do_remove_permission(user_id):
     access_list = AccessGroupsRequest(leaderboard_id).make_request().get("data")
     user_data = [x for x in access_list if x[0] == user_id][0]
     user_perms = user_data[2]
-    
+
     new_read_keys = {}
 
     new_mod_keys = None
@@ -626,13 +627,13 @@ def do_remove_permission(user_id):
         if user_perms >= Permissions.Moderate:
             priv_key_bytes = netlib.serialize_private_key(new_mod_privkey)
             mod_sym_key = os.urandom(32)
-            encrypted_priv_key = cryptolib.symmetric_encrypt(mod_sym_key, priv_key_bytes) 
+            encrypted_priv_key = cryptolib.symmetric_encrypt(mod_sym_key, priv_key_bytes)
             new_mod_keys[user] = (cryptolib.rsa_encrypt(pubkey, mod_sym_key), encrypted_priv_key)
 
     if user_perms < Permissions.Moderate:
         request = RemovePermissionRequest(user_id, leaderboard_id, new_read_keys, None, None)
     else:
-        request = RemovePermissionRequest(user_id, leaderboard_id, new_read_keys, new_mod_keys, 
+        request = RemovePermissionRequest(user_id, leaderboard_id, new_read_keys, new_mod_keys,
                                           netlib.serialize_public_key(new_mod_privkey.public_key()))
     request.safe_print(request.make_request())
 
@@ -692,7 +693,34 @@ def do_add_proof(entry_id):
     try:
         with open(filename, 'rb') as file:
             blob = file.read()
-            request = AddProofRequest(entry_id, filename, blob)
+
+            sym_key = os.urandom(32)
+            uploader_key = cryptolib.rsa_encrypt(private_key.public_key(), sym_key)
+            blob = cryptolib.symmetric_encrypt(sym_key, blob)
+
+            request = GetSelfIDRequest()
+            reqrec = request.make_request()
+            user_id = reqrec.get("data")
+
+            request = GetEntryRequest(entry_id)
+            reqrec = request.make_request()
+            reqrec = reqrec.get("data")
+            leaderboard_id = reqrec.get("leaderboard")
+
+            request = GetKeysRequest(user_id, leaderboard_id)
+            reqrec = request.make_request()
+            reqrec = reqrec.get("data")
+
+            mod_key_ver = len(reqrec.get("mod"))
+            mod_group_pub_key = netlib.deserialize_public_key(netlib.b64_to_bytes(reqrec.get("mod_pub")))
+
+            mod_key = cryptolib.rsa_encrypt(mod_group_pub_key, sym_key)
+
+            blob = netlib.bytes_to_b64(blob)
+            uploader_key = netlib.bytes_to_b64(uploader_key)
+            mod_key = netlib.bytes_to_b64(mod_key)
+
+            request = AddProofRequest(entry_id, filename, blob, uploader_key, mod_key, mod_key_ver)
             request.safe_print(request.make_request())
     except FileNotFoundError:
         print("File not found!")
@@ -797,13 +825,56 @@ def do_view_comments(entry_id):
 def do_add_comment(entry_id):
     # TODO encrypt
     content = input("Enter your comment to the entry: ")
-    request = AddCommentRequest(entry_id, content)
+
+    sym_key = os.urandom(32)
+    uploader_key = cryptolib.rsa_encrypt(private_key.public_key(), sym_key)
+    content = cryptolib.symmetric_encrypt(sym_key, content.encode())
+
+    request = GetSelfIDRequest()
+    reqrec = request.make_request()
+    user_id = reqrec.get("data")
+
+    request = GetEntryRequest(entry_id)
+    reqrec = request.make_request()
+    reqrec = reqrec.get("data")
+    leaderboard_id = reqrec.get("leaderboard")
+
+    request = GetKeysRequest(user_id, leaderboard_id)
+    reqrec = request.make_request()
+    reqrec = reqrec.get("data")
+
+    mod_key_ver = len(reqrec.get("mod"))
+    mod_group_pub_key = netlib.deserialize_public_key(netlib.b64_to_bytes(reqrec.get("mod_pub")))
+
+    mod_key = cryptolib.rsa_encrypt(mod_group_pub_key, sym_key)
+
+    content = netlib.bytes_to_b64(content)
+    uploader_key = netlib.bytes_to_b64(uploader_key)
+    mod_key = netlib.bytes_to_b64(mod_key)
+
+    request = AddCommentRequest(entry_id, content, uploader_key, mod_key, mod_key_ver)
     request.safe_print(request.make_request())
 
 
 def do_verify_entry(entry_id):
     # TODO re encrypt
-    request = VerifyEntryRequest(entry_id)
+
+    request = GetSelfIDRequest()
+    reqrec = request.make_request()
+    user_id = reqrec.get("data")
+
+    request = GetEntryRequest(entry_id)
+    reqrec = request.make_request()
+    reqrec = reqrec.get("data")
+    leaderboard_id = reqrec.get("leaderboard")
+
+    request = GetKeysRequest(user_id, leaderboard_id)
+    reqrec = request.make_request()
+    reqrec = reqrec.get("data")
+
+    read_key_ver = len(reqrec.get("read"))
+
+    request = VerifyEntryRequest(entry_id, read_key_ver)
     request.safe_print(request.make_request())
 
 
@@ -870,15 +941,15 @@ def do_create_leaderboard():
     mod_sym_key = os.urandom(32)
     mod_priv_key = cryptolib.generate_rsa_key()
     mod_priv_key_bytes = netlib.serialize_private_key(mod_priv_key)
-    encrypted_priv_key = cryptolib.symmetric_encrypt(mod_sym_key, mod_priv_key_bytes) 
+    encrypted_priv_key = cryptolib.symmetric_encrypt(mod_sym_key, mod_priv_key_bytes)
     mod_encrypted_sym = cryptolib.rsa_encrypt(private_key.public_key(), mod_sym_key)
     encrypted_read_key = cryptolib.rsa_encrypt(private_key.public_key(), read_key)
-    
-    request = CreateLeaderboardRequest(leaderboard_name, leaderboard_ascending, 
-                                       netlib.serialize_public_key(mod_priv_key.public_key()),
-                                       encrypted_read_key,
-                                       mod_encrypted_sym,
-                                        encrypted_priv_key,
+
+    request = CreateLeaderboardRequest(leaderboard_name, leaderboard_ascending,
+                                       netlib.bytes_to_b64(netlib.serialize_public_key(mod_priv_key.public_key())),
+                                       netlib.bytes_to_b64(encrypted_read_key),
+                                       netlib.bytes_to_b64(mod_encrypted_sym),
+                                       netlib.bytes_to_b64(encrypted_priv_key),
                                        )
     request.safe_print(request.make_request())
 
@@ -899,15 +970,39 @@ def do_list_unverified(leaderboard_id):
 
 
 def do_add_entry(leaderboard_id):
-    # TODO encrypt
-    score = input("Enter your score: ")
+    score = input("Enter your score (int): ")
     try:
-        score = float(score)
+        score = int(score)
     except ValueError:
         print("Must enter a number")
         return
     comment = input("Enter any comments about your score: ")
-    request = AddEntryRequest(leaderboard_id, score, comment)
+
+    sym_key = os.urandom(32)
+    user_key = cryptolib.rsa_encrypt(private_key.public_key(), sym_key)
+    print("user key", netlib.bytes_to_b64(user_key))
+    score = cryptolib.symmetric_encrypt(sym_key, netlib.int_to_bytes(score))
+    comment = cryptolib.symmetric_encrypt(sym_key, comment.encode())
+
+    request = GetSelfIDRequest()
+    response = request.make_request()
+    user_id = response.get("data")
+
+    request = GetKeysRequest(user_id, leaderboard_id)
+    response = request.make_request()
+    response = response.get("data")
+
+    mod_key_ver = len(response.get("mod"))
+    mod_group_pub_key = netlib.deserialize_public_key(netlib.b64_to_bytes(response.get("mod_pub")))
+
+    mod_key = cryptolib.rsa_encrypt(mod_group_pub_key, sym_key)
+
+    score = netlib.bytes_to_b64(score)
+    comment = netlib.bytes_to_b64(comment)
+    user_key = netlib.bytes_to_b64(user_key)
+    mod_key = netlib.bytes_to_b64(mod_key)
+
+    request = AddEntryRequest(leaderboard_id, score, comment, user_key, mod_key, mod_key_ver)
     request.safe_print(request.make_request())
 
 

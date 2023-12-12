@@ -65,10 +65,10 @@ def show_one_leaderboard_response(requesting_user_id: int, user_perms: dict, lea
     if permission < Permissions.Read:
         return serverlib.bad_request_json(ServerErrCode.InsufficientPermission)
     # Get leaderboard name and ascending
-    leaderboard_info_command = "select name, ascending from leaderboards where id = ?"
+    leaderboard_info_command = "select name, ascending, mod_pubkey from leaderboards where id = ?"
     leaderboard_info_params = (leaderboard_id,)
     cursor.execute(leaderboard_info_command, leaderboard_info_params)
-    (leaderboard_name, ascending) = cursor.fetchone()
+    (leaderboard_name, ascending, mod_pubkey) = cursor.fetchone()
     # If moderator, return all entries
     if permission >= Permissions.Moderate:
         get_entries_command = """
@@ -79,6 +79,11 @@ def show_one_leaderboard_response(requesting_user_id: int, user_perms: dict, lea
             where l.id = ?
         """
         get_entries_params = (leaderboard_id,)
+        cursor.execute(get_entries_command, get_entries_params)
+        entries = cursor.fetchall()
+        returnable_entries = [
+            (e[0], e[1], e[2], netlib.bytes_to_b64(e[3]), e[4], e[5], e[6], netlib.bytes_to_b64(e[7]), e[8]) for e in
+            entries]
     else:
         # Non-mods get visible entries and those that they submitted
         get_entries_command = """
@@ -89,14 +94,17 @@ def show_one_leaderboard_response(requesting_user_id: int, user_perms: dict, lea
             where (verified or user = ?) and l.id = ?
         """
         get_entries_params = (requesting_user_id, leaderboard_id)
+        cursor.execute(get_entries_command, get_entries_params)
+        entries = cursor.fetchall()
+        returnable_entries = [(e[0], e[1], e[2], netlib.bytes_to_b64(e[3]), e[4], e[5], e[6], netlib.bytes_to_b64(e[7]))
+                              for e in entries]
 
-    cursor.execute(get_entries_command, get_entries_params)
-    entries = cursor.fetchall()
     data_to_return = {
         "id": leaderboard_id,
         "name": leaderboard_name,
+        "mod_pubkey": netlib.bytes_to_b64(mod_pubkey),
         "ascending": ascending,
-        "entries": entries
+        "entries": returnable_entries
     }
     return {
         "success": True,
@@ -244,7 +252,10 @@ def get_entry(requesting_user_id: int, user_perms: dict, entry_id: int) -> dict:
     """
     get_entry_params = (entry_id,)
     cursor.execute(get_entry_command, get_entry_params)
-    entry = cursor.fetchone()
+    e = cursor.fetchone()
+    returnable_entry = (
+    e[0], e[1], e[2], e[3], netlib.bytes_to_b64(e[4]), e[5], netlib.bytes_to_b64(e[6]), netlib.bytes_to_b64(e[7]), e[8],
+    e[9], e[10], e[11], e[12], e[13])
 
     get_comments_command = """
         select u.identity, date, content, uploader_key, mod_key, mod_key_ver, read_key_ver
@@ -256,6 +267,9 @@ def get_entry(requesting_user_id: int, user_perms: dict, entry_id: int) -> dict:
     get_comments_params = (entry_id,)
     cursor.execute(get_comments_command, get_comments_params)
     comments = cursor.fetchall()
+    returnable_comments = [
+        (e[0], e[1], netlib.bytes_to_b64(e[2]), netlib.bytes_to_b64(e[3]), netlib.bytes_to_b64(e[4]), e[5], e[6]) for e
+        in comments]
 
     get_files_command = """
         select id, name, submission_date, uploader_key, mod_key, mod_key_ver, read_key_ver
@@ -265,11 +279,15 @@ def get_entry(requesting_user_id: int, user_perms: dict, entry_id: int) -> dict:
     get_files_params = (entry_id,)
     cursor.execute(get_files_command, get_files_params)
     files = cursor.fetchall()
+    returnable_files = [
+        (e[0], e[1], e[2], netlib.bytes_to_b64(e[3]), netlib.bytes_to_b64(e[4]), netlib.bytes_to_b64(e[5]), e[6], e[7])
+        for e in files]
 
     data_to_return = {
-        "entry": entry,
-        "comments": comments,
-        "files": files,
+        "leaderboard": leaderboard_id,
+        "entry": returnable_entry,
+        "comments": returnable_comments,
+        "files": returnable_files,
     }
     return {
         "success": True,
@@ -443,7 +461,8 @@ def view_permissions(user_id: int) -> dict:
     }
 
 
-def add_permission(user_id: int, leaderboard_id: int, p: Permissions, read_keys: list, mod_keys: Union[list, None]) -> dict:
+def add_permission(user_id: int, leaderboard_id: int, p: Permissions, read_keys: list,
+                   mod_keys: Union[list, None]) -> dict:
     cur = db.cursor()
     get_old_permissions_command = """
         select *
@@ -599,7 +618,8 @@ def set_score_order(leaderboard_id: int, ascending: bool) -> dict:
     }
 
 
-def add_proof(request_user_id: int, entry_id: int, filename: str, file: bytes, uploader_key: bytes, mod_key: bytes, mod_key_ver: int) -> dict:
+def add_proof(request_user_id: int, entry_id: int, filename: str, file: bytes, uploader_key: bytes, mod_key: bytes,
+              mod_key_ver: int) -> dict:
     cur = db.cursor()
     get_submitter_command = """
         select user
@@ -738,6 +758,14 @@ def remove_proof(request_user_id: int, user_perms: dict, file_id: int) -> dict:
 
 def get_keys(user_id: int, lb_id: int) -> dict:
     cur = db.cursor()
+    get_mod_pub_key_command = """
+        select mod_pubkey
+        from leaderboards
+        where id = ?
+    """
+    get_mod_pub_key_params = (lb_id,)
+    cur.execute(get_mod_pub_key_command, get_mod_pub_key_params)
+    (mod_pub_key,) = cur.fetchone()
     get_read_keys_command = """
         select version, encrypted_key
         from read_keys
@@ -759,8 +787,11 @@ def get_keys(user_id: int, lb_id: int) -> dict:
     return {
         "success": True,
         "data": {
-            "read": read_keys,
-            "mod": mod_keys
+            "leaderboard": lb_id,
+            "user_id": user_id,
+            "mod_pub": netlib.bytes_to_b64(mod_pub_key),
+            "read": [(int(rk[0]), netlib.bytes_to_b64(rk[1])) for rk in read_keys],
+            "mod": [(int(mk[0]), netlib.bytes_to_b64(mk[1]), netlib.bytes_to_b64(mk[2])) for mk in mod_keys]
         }
     }
 
@@ -830,7 +861,8 @@ def handle_request(request_user_id: int, request: dict):
                 raise TypeError
         except (KeyError, TypeError):
             return serverlib.bad_request_json(ServerErrCode.MalformedRequest)
-        return add_entry(request_user_id, perms, leaderboard_id, entry_score, comment, uploader_key, mod_key, mod_key_ver)
+        return add_entry(request_user_id, perms, leaderboard_id, entry_score, comment, uploader_key, mod_key,
+                         mod_key_ver)
 
     # Basic: List Users
     if request_type == ResourceRequestType.ListUsers:
@@ -889,7 +921,8 @@ def handle_request(request_user_id: int, request: dict):
             if not isinstance(read_key_ver, int):
                 raise TypeError
             intermediate_comments = request["comments"]
-            comments = {int(comment_id): netlib.b64_to_bytes(intermediate_comments[id]) for comment_id in intermediate_comments}
+            comments = {int(comment_id): netlib.b64_to_bytes(intermediate_comments[id]) for comment_id in
+                        intermediate_comments}
             intermediate_files = request["files"]
             files = {int(file_id): netlib.b64_to_bytes(intermediate_files[file_id]) for file_id in intermediate_files}
         except (KeyError, TypeError):
@@ -1131,7 +1164,8 @@ class Handler(socketserver.BaseRequestHandler):
             return
         client_public_key_bytes = netlib.b64_to_bytes(signin_request["pubkey"])
         client_public_key = netlib.deserialize_public_key(client_public_key_bytes)
-        if not cryptolib.rsa_verify_str(auth_public_key, token, cryptolib.public_key_hash(public_key) + socket_identity + expiration_time):
+        if not cryptolib.rsa_verify_str(auth_public_key, token,
+                                        cryptolib.public_key_hash(public_key) + socket_identity + expiration_time):
             print("Invalid login token, exiting")
             netlib.send_dict_to_socket(serverlib.bad_request_json(ServerErrCode.AuthenticationFailure), self.request)
             return
@@ -1139,7 +1173,8 @@ class Handler(socketserver.BaseRequestHandler):
         # verification
         nonce = os.urandom(32)
         encrypted_nonce = cryptolib.symmetric_encrypt(aes_key, nonce)
-        response = {"nonce": netlib.bytes_to_b64(encrypted_nonce), "signature": netlib.bytes_to_b64(cryptolib.rsa_sign(private_key, encrypted_nonce))}
+        response = {"nonce": netlib.bytes_to_b64(encrypted_nonce),
+                    "signature": netlib.bytes_to_b64(cryptolib.rsa_sign(private_key, encrypted_nonce))}
         netlib.send_dict_to_socket(response, self.request)
         try:
             request = netlib.get_dict_from_socket(self.request)
@@ -1212,7 +1247,8 @@ class Handler(socketserver.BaseRequestHandler):
                 return
             print("received {} from {}".format(request, self.client_address[0]))
             encrypted_request = netlib.b64_to_bytes(request["encrypted_request"])
-            if not cryptolib.rsa_verify(client_public_key, netlib.b64_to_bytes(request["signature"]), encrypted_request):
+            if not cryptolib.rsa_verify(client_public_key, netlib.b64_to_bytes(request["signature"]),
+                                        encrypted_request):
                 print("Signature did not verify")
                 return serverlib.bad_request_json(ServerErrCode.MalformedRequest)
             request = cryptolib.decrypt_dict(aes_key, encrypted_request)
@@ -1221,10 +1257,13 @@ class Handler(socketserver.BaseRequestHandler):
                 return serverlib.bad_request_json(ServerErrCode.MalformedRequest)
             seqnum += 1
             response = handle_request(socket_user_id, request)
+            # This is to help debug when we crash because we're sending bytes :)
+            print(response)
             response["seqnum"] = seqnum
             response_bytes = cryptolib.encrypt_dict(aes_key, response)
             base64_response = netlib.bytes_to_b64(response_bytes)
-            response = {"encrypted_response": base64_response, "signature": netlib.bytes_to_b64(cryptolib.rsa_sign(private_key, response_bytes))}
+            response = {"encrypted_response": base64_response,
+                        "signature": netlib.bytes_to_b64(cryptolib.rsa_sign(private_key, response_bytes))}
             print("sending {} to {}".format(response, self.client_address[0]))
             netlib.send_dict_to_socket(response, self.request)
             seqnum += 1
