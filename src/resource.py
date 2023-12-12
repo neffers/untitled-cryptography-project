@@ -769,6 +769,8 @@ def get_keys(user_id: int, lb_id: int) -> dict:
     return {
         "success": True,
         "data": {
+            "leaderboard": lb_id,
+            "user_id": user_id,
             "mod_pub": mod_pub_key,
             "read": [(int(rk[0]), netlib.bytes_to_b64(rk[1])) for rk in read_keys],
             "mod": [(int(mk[0]), netlib.bytes_to_b64(mk[1]), netlib.bytes_to_b64(mk[2])) for mk in mod_keys]
