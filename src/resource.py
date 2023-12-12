@@ -740,6 +740,14 @@ def remove_proof(request_user_id: int, user_perms: dict, file_id: int) -> dict:
 
 def get_keys(user_id: int, lb_id: int) -> dict:
     cur = db.cursor()
+    get_mod_pub_key_command = """
+        select mod_pubkey
+        from leaderboards
+        where id = ?
+    """
+    get_mod_pub_key_params = (lb_id,)
+    cur.execute(get_mod_pub_key_command, get_mod_pub_key_params)
+    (mod_pub_key, ) = cur.fetchone()
     get_read_keys_command = """
         select version, encrypted_key
         from read_keys
@@ -761,8 +769,9 @@ def get_keys(user_id: int, lb_id: int) -> dict:
     return {
         "success": True,
         "data": {
-            "read": read_keys,
-            "mod": mod_keys
+            "mod_pub": mod_pub_key,
+            "read": [(int(rk[0]), netlib.bytes_to_b64(rk[1])) for rk in read_keys],
+            "mod": [(int(mk[0]), netlib.bytes_to_b64(mk[1]), netlib.bytes_to_b64(mk[2])) for mk in mod_keys]
         }
     }
 
