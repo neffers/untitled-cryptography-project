@@ -1238,6 +1238,7 @@ class Handler(socketserver.BaseRequestHandler):
                 return serverlib.bad_request_json(ServerErrCode.MalformedRequest)
             seqnum += 1
             response = handle_request(socket_user_id, request)
+            # This is to help debug when we crash because we're sending bytes :)
             print(response)
             response["seqnum"] = seqnum
             response_bytes = cryptolib.encrypt_dict(aes_key, response)
