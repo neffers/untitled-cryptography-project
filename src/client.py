@@ -423,10 +423,10 @@ class OneLeaderboardRequest(Request):
         print("Leaderboard ID: {} Leaderboard Name: {}".format(response["data"]["id"], response["data"]["name"]))
         print("{:<9}{:<8}{:<21.21}{:<15}{:<20}{:<6}"
               .format("Entry ID", "User ID", "Username", "Score", "Date", "Verified"))
-        if entries.len() == 0:
+        if len(entries) == 0:
             print("No entries found")
             return
-        is_mod = entries[0].len() == 7  # returns a different set of columns if client is moderator
+        is_mod = len(entries[0]) == 7  # returns a different set of columns if client is moderator
         leaderboard_id = self.request["leaderboard_id"]
         user_id = do_get_self_id()
         keys = do_get_keys(user_id, leaderboard_id)
@@ -711,7 +711,7 @@ def do_add_proof(entry_id):
             reqrec = request.make_request()
             reqrec = reqrec.get("data")
             
-            mod_key_ver = reqrec.get("mod").len()
+            mod_key_ver = len(reqrec.get("mod"))
             mod_group_pub_key = reqrec.get("mod_pub")
 
             mod_key = cryptolib.rsa_encrypt(mod_group_pub_key, sym_key)
@@ -839,7 +839,7 @@ def do_add_comment(entry_id):
     reqrec = request.make_request()
     reqrec = reqrec.get("data")
     
-    mod_key_ver = reqrec.get("mod").len()
+    mod_key_ver = len(reqrec.get("mod"))
     mod_group_pub_key = reqrec.get("mod_pub")
 
     mod_key = cryptolib.rsa_encrypt(mod_group_pub_key, sym_key)
@@ -864,7 +864,7 @@ def do_verify_entry(entry_id):
     reqrec = request.make_request()
     reqrec = reqrec.get("data")
     
-    read_key_ver = reqrec.get("read").len()
+    read_key_ver = len(reqrec.get("read"))
 
     request = VerifyEntryRequest(entry_id, read_key_ver)
     request.safe_print(request.make_request())
@@ -984,7 +984,7 @@ def do_add_entry(leaderboard_id):
     reqrec = request.make_request()
     reqrec = reqrec.get("data")
     
-    mod_key_ver = reqrec.get("mod").len()
+    mod_key_ver = len(reqrec.get("mod"))
     mod_group_pub_key = reqrec.get("mod_pub")
 
     mod_key = cryptolib.rsa_encrypt(mod_group_pub_key, sym_key)
