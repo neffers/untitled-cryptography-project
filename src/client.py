@@ -697,6 +697,23 @@ def do_add_proof(entry_id):
             uploader_key = cryptolib.rsa_encrypt(private_key.public_key(), sym_key)
             filename = cryptolib.symmetric_encrypt(sym_key, filename)
             blob = cryptolib.symmetric_encrypt(sym_key, blob)
+
+            request = GetSelfIDRequest()
+            reqrec = request.make_request()
+            user_id = reqrec.get("data")
+
+            request = GetEntryRequest(entry_id)
+            reqrec = request.make_request()
+            reqrec = reqrec.get("data")
+            leaderboard_id = reqrec.get("leaderboard")
+
+            request = GetKeysRequest(user_id, leaderboard_id)
+            reqrec = request.make_request()
+            reqrec = reqrec.get("data")
+            
+            mod_key_ver = reqrec.get("mod").len()
+            mod_group_pub_key = reqrec.get("mod_pub")
+
             mod_key = cryptolib.rsa_encrypt(mod_group_pub_key, sym_key)
 
             request = AddProofRequest(entry_id, filename, blob, uploader_key, mod_key, mod_key_ver)
@@ -813,12 +830,17 @@ def do_add_comment(entry_id):
     reqrec = request.make_request()
     user_id = reqrec.get("data")
 
-    request = GetEntryRequest()
+    request = GetEntryRequest(entry_id)
     reqrec = request.make_request()
     reqrec = reqrec.get("data")
     leaderboard_id = reqrec.get("leaderboard")
 
     request = GetKeysRequest(user_id, leaderboard_id)
+    reqrec = request.make_request()
+    reqrec = reqrec.get("data")
+    
+    mod_key_ver = reqrec.get("mod").len()
+    mod_group_pub_key = reqrec.get("mod_pub")
 
     mod_key = cryptolib.rsa_encrypt(mod_group_pub_key, sym_key)
 
@@ -833,7 +855,7 @@ def do_verify_entry(entry_id):
     reqrec = request.make_request()
     user_id = reqrec.get("data")
 
-    request = GetEntryRequest()
+    request = GetEntryRequest(entry_id)
     reqrec = request.make_request()
     reqrec = reqrec.get("data")
     leaderboard_id = reqrec.get("leaderboard")
