@@ -81,9 +81,17 @@ def show_one_leaderboard_response(requesting_user_id: int, user_perms: dict, lea
         get_entries_params = (leaderboard_id,)
         cursor.execute(get_entries_command, get_entries_params)
         entries = cursor.fetchall()
-        returnable_entries = [
-            (e[0], e[1], e[2], netlib.bytes_to_b64(e[3]), e[4], e[5], e[6], netlib.bytes_to_b64(e[7]), e[8]) for e in
-            entries]
+        returnable_entries = [{
+            "id": e[0],
+            "user": e[1],
+            "identity": e[2],
+            "score": netlib.bytes_to_b64(e[3]),
+            "submission_date": e[4],
+            "verified": e[5],
+            "read_key_ver": e[6],
+            "mod_key": netlib.bytes_to_b64(e[7]),
+            "mod_key_ver": e[8]
+            } for e in entries]
     else:
         # Non-mods get visible entries and those that they submitted
         get_entries_command = """
@@ -96,8 +104,16 @@ def show_one_leaderboard_response(requesting_user_id: int, user_perms: dict, lea
         get_entries_params = (requesting_user_id, leaderboard_id)
         cursor.execute(get_entries_command, get_entries_params)
         entries = cursor.fetchall()
-        returnable_entries = [(e[0], e[1], e[2], netlib.bytes_to_b64(e[3]), e[4], e[5], e[6], netlib.bytes_to_b64(e[7]))
-                              for e in entries]
+        returnable_entries = [{
+            "id": e[0],
+            "user": e[1],
+            "identity": e[2],
+            "score": netlib.bytes_to_b64(e[3]),
+            "submission_date": e[4],
+            "verified": e[5],
+            "read_key_version": e[6],
+            "uploader_key": netlib.bytes_to_b64(e[7])
+        } for e in entries]
 
     data_to_return = {
         "id": leaderboard_id,
