@@ -939,9 +939,9 @@ def do_create_leaderboard():
     
     request = CreateLeaderboardRequest(leaderboard_name, leaderboard_ascending, 
                                        netlib.serialize_public_key(mod_priv_key.public_key()),
-                                       encrypted_read_key,
-                                       mod_encrypted_sym,
-                                        encrypted_priv_key,
+                                       netlib.bytes_to_b64(encrypted_read_key),
+                                       netlib.bytes_to_b64(mod_encrypted_sym),
+                                       netlib.bytes_to_b64(encrypted_priv_key),
                                        )
     request.safe_print(request.make_request())
 
